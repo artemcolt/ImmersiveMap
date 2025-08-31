@@ -1,0 +1,118 @@
+# Created by https://www.toptal.com/developers/gitignore/api/macos,swift,xcode
+# (Адаптировано для Metal Xcode проекта)
+
+### macOS ###
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+### macOS Patch ###
+# iCloud generated files
+*.icloud
+
+### Xcode ###
+# User settings
+xcuserdata/
+
+# Compatibility with older Xcode
+*.xcscmblueprint
+*.xccheckout
+
+# Build artifacts
+build/
+DerivedData/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+### Xcode Patch ###
+*.xcodeproj/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+/*.gcno
+**/xcshareddata/WorkspaceSettings.xcsettings
+
+### Swift ###
+# Obj-C/Swift specific
+*.hmap
+
+# App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+# Add if you use SPM dependencies:
+# Packages/
+# Package.pins
+# Package.resolved
+# *.xcodeproj
+.swiftpm
+.build/
+
+# CocoaPods (if used)
+# Pods/
+# *.xcworkspace
+
+# Carthage (if used)
+# Carthage/Checkouts
+Carthage/Build/
+
+# Accio (if used)
+Dependencies/
+.accio/
+
+# fastlane (if used)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code Injection (if used)
+iOSInjectionProject/
+
+# Other common
+*~
+*.swp
+*.save
+._*
+*.bak
+.env
+.env.*
+.tmp
