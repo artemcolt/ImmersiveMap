@@ -1,0 +1,69 @@
+{
+  "originHash" : "31f13a7b5b42b2d2bbfab57d17f44d3fb2ad44e88e1497913c9fdd81fe692037",
+  "pins" : [
+    {
+      "identity" : "gis-tools",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Outdooractive/gis-tools",
+      "state" : {
+        "revision" : "f7a4d2aa2acf771b79a91150f359bcd84de9ceac",
+        "version" : "1.13.2"
+      }
+    },
+    {
+      "identity" : "gzipswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/1024jp/GzipSwift.git",
+      "state" : {
+        "revision" : "7a7f17761c76a932662ab77028a4329f67d645a4",
+        "version" : "5.2.0"
+      }
+    },
+    {
+      "identity" : "mvt-tools",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Outdooractive/mvt-tools",
+      "state" : {
+        "revision" : "a85fd519f28547de4c7d99bed9d73037997acb49",
+        "version" : "1.10.1"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "309a47b2b1d9b5e991f36961c983ecec72275be3",
+        "version" : "1.6.1"
+      }
+    },
+    {
+      "identity" : "swift-log",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-log.git",
+      "state" : {
+        "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2",
+        "version" : "1.6.4"
+      }
+    },
+    {
+      "identity" : "swift-protobuf",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-protobuf",
+      "state" : {
+        "revision" : "e3f69fd321d0c9fcdc16fb576a0cdd956675face",
+        "version" : "1.31.0"
+      }
+    },
+    {
+      "identity" : "swiftearcut",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/measuredweighed/SwiftEarcut.git",
+      "state" : {
+        "revision" : "f72356da8b873da27d869120c08d4a3009b6bf12",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}
