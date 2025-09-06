@@ -13,6 +13,7 @@ public class ImmersiveMapUIView: UIView {
         return layer as! CAMetalLayer
     }
     
+    private var pitchSlider: UISlider!
     private var renderer: Renderer?
     private var displayLink: CADisplayLink?
     
@@ -67,15 +68,73 @@ public class ImmersiveMapUIView: UIView {
     private func setup() {
         metalLayer.contentsScale = UIScreen.main.scale
         renderer = Renderer(layer: metalLayer)
+        
+        // Добавляем обработчик жеста панорамирования одним пальцем
+        let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        panGesture.maximumNumberOfTouches = 1
+        addGestureRecognizer(panGesture)
+        
+        // Добавляем обработчик жеста поворота двумя пальцами
+        let rotationGesture = UIRotationGestureRecognizer(target: self, action: #selector(handleRotation(_:)))
+        addGestureRecognizer(rotationGesture)
+        
+        // Добавляем ползунок для контроля pitch (наклона камеры)
+        pitchSlider = UISlider()
+        pitchSlider.minimumValue = 0.0
+        pitchSlider.maximumValue = MapParameters.maxPitch
+        pitchSlider.value = MapParameters.maxPitch
+        pitchSlider.addTarget(self, action: #selector(handlePitchChange(_:)), for: .valueChanged)
+        pitchSlider.transform = CGAffineTransform(rotationAngle: -CGFloat.pi / 2)  // Делаем вертикальным
+        addSubview(pitchSlider)
+    }
+    
+    @objc private func handleRotation(_ gesture: UIRotationGestureRecognizer) {
+        guard let renderer = renderer else { return }
+        let rotation = gesture.rotation
+        let sensitivity = Float(1.0)  // Можно настроить чувствительность поворота
+        // Применяем поворот yaw к рендереру (предполагается, что в Renderer есть метод rotateYaw(delta:))
+        renderer.cameraControl.rotateYaw(delta: Float(rotation) * sensitivity)
+        // Сбрасываем rotation для накопления изменений
+        gesture.rotation = 0
+        // Перерисовываем вид после поворота
+        redraw()
+    }
+    
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard let renderer = renderer else { return }
+        
+        let translation = gesture.translation(in: self)
+        let sensetivity = 0.1
+        
+        // Применяем панорамирование к рендереру (предполагается, что в Renderer есть метод pan(deltaX:deltaY:))
+        renderer.cameraControl.pan(deltaX: Double(translation.x) * sensetivity, deltaY: Double(translation.y) * sensetivity)
+        
+        // Сбрасываем translation для накопления изменений
+        gesture.setTranslation(.zero, in: self)
+        
+        // Перерисовываем вид после панорамирования
+        redraw()
+    }
+    
+    @objc private func handlePitchChange(_ slider: UISlider) {
+        guard let renderer = renderer else { return }
+        
+        renderer.cameraControl.rotatePitch(pitch: slider.value)
+        
+        // Перерисовываем вид после изменения pitch
+        redraw()
     }
     
     public override func layoutSubviews() {
         super.layoutSubviews()
         metalLayer.frame = bounds  // Убедимся, что layer следует за bounds UIView
         let scale = metalLayer.contentsScale
-        let newDrawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+        let width = bounds.width * scale
+        let height = bounds.height * scale
+        let newDrawableSize = CGSize(width: width, height: height)
         metalLayer.drawableSize = newDrawableSize  // Вручную обновляем drawableSize при каждом layout
-        //print("layoutSubviews called: bounds = \(bounds), drawableSize = \(newDrawableSize)")  // Для отладки
+        
+        pitchSlider.frame = CGRect(x: 30, y: bounds.height - 130, width: 20, height: 100)
         
         redraw()
     }
