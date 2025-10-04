@@ -15,4 +15,6 @@ struct Camera {
     float4x4 matrix;
 };
 
+float4x4 rotationMatrix(float3 axis, float angle);
+
 #endif

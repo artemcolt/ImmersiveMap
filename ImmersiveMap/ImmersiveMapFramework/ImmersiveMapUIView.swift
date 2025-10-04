@@ -78,6 +78,10 @@ public class ImmersiveMapUIView: UIView {
         let rotationGesture = UIRotationGestureRecognizer(target: self, action: #selector(handleRotation(_:)))
         addGestureRecognizer(rotationGesture)
         
+        // Добавляем обработчик жеста зума двумя пальцами
+        let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        addGestureRecognizer(pinchGesture)
+        
         // Добавляем ползунок для контроля pitch (наклона камеры)
         pitchSlider = UISlider()
         pitchSlider.minimumValue = 0.0
@@ -88,10 +92,20 @@ public class ImmersiveMapUIView: UIView {
         addSubview(pitchSlider)
     }
     
+    public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                                  shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        // Позволяем одновременное распознавание поворота и зума
+        if (gestureRecognizer is UIRotationGestureRecognizer && otherGestureRecognizer is UIPinchGestureRecognizer) ||
+           (gestureRecognizer is UIPinchGestureRecognizer && otherGestureRecognizer is UIRotationGestureRecognizer) {
+            return true
+        }
+        return false
+    }
+    
     @objc private func handleRotation(_ gesture: UIRotationGestureRecognizer) {
         guard let renderer = renderer else { return }
         let rotation = gesture.rotation
-        let sensitivity = Float(1.0)  // Можно настроить чувствительность поворота
+        let sensitivity = Float(-0.6)  // Можно настроить чувствительность поворота
         // Применяем поворот yaw к рендереру (предполагается, что в Renderer есть метод rotateYaw(delta:))
         renderer.cameraControl.rotateYaw(delta: Float(rotation) * sensitivity)
         // Сбрасываем rotation для накопления изменений
@@ -113,6 +127,18 @@ public class ImmersiveMapUIView: UIView {
         gesture.setTranslation(.zero, in: self)
         
         // Перерисовываем вид после панорамирования
+        redraw()
+    }
+    
+    @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        guard let renderer = renderer else { return }
+        
+        let scale = gesture.scale
+        // Применяем зум к рендереру (предполагается, что в Renderer есть метод zoom(scale:))
+        renderer.cameraControl.zoom(scale: Float(scale))
+        // Сбрасываем scale для накопления изменений
+        gesture.scale = 1.0
+        // Перерисовываем вид после зума
         redraw()
     }
     

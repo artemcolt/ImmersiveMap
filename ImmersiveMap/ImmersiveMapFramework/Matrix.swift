@@ -46,7 +46,7 @@ class Matrix {
     }
     
     // Create a rotation matrix around the x-axis
-    static func rotationMatrixX(radians: Float) -> matrix_float4x4 {
+    static func rotationMatrixX(_ radians: Float) -> matrix_float4x4 {
         var matrix = matrix_identity_float4x4
         matrix[1][1] = cos(radians)
         matrix[1][2] = sin(radians)
@@ -56,7 +56,7 @@ class Matrix {
     }
     
     // Create a rotation matrix around the y-axis
-    static func rotationMatrixY(radians: Float) -> matrix_float4x4 {
+    static func rotationMatrixY(_ radians: Float) -> matrix_float4x4 {
         var matrix = matrix_identity_float4x4
         matrix[0][0] = cos(radians)
         matrix[0][2] = -sin(radians)
@@ -66,7 +66,7 @@ class Matrix {
     }
     
     // Create a rotation matrix around the z-axis
-    static func rotationMatrixZ(radians: Float) -> matrix_float4x4 {
+    static func rotationMatrixZ(_ radians: Float) -> matrix_float4x4 {
         var matrix = matrix_identity_float4x4
         matrix[0][0] = cos(radians)
         matrix[0][1] = sin(radians)

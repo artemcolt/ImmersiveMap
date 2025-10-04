@@ -16,12 +16,7 @@ class PolygonsPipeline {
     
     let pipelineState: MTLRenderPipelineState
     
-    init(metalDevice: MTLDevice, layer: CAMetalLayer) {
-        // Шейдеры: Загружаем библиотеку из бандла фреймворка
-        let bundle = Bundle(for: Renderer.self)  // Бандл фреймворка (Renderer — класс из фреймворка)
-        
-        // Шейдеры (vertex и fragment)
-        let library = try! metalDevice.makeDefaultLibrary(bundle: bundle)
+    init(metalDevice: MTLDevice, layer: CAMetalLayer, library: MTLLibrary) {
         let vertexFunction = library.makeFunction(name: "polygonVertexShader")!
         let fragmentFunction = library.makeFunction(name: "polygonFragmentShader")!
         
@@ -43,6 +38,9 @@ class PolygonsPipeline {
         vertexDescriptor.layouts[0].stepRate = 1
         vertexDescriptor.layouts[0].stepFunction = .perVertex
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
+        
+        pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float_stencil8
+        pipelineDescriptor.stencilAttachmentPixelFormat = .depth32Float_stencil8
         
         do {
             pipelineState = try metalDevice.makeRenderPipelineState(descriptor: pipelineDescriptor)

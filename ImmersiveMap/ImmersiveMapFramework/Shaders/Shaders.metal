@@ -7,7 +7,6 @@
 
 #include <metal_stdlib>
 using namespace metal;
-
 #include "Common.h"
 
 struct VertexIn {
@@ -18,6 +17,7 @@ struct VertexIn {
 struct VertexOut {
     float4 position [[position]];
     float4 color;
+    float pointSize [[point_size]];
 };
 
 vertex VertexOut polygonVertexShader(VertexIn in [[stage_in]],
@@ -27,6 +27,7 @@ vertex VertexOut polygonVertexShader(VertexIn in [[stage_in]],
     VertexOut out;
     out.position = matrix * in.position;
     out.color = in.color;
+    out.pointSize = 10.0;
     return out;
 }
 
