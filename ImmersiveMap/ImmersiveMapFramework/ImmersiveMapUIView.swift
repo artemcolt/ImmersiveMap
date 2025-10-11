@@ -9,6 +9,35 @@ import UIKit
 import Metal
 
 public class ImmersiveMapUIView: UIView {
+    public override class var layerClass: AnyClass { return CAMetalLayer.self }
+    
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setup()
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+    
+    public override func layoutSubviews() {
+        super.layoutSubviews()
+        metalLayer.frame = bounds  // Убедимся, что layer следует за bounds UIView
+        
+        let scale = metalLayer.contentsScale
+        let width = bounds.width * scale
+        let height = bounds.height * scale
+        let newDrawableSize = CGSize(width: width, height: height)
+        
+        if metalLayer.drawableSize != newDrawableSize {
+            metalLayer.drawableSize = newDrawableSize  // Вручную обновляем drawableSize при каждом layout
+            redraw()
+        }
+        
+        pitchSlider.frame = CGRect(x: 30, y: bounds.height - 130, width: 20, height: 100)
+    }
+    
     private var metalLayer: CAMetalLayer {
         return layer as! CAMetalLayer
     }
@@ -17,7 +46,7 @@ public class ImmersiveMapUIView: UIView {
     private var renderer: Renderer?
     private var displayLink: CADisplayLink?
     
-    private var isAnimating: Bool = false {
+    var isAnimating: Bool = false {
         didSet {
             if isAnimating {
                 startDisplayLink()
@@ -25,14 +54,6 @@ public class ImmersiveMapUIView: UIView {
                 stopDisplayLink()
             }
         }
-    }
-    
-    public func startAnimation() {
-        isAnimating = true
-    }
-    
-    public func stopAnimation() {
-        isAnimating = false
     }
     
     private func startDisplayLink() {
@@ -47,17 +68,6 @@ public class ImmersiveMapUIView: UIView {
         displayLink = nil
     }
     
-    public override class var layerClass: AnyClass { return CAMetalLayer.self }
-    
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        setup()
-    }
-    
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setup()
-    }
     
     public func redraw() {
         if bounds.width > 0 && bounds.height > 0 {  // Проверяем, чтобы избежать рендеринга в нулевом размере
@@ -148,20 +158,6 @@ public class ImmersiveMapUIView: UIView {
         renderer.cameraControl.rotatePitch(pitch: slider.value)
         
         // Перерисовываем вид после изменения pitch
-        redraw()
-    }
-    
-    public override func layoutSubviews() {
-        super.layoutSubviews()
-        metalLayer.frame = bounds  // Убедимся, что layer следует за bounds UIView
-        let scale = metalLayer.contentsScale
-        let width = bounds.width * scale
-        let height = bounds.height * scale
-        let newDrawableSize = CGSize(width: width, height: height)
-        metalLayer.drawableSize = newDrawableSize  // Вручную обновляем drawableSize при каждом layout
-        
-        pitchSlider.frame = CGRect(x: 30, y: bounds.height - 130, width: 20, height: 100)
-        
         redraw()
     }
     

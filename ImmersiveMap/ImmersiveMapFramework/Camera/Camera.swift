@@ -6,6 +6,7 @@
 //
 
 import MetalKit
+import Metal
 
 class Camera {
     var projection: matrix_float4x4?
@@ -15,12 +16,25 @@ class Camera {
     var center: SIMD3<Float> = SIMD3<Float>(0, 0, 0)
     var up: SIMD3<Float> = SIMD3<Float>(0, 1, 0)
     
+    private class AABB {
+        let minPoint: SIMD3<Float>
+        let maxPoint: SIMD3<Float>
+        
+        init(minPoint: SIMD3<Float>, maxPoint: SIMD3<Float>) {
+            self.minPoint = minPoint
+            self.maxPoint = maxPoint
+        }
+    }
+    
     private(set) var cameraMatrix: matrix_float4x4?
+    
+    init() {
+    }
     
     var testPoints: [SIMD4<Float>] = []
     
     func recalculateProjection(aspect: Float) {
-        self.projection = Matrix.perspectiveMatrix(fovRadians: Float.pi / 4, aspect: aspect, near: 0.01, far: 10.0)
+        self.projection = Matrix.perspectiveMatrix(fovRadians: Float.pi / 4, aspect: aspect, near: 0.001, far: 30.0)
         recalculateMatrix()
     }
     
@@ -29,78 +43,97 @@ class Camera {
         cameraMatrix = projection! * view!
     }
     
-    
-    func collectVisibleTiles(tx: Int, ty: Int, tz: Int, frustum: Frustum, globe: Renderer.Globe, targetZoom: Int, result: inout [Tile]) {
-        // Base case: if current zoom exceeds target, stop recursion
-        guard tz <= targetZoom else { return }
-        
-        // Check if this tile intersects the frustum
-        let isVisible = intersects(tx: tx, ty: ty, tz: tz, frustum: frustum, globe: globe)
-        
-        if isVisible {
-            if tz == targetZoom {
-                // At target zoom, add the tile to the result
-                let tile = Tile(x: Int(tx), y: Int(ty), z: tz) // Adjust Tile init as per your struct
-                result.append(tile)
-            } else {
-                // Recurse into children (quad-tree division)
-                let nextZ = tz + 1
-                let nextTxBase = tx * 2
-                let nextTyBase = ty * 2
-                
-                // Child 0: (2x, 2y)
-                collectVisibleTiles(tx: nextTxBase, ty: nextTyBase, tz: nextZ, frustum: frustum, globe: globe, targetZoom: targetZoom, result: &result)
-                
-                // Child 1: (2x + 1, 2y)
-                collectVisibleTiles(tx: nextTxBase + 1, ty: nextTyBase, tz: nextZ, frustum: frustum, globe: globe, targetZoom: targetZoom, result: &result)
-                
-                // Child 2: (2x, 2y + 1)
-                collectVisibleTiles(tx: nextTxBase, ty: nextTyBase + 1, tz: nextZ, frustum: frustum, globe: globe, targetZoom: targetZoom, result: &result)
-                
-                // Child 3: (2x + 1, 2y + 1)
-                collectVisibleTiles(tx: nextTxBase + 1, ty: nextTyBase + 1, tz: nextZ, frustum: frustum, globe: globe, targetZoom: targetZoom, result: &result)
+    func aproximateTile(tx: Int, ty: Int, tz: Int, globe: Renderer.Globe, step: Float) -> [SIMD4<Float>] {
+        let count = Int(1.0 / step)
+        var points: [SIMD4<Float>] = Array(repeating: SIMD4<Float>(), count: (count + 1) * (count + 1) )
+        for x in 0...count {
+            for y in 0...count {
+                points[x * (count + 1) + y] = getTileWorldPoint(tx: Float(tx) + Float(x) * step, ty: Float(ty) + Float(y) * step, tz: tz, globe: globe)
             }
         }
+        return points
     }
     
-    private func intersects(tx: Int, ty: Int, tz: Int, frustum: Frustum, globe: Renderer.Globe) -> Bool {
-        let wp1: SIMD4<Float> = getTileWorldPoint(tx: Float(tx), ty: Float(ty), tz: tz, globe: globe)
-        let wp2: SIMD4<Float> = getTileWorldPoint(tx: Float(tx) + 1.0, ty: Float(ty), tz: tz, globe: globe)
-        let wp3: SIMD4<Float> = getTileWorldPoint(tx: Float(tx), ty: Float(ty) + 1.0, tz: tz, globe: globe)
-        let wp4: SIMD4<Float> = getTileWorldPoint(tx: Float(tx) + 1.0, ty: Float(ty) + 1.0, tz: tz, globe: globe)
-        
-        let minX = min(wp1.x, wp2.x, wp3.x, wp4.x)
-        let minY = min(wp1.y, wp2.y, wp3.y, wp4.y)
-        let minZ = min(wp1.z, wp2.z, wp3.z, wp4.z)
-
-        let maxX = max(wp1.x, wp2.x, wp3.x, wp4.x)
-        let maxY = max(wp1.y, wp2.y, wp3.y, wp4.y)
-        let maxZ = max(wp1.z, wp2.z, wp3.z, wp4.z)
-        
-        let minPoint = SIMD4<Float>(minX, minY, minZ, 1.0)
-        let maxPoint = SIMD4<Float>(maxX, maxY, maxZ, 1.0)
-        
-        //testPoints.append(tileCenter)
-        
-        func getTileNVector(vec: SIMD4<Float>) -> SIMD3<Float> {
-            return normalize(SIMD3<Float>(vec.x, vec.y, vec.z + globe.radius))
+    func collectVisibleTiles(x: Int, y: Int, z: Int, targetZ: Int,
+                             globe: Renderer.Globe,
+                             frustrum: Frustum,
+                             result: inout [Tile],
+                             centerTile: Tile
+    ) {
+        var step = Float(0.25)
+        if z > 3 {
+            step = 0.5
         }
         
-        let cameraDir4 = center - eye
-        let cameraDir: SIMD3<Float> = normalize(SIMD3<Float>(cameraDir4.x, cameraDir4.y, cameraDir4.z))
+        let points = aproximateTile(tx: x, ty: y, tz: z, globe: globe, step: step)
         
+        var maxX: Float = points[0].x
+        var maxY: Float = points[0].y
+        var maxZ: Float = points[0].z
         
-        let dotProduct1 = dot(getTileNVector(vec: wp1), cameraDir)
-        let dotProduct2 = dot(getTileNVector(vec: wp2), cameraDir)
-        let dotProduct3 = dot(getTileNVector(vec: wp3), cameraDir)
-        let dotProduct4 = dot(getTileNVector(vec: wp4), cameraDir)
+        var minX: Float = points[0].x
+        var minY: Float = points[0].y
+        var minZ: Float = points[0].z
         
-        if dotProduct1 > 0 && dotProduct2 > 0 && dotProduct3 > 0 && dotProduct4 > 0 && tz > 0 {
-            return false
+        let cameraDirection = normalize(center - eye)
+        var faced = false
+        for point in points {
+            maxX = max(maxX, point.x)
+            maxY = max(maxY, point.y)
+            maxZ = max(maxZ, point.z)
+            
+            minX = min(minX, point.x)
+            minY = min(minY, point.y)
+            minZ = min(minZ, point.z)
+            
+            if faced == false {
+                let normal = normalize(point.xyz + SIMD3<Float>(0, 0, globe.radius))
+                if dot(normal, cameraDirection) < 0.1 {
+                    faced = true
+                }
+            }
         }
-        //testPoints.append(contentsOf: [wp1, wp2, wp3, wp4])
         
-        return frustum.intersects(aabbMin: minPoint, aabbMax: maxPoint)
+        if faced == false {
+            return
+        }
+        
+        let minPoint = SIMD3<Float>(minX, minY, minZ)
+        let maxPoint = SIMD3<Float>(maxX, maxY, maxZ)
+        
+        let contains = frustrum.intersectsAABB(minPoint: minPoint, maxPoint: maxPoint)
+        
+//        if z == targetZ {
+//            testPoints.append(contentsOf: points)
+//        }
+        
+        if contains == false {
+            return
+        }
+        
+        let zDiff = abs(centerTile.z - z)
+        let diff = 1 << zDiff
+        let relCenterX = Int(centerTile.x / diff)
+        let relCenterY = Int(centerTile.y / diff)
+        
+        let dx = abs(x - relCenterX)
+        let dy = abs(y - relCenterY)
+        let maxD = max(dx, dy)
+        
+        if zDiff > 0 && maxD > 1 {
+            result.append(Tile(x: x, y: y, z: z))
+            return
+        }
+        
+        if zDiff == 0 {
+            result.append(Tile(x: x, y: y, z: z))
+            return
+        }
+        
+        collectVisibleTiles(x: x * 2, y: y * 2, z: z + 1, targetZ: targetZ, globe: globe, frustrum: frustrum, result: &result, centerTile: centerTile)
+        collectVisibleTiles(x: x * 2 + 1, y: y * 2, z: z + 1, targetZ: targetZ, globe: globe, frustrum: frustrum, result: &result, centerTile: centerTile)
+        collectVisibleTiles(x: x * 2, y: y * 2 + 1, z: z + 1, targetZ: targetZ, globe: globe, frustrum: frustrum, result: &result, centerTile: centerTile)
+        collectVisibleTiles(x: x * 2 + 1, y: y * 2 + 1, z: z + 1, targetZ: targetZ, globe: globe, frustrum: frustrum, result: &result, centerTile: centerTile)
     }
     
     func getTileWorldPoint(tx: Float, ty: Float, tz: Int, globe: Renderer.Globe) -> SIMD4<Float> {
@@ -112,19 +145,26 @@ class Camera {
         let xRotation = globe.xRotation
         let yRotation = globe.yRotation
         
+        let theta = yRotation - Float.pi / 2
+        let cosTheta = cos(theta)
+        let sinTheta = sin(theta)
+        let cosPhi = cos(xRotation)
+        let sinPhi = sin(xRotation)
+
         let cosLat = cos(latitudeRad)
         let sinLat = sin(latitudeRad)
         let cosLon = cos(-longitudeRad)
         let sinLon = sin(-longitudeRad)
 
-        let worldPosition = SIMD3<Float>(
-            x: radius * cosLat * cosLon,
-            y: radius * sinLat,
-            z: radius * cosLat * sinLon
-        )
-        let wp = Matrix.translationMatrix(x: 0, y: 0, z: -globe.radius) *
-                 Matrix.rotationMatrixX(xRotation) *
-                 Matrix.rotationMatrixY(yRotation - Float.pi / 2) * SIMD4<Float>(worldPosition.x, worldPosition.y, worldPosition.z, 1.0)
+        let x = radius * cosLat * cosLon
+        let y = radius * sinLat
+        let z = radius * cosLat * sinLon
+
+        let xp = cosTheta * x + sinTheta * z
+        let yp = cosPhi * y + sinPhi * (sinTheta * x - cosTheta * z)
+        let zp = sinPhi * y - cosPhi * sinTheta * x + cosPhi * cosTheta * z
+
+        let wp = SIMD4<Float>(xp, yp, zp - radius, 1.0)
         
         return wp
     }
@@ -200,17 +240,48 @@ struct Frustum {
         planes.append(p)
     }
     
-    // New: Test if AABB intersects frustum (potentially visible)
-    func intersects(aabbMin: SIMD4<Float>, aabbMax: SIMD4<Float>) -> Bool {
-        for plane in planes {
-            let px = plane.x >= 0 ? aabbMax.x : aabbMin.x
-            let py = plane.y >= 0 ? aabbMax.y : aabbMin.y
-            let pz = plane.z >= 0 ? aabbMax.z : aabbMin.z
-            let maxDist = plane.x * px + plane.y * py + plane.z * pz + plane.w
-            if maxDist < 0 {
-                return false
+    func containsAny(points: [SIMD4<Float>]) -> Bool {
+        for point in points {
+            var isInside = true
+            for plane in planes {
+                let distance = dot(plane, point)
+                if distance < 0 {
+                    isInside = false
+                    break
+                }
+            }
+            if isInside {
+                return true
             }
         }
-        return true
+        return false
     }
+    
+    func intersectsAABB(minPoint: SIMD3<Float>, maxPoint: SIMD3<Float>) -> Bool {
+            let corners: [SIMD4<Float>] = [
+                SIMD4<Float>(minPoint.x, minPoint.y, minPoint.z, 1.0),
+                SIMD4<Float>(minPoint.x, minPoint.y, maxPoint.z, 1.0),
+                SIMD4<Float>(minPoint.x, maxPoint.y, minPoint.z, 1.0),
+                SIMD4<Float>(minPoint.x, maxPoint.y, maxPoint.z, 1.0),
+                SIMD4<Float>(maxPoint.x, minPoint.y, minPoint.z, 1.0),
+                SIMD4<Float>(maxPoint.x, minPoint.y, maxPoint.z, 1.0),
+                SIMD4<Float>(maxPoint.x, maxPoint.y, minPoint.z, 1.0),
+                SIMD4<Float>(maxPoint.x, maxPoint.y, maxPoint.z, 1.0)
+            ]
+            
+            for plane in planes {
+                var allOutside = true
+                for corner in corners {
+                    let distance = dot(plane, corner)
+                    if distance >= 0 {
+                        allOutside = false
+                        break
+                    }
+                }
+                if allOutside {
+                    return false // Completely outside this plane
+                }
+            }
+            return true // Intersects or is inside the frustum
+        }
 }

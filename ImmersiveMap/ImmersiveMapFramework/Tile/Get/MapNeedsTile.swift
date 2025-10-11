@@ -25,6 +25,10 @@ class MapNeedsTile {
         tileDownloader = TileDownloader()
     }
     
+    func freePlaces() -> Int {
+        return maxConcurrentFetchs - ongoingTasks.count
+    }
+    
     func please(tile: Tile) {
         let debugAssemblingMap = MapParameters.debugAssemblingMap
         

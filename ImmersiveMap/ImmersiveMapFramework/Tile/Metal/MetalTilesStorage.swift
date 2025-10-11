@@ -10,7 +10,7 @@ internal import GISTools
 import MetalKit
 
 class MetalTilesStorage {
-    private var mapNeedsTile        : MapNeedsTile!
+    var mapNeedsTile                : MapNeedsTile!
     var tileParser                  : TileMvtParser!
     private var memoryMetalTile     : MemoryMetalTileCache!
     private var onMetalingTileEnd   : [(Tile) -> Void] = []

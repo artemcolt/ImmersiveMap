@@ -18,6 +18,6 @@ public struct ImmersiveMapView: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: ImmersiveMapUIView, context: Context) {
-        
+        print("update UI view")
     }
 }

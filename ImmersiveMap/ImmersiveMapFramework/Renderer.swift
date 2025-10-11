@@ -17,7 +17,6 @@ class Renderer {
         let radius: Float
     }
     
-    
     private let metalLayer: CAMetalLayer
     let metalDevice: MTLDevice
     let commandQueue: MTLCommandQueue
@@ -117,6 +116,8 @@ class Renderer {
         render(to: metalLayer)
     }
     
+    private var previousTiles: [Tile] = []
+    
     func render(to layer: CAMetalLayer) {
         semaphore.wait()
         
@@ -139,52 +140,65 @@ class Renderer {
             
             camera.eye = simd_act(yawQuat * pitchQuat, camDirection)
             camera.up = simd_act(yawQuat * pitchQuat, camUp)
+//            camera.center = SIMD3<Float>(Float(cameraControl.pan.x), 0, 0)
             
             camera.recalculateMatrix()
             cameraControl.update = false
         }
         let worldScale = pow(2.0, floor(cameraControl.zoom))
         
-        guard let frameTexture = frame.data[currentIndex].msaaTexture,
-              let depthStencilTexture = frame.data[currentIndex].depthStencilTexture,
+        let frameData = frame.data[currentIndex]
+        guard let frameTexture = frameData.msaaTexture,
+              let depthStencilTexture = frameData.depthStencilTexture,
               let cameraMatrix = camera.cameraMatrix,
               let drawable = layer.nextDrawable() else {
             semaphore.signal()
             return
         }
         
-        
         let clearColor = parameters.clearColor
-        
         let commandBuffer = commandQueue.makeCommandBuffer()!
-        
         
         var globe = Globe(xRotation: Float(cameraControl.pan.y) * Float.pi / 2.0,
                           yRotation: Float(cameraControl.pan.x) * Float.pi,
                           radius: 0.15 * worldScale)
         
-        var vis = getVisibleTiles(globe: globe, targetZoom: Int(cameraControl.zoom)) // Int(cameraControl.zoom)
-        
-        //vis = [Tile(x: 0, y: 0, z: 1)]
-        
-        //let point = camera.getTileNormal(tx: 0, ty: <#T##Float#>, tz: <#T##Int#>, globe: <#T##Globe#>)
+        //let vis = getVisibleTiles(globe: globe, targetZoom: Int(cameraControl.zoom))
+        let vis = [Tile(x: 0, y: 0, z: 0)]
         
         let tilesAmount = Int(pow(2.0, Double(Int(cameraControl.zoom))) * pow(2.0, Double(Int(cameraControl.zoom))))
         print("-------------------------------------------------")
         print("\(vis.count)/\(tilesAmount)")
         
         tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
-        for t in vis {
+        
+        var currentTiles: [Tile] = []
+        for i in 0..<vis.count {
+            let t = vis[i]
             let tile = Tile(x: t.x, y: t.y, z: t.z)
-            guard let metalTile = metalTilesStorage.getMetalTile(tile: tile) else {
+            
+            var metalTile = metalTilesStorage.getMetalTile(tile: tile)
+            if metalTile == nil {
                 metalTilesStorage.requestMetalTile(tile: tile)
-                continue
+                
+                for prevTile in previousTiles {
+                    if prevTile.covers(tile) || tile.covers(prevTile) {
+                        metalTile = metalTilesStorage.getMetalTile(tile: prevTile)!
+                    }
+                }
             }
             
-            //print("draw = ", tile)
-            let _ = tilesTexture.draw(metalTile: metalTile)
+            guard let metalTile = metalTile else { continue }
+            
+            currentTiles.append(metalTile.tile)
+            let placed = tilesTexture.draw(metalTile: metalTile)
+            if placed == false {
+                print("no place for tile")
+                break
+            }
         }
         tilesTexture.endEncoding()
+        previousTiles = currentTiles
         
         
         // Camera uniform
@@ -219,9 +233,9 @@ class Renderer {
         
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setVertexBuffer(sphereVerticesBuffer, offset: 0, index: 0)
-        renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
-        
         renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
+        
+        renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
         
         var tileData = tilesTexture.tileData
         renderEncoder.setVertexBytes(&tileData, length: MemoryLayout<TilesTexture.TileData>.stride * tileData.count, index: 3)
@@ -243,10 +257,8 @@ class Renderer {
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: 6)
         
-        var testPoints = camera.testPoints
-        //testPoints.append(point)
-        var verticesTest = testPoints.map { p in PolygonsPipeline.Vertex(position: p, color: SIMD4<Float>(1, 0, 0, 1)) }
-        if verticesTest.isEmpty == false {
+        for point in camera.testPoints {
+            let verticesTest = [PolygonsPipeline.Vertex(position: point, color: SIMD4<Float>(1, 0, 0, 1))]
             renderEncoder.setVertexBytes(verticesTest, length: MemoryLayout<PolygonsPipeline.Vertex>.stride * verticesTest.count, index: 0)
             renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesTest.count)
         }
@@ -261,14 +273,6 @@ class Renderer {
     }
     
     func getVisibleTiles(globe: Renderer.Globe, targetZoom: Int) -> [Tile] {
-        guard let pv = camera.cameraMatrix else { return [] }
-        let frustum = Frustum(pv: pv)
-        
-        camera.testPoints = []
-        var result: [Tile] = []
-        camera.collectVisibleTiles(tx: 0, ty: 0, tz: 0, frustum: frustum, globe: globe, targetZoom: targetZoom, result: &result)
-        
-        
         let pan = cameraControl.pan
         let tileX = Int(-(pan.x - 1.0) / 2.0 * Double(1 << targetZoom))
         
@@ -279,6 +283,15 @@ class Renderer {
         let n = Double(1 << targetZoom)
         let fractional_y = (1.0 - merc_factor / Double.pi) / 2.0 * n
         let tileY = Int(floor(fractional_y))
+        
+        guard let pv = camera.cameraMatrix else { return [] }
+        let frustum = Frustum(pv: pv)
+        
+        camera.testPoints = []
+        var result: [Tile] = []
+        camera.collectVisibleTiles(x: 0, y: 0, z: 0, targetZ: targetZoom, globe: globe, frustrum: frustum, result: &result,
+                                   centerTile: Tile(x: tileX, y: tileY, z: targetZoom)
+        )
         
         print("tileX \(tileX) tileY \(tileY) pan.y \(pan.y)")
         
@@ -291,68 +304,14 @@ class Renderer {
             let dy2 = abs(t2.y - tileY)
             let maxD2 = max(dx2, dy2)
             
-            return maxD1 > maxD2
-        }
-        
-        for t in result {
-            print(t)
-        }
-        
-        var tiles: [Tile] = []
-        var ignoreTiles: Set<Tile> = []
-        for tile in result {
-            if ignoreTiles.contains(tile) {
-                continue
-            }
-            
-            let dx = abs(tile.x - tileX)
-            let dy = abs(tile.y - tileY)
-            let maxD = max(dx, dy)
-            
-            func replace(dist: Int, zMinus: Int) -> Bool {
-                if maxD > dist {
-                    let zDif = zMinus
-                    let dif = 1 << zDif
-                    let rootX = Int(tile.x / dif)
-                    let rootY = Int(tile.y / dif)
-                    let rootZ = Int(tile.z - zDif)
-                    
-                    for x1 in 0..<dif {
-                        for y1 in 0..<dif {
-                            ignoreTiles.insert(Tile(x: rootX * dif + x1, y: rootY * dif + y1, z: rootZ + zDif))
-                        }
-                    }
-                    
-                    tiles.append(Tile(x: rootX, y: rootY, z: rootZ))
-                    return true
-                }
-                return false
-            }
-            
-            if replace(dist: 15, zMinus: 3) { continue }
-            if replace(dist: 6, zMinus: 2) { continue }
-            if replace(dist: 3, zMinus: 1) { continue }
-            
-            tiles.append(tile)
-        }
-        
-        tiles.sort { (t1, t2) -> Bool in
-            let dx1 = abs(t1.x - tileX)
-            let dy1 = abs(t1.y - tileY)
-            let maxD1 = max(dx1, dy1)
-            
-            let dx2 = abs(t2.x - tileX)
-            let dy2 = abs(t2.y - tileY)
-            let maxD2 = max(dx2, dy2)
-            
             if t1.z == t2.z {
-                return maxD1 < maxD2
+                return maxD1 > maxD2
             } else {
                 return t1.z < t2.z
             }
         }
-        print(tiles)
+        //print(result)
         
-        return tiles
+        return result
     }
 }

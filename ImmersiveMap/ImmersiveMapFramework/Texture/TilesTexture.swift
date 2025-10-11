@@ -16,15 +16,14 @@ class TilesTexture {
     }
     
     var texture: [MTLTexture] = []
-    let size: Int = 4096
-    let cellSize: Int = 1024
-    private let count: Int
+    let size: Int = 1024 * 4
+    var cellSize: Int = 1024
     private var projection: matrix_float4x4
     private let tilePipeline: TilePipeline
     private var renderEncoder: MTLRenderCommandEncoder?
     var tileData: [TileData]
     
-    var freePtr: Int = 0
+    private(set) var freePtr: Int = 0
     
     init(metalDevice: MTLDevice, tilePipeline: TilePipeline) {
         let descriptor = MTLTextureDescriptor()
@@ -39,7 +38,7 @@ class TilesTexture {
         }
         self.tilePipeline = tilePipeline
         
-        count = size / cellSize
+        let count = size / cellSize
         projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
         tileData = []
     }
@@ -47,6 +46,8 @@ class TilesTexture {
     func activateEncoder(commandBuffer: MTLCommandBuffer, index: Int) {
         tileData = []
         freePtr = 0
+        cellSize = 1024
+        refreshProjectionMatrix()
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = texture[index]
         renderPassDescriptor.colorAttachments[0].loadAction = .clear
@@ -61,7 +62,21 @@ class TilesTexture {
         renderEncoder?.endEncoding()
     }
     
+    private func refreshProjectionMatrix() {
+        let count = size / cellSize
+        projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
+    }
+    
+    
     func draw(metalTile: MetalTile) -> Bool {
+        if freePtr >= 2 * (size / cellSize) && cellSize == 1024 {
+            cellSize = 512
+            freePtr = size / cellSize * 4
+            
+            refreshProjectionMatrix()
+        }
+        
+        let count = size / cellSize
         if freePtr > count * count - 1 {
             print("No place for tile")
             return false

@@ -89,3 +89,9 @@ class Matrix {
         )
     }
 }
+
+extension SIMD4 where Scalar == Float {
+    var xyz: SIMD3<Float> {
+        return SIMD3<Float>(self.x, self.y, self.z)
+    }
+}
