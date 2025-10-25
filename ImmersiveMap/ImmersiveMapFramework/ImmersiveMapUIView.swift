@@ -8,7 +8,7 @@
 import UIKit
 import Metal
 
-public class ImmersiveMapUIView: UIView {
+public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
     public override class var layerClass: AnyClass { return CAMetalLayer.self }
     
     override init(frame: CGRect) {
@@ -32,7 +32,7 @@ public class ImmersiveMapUIView: UIView {
         
         if metalLayer.drawableSize != newDrawableSize {
             metalLayer.drawableSize = newDrawableSize  // Вручную обновляем drawableSize при каждом layout
-            redraw()
+            redraw = true
         }
         
         pitchSlider.frame = CGRect(x: 30, y: bounds.height - 130, width: 20, height: 100)
@@ -45,19 +45,10 @@ public class ImmersiveMapUIView: UIView {
     private var pitchSlider: UISlider!
     private var renderer: Renderer?
     private var displayLink: CADisplayLink?
-    
-    var isAnimating: Bool = false {
-        didSet {
-            if isAnimating {
-                startDisplayLink()
-            } else {
-                stopDisplayLink()
-            }
-        }
-    }
+    private var redraw: Bool = false
     
     private func startDisplayLink() {
-        guard displayLink == nil else { return }  // Уже запущен
+        guard displayLink == nil else { return }
         
         displayLink = CADisplayLink(target: self, selector: #selector(renderLoop))
         displayLink?.add(to: .main, forMode: .default)
@@ -68,28 +59,24 @@ public class ImmersiveMapUIView: UIView {
         displayLink = nil
     }
     
-    
-    public func redraw() {
-        if bounds.width > 0 && bounds.height > 0 {  // Проверяем, чтобы избежать рендеринга в нулевом размере
-            renderer?.render(to: metalLayer)
-        }
-    }
-    
     private func setup() {
         metalLayer.contentsScale = UIScreen.main.scale
         renderer = Renderer(layer: metalLayer)
         
         // Добавляем обработчик жеста панорамирования одним пальцем
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        panGesture.delegate = self
         panGesture.maximumNumberOfTouches = 1
         addGestureRecognizer(panGesture)
         
         // Добавляем обработчик жеста поворота двумя пальцами
         let rotationGesture = UIRotationGestureRecognizer(target: self, action: #selector(handleRotation(_:)))
+        rotationGesture.delegate = self
         addGestureRecognizer(rotationGesture)
         
         // Добавляем обработчик жеста зума двумя пальцами
         let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        pinchGesture.delegate = self
         addGestureRecognizer(pinchGesture)
         
         // Добавляем ползунок для контроля pitch (наклона камеры)
@@ -100,6 +87,8 @@ public class ImmersiveMapUIView: UIView {
         pitchSlider.addTarget(self, action: #selector(handlePitchChange(_:)), for: .valueChanged)
         pitchSlider.transform = CGAffineTransform(rotationAngle: -CGFloat.pi / 2)  // Делаем вертикальным
         addSubview(pitchSlider)
+        
+        startDisplayLink()
     }
     
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
@@ -121,7 +110,7 @@ public class ImmersiveMapUIView: UIView {
         // Сбрасываем rotation для накопления изменений
         gesture.rotation = 0
         // Перерисовываем вид после поворота
-        redraw()
+        redraw = true
     }
     
     @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
@@ -137,7 +126,7 @@ public class ImmersiveMapUIView: UIView {
         gesture.setTranslation(.zero, in: self)
         
         // Перерисовываем вид после панорамирования
-        redraw()
+        redraw = true
     }
     
     @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
@@ -149,7 +138,7 @@ public class ImmersiveMapUIView: UIView {
         // Сбрасываем scale для накопления изменений
         gesture.scale = 1.0
         // Перерисовываем вид после зума
-        redraw()
+        redraw = true
     }
     
     @objc private func handlePitchChange(_ slider: UISlider) {
@@ -158,11 +147,20 @@ public class ImmersiveMapUIView: UIView {
         renderer.cameraControl.rotatePitch(pitch: slider.value)
         
         // Перерисовываем вид после изменения pitch
-        redraw()
+        redraw = true
     }
     
     @objc private func renderLoop() {
-        renderer?.render(to: metalLayer)
+        if redraw {
+            render()
+            redraw = false
+        }
+    }
+    
+    private func render() {
+        if bounds.width > 0 && bounds.height > 0 {
+            renderer?.render(to: metalLayer)
+        }
     }
     
     deinit {

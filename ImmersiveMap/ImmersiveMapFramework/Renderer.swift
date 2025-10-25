@@ -27,17 +27,14 @@ class Renderer {
     let globePipeline: GlobePipeline
     let camera: Camera
     let cameraControl: CameraControl
-    private let frame: Frame
     private let metalTilesStorage: MetalTilesStorage
     private let tilesTexture: TilesTexture
     
     private let sphereVerticesBuffer: MTLBuffer
     private let sphereIndicesBuffer: MTLBuffer
     private let sphereIndicesCount: Int
-    
-//    private let depthStencilState: MTLDepthStencilState
-//    private let noDepthStencilState: MTLDepthStencilState
-//    private let equalDepthStencilState: MTLDepthStencilState
+    private var lastDrawableSize: CGSize = .zero
+    private let maxLatitude = 2.0 * atan(exp(Double.pi)) - Double.pi / 2.0
     
     private let semaphore = DispatchSemaphore(value: 3)
     private var currentIndex = 0
@@ -74,19 +71,6 @@ class Renderer {
         // Создаём вершинный буфер
         vertexBuffer = metalDevice.makeBuffer(bytes: vertices, length: vertices.count * MemoryLayout<PolygonsPipeline.Vertex>.stride, options: [])!
             
-//        let depthStencilDescriptor = MTLDepthStencilDescriptor()
-//        depthStencilDescriptor.depthCompareFunction = .less
-//        depthStencilDescriptor.isDepthWriteEnabled = true
-//        depthStencilState = metalDevice.makeDepthStencilState(descriptor: depthStencilDescriptor)!
-//        
-//        depthStencilDescriptor.depthCompareFunction = .equal
-//        depthStencilDescriptor.isDepthWriteEnabled = false
-//        equalDepthStencilState = metalDevice.makeDepthStencilState(descriptor: depthStencilDescriptor)!
-//        
-//        depthStencilDescriptor.depthCompareFunction = .always
-//        depthStencilDescriptor.isDepthWriteEnabled = false
-//        noDepthStencilState = metalDevice.makeDepthStencilState(descriptor: depthStencilDescriptor)!
-        
         let bundle = Bundle(for: Renderer.self)
         let library = try! metalDevice.makeDefaultLibrary(bundle: bundle)
         
@@ -97,17 +81,14 @@ class Renderer {
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
         camera = Camera()
         cameraControl = CameraControl()
-        frame = Frame(metalDevice: metalDevice)
         metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(), metalDevice: metalDevice)
         
-        
-        let sphereGeometry = SphereGeometry(stacks: 128, slices: 128)
+        let sphereGeometry = SphereGeometry(stacks: 64, slices: 64)
         let vertices = sphereGeometry.vertices
         let indices = sphereGeometry.indices
         sphereVerticesBuffer = metalDevice.makeBuffer(bytes: vertices, length: MemoryLayout<SphereGeometry.Vertex>.stride * vertices.count)!
         sphereIndicesBuffer = metalDevice.makeBuffer(bytes: indices, length: MemoryLayout<UInt32>.stride * indices.count)!
         sphereIndicesCount = indices.count
-        
         
         metalTilesStorage.addHandler(handler: tileReady)
     }
@@ -116,15 +97,25 @@ class Renderer {
         render(to: metalLayer)
     }
     
-    private var previousTiles: [Tile] = []
+    private var previousTiles: [MetalTile] = []
     
     func render(to layer: CAMetalLayer) {
+        let currentDrawableSize = layer.drawableSize
+        if currentDrawableSize.width == 0 || currentDrawableSize.height == 0 {
+            return
+        }
+        
         semaphore.wait()
+        
+        if currentDrawableSize != lastDrawableSize {
+            let aspect = Float(currentDrawableSize.width) / Float(currentDrawableSize.height)
+            camera.recalculateProjection(aspect: aspect)
+            lastDrawableSize = currentDrawableSize
+        }
         
         let nextIndex = (currentIndex + 1) % 3
         currentIndex = nextIndex
-        
-        frame.prepare(layer: layer, camera: camera, index: currentIndex)
+        currentIndex = 0
         
         if cameraControl.update {
             let yaw = cameraControl.yaw
@@ -147,10 +138,7 @@ class Renderer {
         }
         let worldScale = pow(2.0, floor(cameraControl.zoom))
         
-        let frameData = frame.data[currentIndex]
-        guard let frameTexture = frameData.msaaTexture,
-              let depthStencilTexture = frameData.depthStencilTexture,
-              let cameraMatrix = camera.cameraMatrix,
+        guard let cameraMatrix = camera.cameraMatrix,
               let drawable = layer.nextDrawable() else {
             semaphore.signal()
             return
@@ -159,22 +147,31 @@ class Renderer {
         let clearColor = parameters.clearColor
         let commandBuffer = commandQueue.makeCommandBuffer()!
         
-        var globe = Globe(xRotation: Float(cameraControl.pan.y) * Float.pi / 2.0,
+        var globe = Globe(xRotation: Float(cameraControl.pan.y) * Float(maxLatitude),
                           yRotation: Float(cameraControl.pan.x) * Float.pi,
                           radius: 0.15 * worldScale)
         
-        //let vis = getVisibleTiles(globe: globe, targetZoom: Int(cameraControl.zoom))
-        let vis = [Tile(x: 0, y: 0, z: 0)]
         
-        let tilesAmount = Int(pow(2.0, Double(Int(cameraControl.zoom))) * pow(2.0, Double(Int(cameraControl.zoom))))
-        print("-------------------------------------------------")
-        print("\(vis.count)/\(tilesAmount)")
+        let zoom = Int(cameraControl.zoom)
         
-        tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
+        // Тайлы, которые пользователь видит в полностью подгруженном состоянии
+        // они там могут быть в разнобой, просто все тайлы, которые пользователь видит
+        var iSeeTiles = iSeeTiles(globe: globe, targetZoom: zoom)
+        let iSeeTilesGroupedByZ = Dictionary(grouping: iSeeTiles) { tile in tile.z }
         
-        var currentTiles: [Tile] = []
-        for i in 0..<vis.count {
-            let t = vis[i]
+        // Тайлы того же зума, что и сейчас есть, это самые близкие тайлы к пользователю
+        let nearestToUser = iSeeTilesGroupedByZ[zoom]
+        
+        
+        let orderedTiles = nearestToUser!
+        print(orderedTiles)
+        //let orderedTiles = [ Tile(x: 0, y: 0, z: 1), Tile(x: 1, y: 0, z: 1), Tile(x: 0, y: 1, z: 1), Tile(x: 1, y: 1, z: 1) ]
+        
+        // Берем нужные тайлы из хранилища, запрашиваем по интернету тайлы, которых нету.
+        // Заменяем пробелы тайлами из предыдущего кадра.
+        var currentTiles: [MetalTile] = []
+        for i in 0..<orderedTiles.count {
+            let t = orderedTiles[i]
             let tile = Tile(x: t.x, y: t.y, z: t.z)
             
             var metalTile = metalTilesStorage.getMetalTile(tile: tile)
@@ -182,15 +179,20 @@ class Renderer {
                 metalTilesStorage.requestMetalTile(tile: tile)
                 
                 for prevTile in previousTiles {
-                    if prevTile.covers(tile) || tile.covers(prevTile) {
-                        metalTile = metalTilesStorage.getMetalTile(tile: prevTile)!
+                    if prevTile.tile.covers(tile) || tile.covers(prevTile.tile) {
+                        metalTile = prevTile
                     }
                 }
             }
             
             guard let metalTile = metalTile else { continue }
-            
-            currentTiles.append(metalTile.tile)
+            currentTiles.append(metalTile)
+        }
+        
+        // Рисуем готовые тайлы в текстуре.
+        // Размещаем их так, чтобы контролировать детализацию
+        tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
+        for metalTile in currentTiles {
             let placed = tilesTexture.draw(metalTile: metalTile)
             if placed == false {
                 print("no place for tile")
@@ -198,6 +200,8 @@ class Renderer {
             }
         }
         tilesTexture.endEncoding()
+        
+        // Сохраняем текущие тайлы, чтобы заменять отсутствующие тайлы следующего кадра
         previousTiles = currentTiles
         
         
@@ -205,31 +209,19 @@ class Renderer {
         var cameraUniform = CameraUniform(matrix: cameraMatrix)
         
         let renderPassDescriptor = MTLRenderPassDescriptor()
-        renderPassDescriptor.colorAttachments[0].texture = frameTexture
+        renderPassDescriptor.colorAttachments[0].texture = drawable.texture
         renderPassDescriptor.colorAttachments[0].loadAction = .clear
         renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: clearColor.x,
                                                                             green: clearColor.y,
                                                                             blue: clearColor.z,
                                                                             alpha: clearColor.w)
-        renderPassDescriptor.colorAttachments[0].storeAction = .multisampleResolve
-        renderPassDescriptor.colorAttachments[0].resolveTexture = drawable.texture
-        
-        renderPassDescriptor.depthAttachment.texture = depthStencilTexture
-        renderPassDescriptor.depthAttachment.loadAction = .clear
-        renderPassDescriptor.depthAttachment.clearDepth = 1.0
-        renderPassDescriptor.depthAttachment.storeAction = .dontCare
-        
-        renderPassDescriptor.stencilAttachment.texture = depthStencilTexture
-        renderPassDescriptor.stencilAttachment.loadAction = .load
-        renderPassDescriptor.stencilAttachment.clearStencil = 0
-        renderPassDescriptor.stencilAttachment.storeAction = .dontCare
+        renderPassDescriptor.colorAttachments[0].storeAction = .store
+        //renderPassDescriptor.colorAttachments[0].resolveTexture = drawable.texture
         
         let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
         globePipeline.selectPipeline(renderEncoder: renderEncoder)
         
-        
         renderEncoder.setCullMode(.front)
-        
         
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setVertexBuffer(sphereVerticesBuffer, offset: 0, index: 0)
@@ -247,6 +239,8 @@ class Renderer {
                                                 indexBuffer: sphereIndicesBuffer,
                                                 indexBufferOffset: 0,
                                                 instanceCount: tileData.count)
+            
+//            renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: sphereIndicesCount, indexType: .uint32, indexBuffer: sphereIndicesBuffer, indexBufferOffset: 0)
         }
         
         
@@ -272,46 +266,45 @@ class Renderer {
         commandBuffer.commit()
     }
     
-    func getVisibleTiles(globe: Renderer.Globe, targetZoom: Int) -> [Tile] {
+    private func iSeeTiles(globe: Renderer.Globe, targetZoom: Int) -> [Tile] {
         let pan = cameraControl.pan
         let tileX = Int(-(pan.x - 1.0) / 2.0 * Double(1 << targetZoom))
         
-        let maxLat = 85.05112878
-        let lat_deg = max(-maxLat, min(maxLat, pan.y * maxLat))
-        let lat_rad = lat_deg * Double.pi / 180.0
-        let merc_factor = log(tan(lat_rad) + (1.0 / cos(lat_rad)))
-        let n = Double(1 << targetZoom)
-        let fractional_y = (1.0 - merc_factor / Double.pi) / 2.0 * n
-        let tileY = Int(floor(fractional_y))
+        let latitude = pan.y * maxLatitude
+        let yMerc = log(tan(Double.pi / 4.0 + latitude / 2.0))
+        let yNormalized = (Double.pi - yMerc) / (2.0 * Double.pi)
+        let tileY = Int(yNormalized * Double(1 << targetZoom))
         
-        guard let pv = camera.cameraMatrix else { return [] }
-        let frustum = Frustum(pv: pv)
-        
-        camera.testPoints = []
+        let rotation = camera.createRotationMatrix(globe: globe)
         var result: [Tile] = []
-        camera.collectVisibleTiles(x: 0, y: 0, z: 0, targetZ: targetZoom, globe: globe, frustrum: frustum, result: &result,
+        camera.collectVisibleTiles(x: 0, y: 0, z: 0, targetZ: targetZoom, radius: globe.radius, rotation: rotation, result: &result,
                                    centerTile: Tile(x: tileX, y: tileY, z: targetZoom)
         )
-        
-        print("tileX \(tileX) tileY \(tileY) pan.y \(pan.y)")
-        
-        result.sort { (t1, t2) -> Bool in
-            let dx1 = abs(t1.x - tileX)
-            let dy1 = abs(t1.y - tileY)
-            let maxD1 = max(dx1, dy1)
-            
-            let dx2 = abs(t2.x - tileX)
-            let dy2 = abs(t2.y - tileY)
-            let maxD2 = max(dx2, dy2)
-            
-            if t1.z == t2.z {
-                return maxD1 > maxD2
-            } else {
-                return t1.z < t2.z
-            }
-        }
-        //print(result)
-        
         return result
     }
+    
+//    func getVisibleTiles(globe: Renderer.Globe, targetZoom: Int) -> [Tile] {
+//        var result: [Tile] = []
+//        
+//        //print("tileX \(tileX) tileY \(tileY) targetZoom \(targetZoom) pan.y \(pan.y) pan.x \(pan.x)")
+//        
+//        result.sort { (t1, t2) -> Bool in
+//            let dx1 = abs(t1.x - tileX)
+//            let dy1 = abs(t1.y - tileY)
+//            let maxD1 = max(dx1, dy1)
+//            
+//            let dx2 = abs(t2.x - tileX)
+//            let dy2 = abs(t2.y - tileY)
+//            let maxD2 = max(dx2, dy2)
+//            
+//            if t1.z == t2.z {
+//                return maxD1 < maxD2
+//            } else {
+//                return t1.z > t2.z
+//            }
+//        }
+//        //print(result)
+//        
+//        return result
+//    }
 }

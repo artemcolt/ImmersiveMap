@@ -33,7 +33,7 @@ class TilesTexture {
         descriptor.pixelFormat = .bgra8Unorm
         descriptor.usage = [.shaderRead, .renderTarget]
         descriptor.storageMode = .private
-        for _ in 0..<3 {
+        for _ in 0..<1 {
             texture.append(metalDevice.makeTexture(descriptor: descriptor)!)
         }
         self.tilePipeline = tilePipeline

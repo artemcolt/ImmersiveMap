@@ -61,14 +61,16 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float radius = globe.radius;
     float4x4 matrix = camera.matrix;
     
-    float phi = M_PI_F * vertexIn.uv.y;
+    float phi = -M_PI_F * vertexIn.uv.y;
     float theta = 2 * M_PI_F * vertexIn.uv.x;
-    float x = radius * sin(phi) * cos(theta);
-    float y = radius * sin(phi) * sin(theta);
-    float z = radius * cos(phi);
-    float3 position = float3(x, y, z);
+     
+    float x = radius * sin(phi) * sin(theta);
+    float y = radius * cos(phi);
+    float z = radius * sin(phi) * cos(theta);
     
-    float u = vertexIn.uv.x;
+    float3 position = float3(x, y, z);
+    float u = 1.0 - vertexIn.uv.x;
+    
     // Adjust for Web Mercator projection (non-linear vertically)
     float v = vertexIn.uv.y;
     float lat = M_PI_F / 2.0 - phi;
@@ -76,12 +78,20 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float max_sin = tanh(M_PI_F);
     float clamped_sin = max(-max_sin, min(max_sin, sin_lat));
     float y_merc = 0.5 * log((1.0 + clamped_sin) / (1.0 - clamped_sin));
-    v = 1.0 - (y_merc + M_PI_F) / (2.0 * M_PI_F);
+    v = (y_merc + M_PI_F) / (2.0 * M_PI_F);
     
-    float4x4 rotation = rotationMatrix(float3(1, 0, 0), M_PI_F / 2.0) *
-                        rotationMatrix(float3(0, 1, 0), M_PI_F / 2.0) *
-                        rotationMatrix(float3(0, 1, 0), globe.yRotation) *
-                        rotationMatrix(float3(1, 0, 0), globe.xRotation);
+    float cx = cos(-globe.xRotation);
+    float sx = sin(-globe.xRotation);
+    float cy = cos(-globe.yRotation);
+    float sy = sin(-globe.yRotation);
+
+    float4x4 rotation = float4x4(
+        float4(cy,        0,         -sy,       0),  // Колонка 0
+        float4(sy * sx,   cx,        cy * sx,   0),  // Колонка 1
+        float4(sy * cx,  -sx,        cy * cx,   0),  // Колонка 2
+        float4(0,         0,          0,        1)   // Колонка 3
+    );
+    
     float4 worldPosition = float4(position, 1.0) * rotation - float4(0, 0, radius, 0);
     float4 clipPosition = matrix * worldPosition;
     

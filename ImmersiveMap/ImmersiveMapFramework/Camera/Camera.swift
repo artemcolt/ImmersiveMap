@@ -16,6 +16,8 @@ class Camera {
     var center: SIMD3<Float> = SIMD3<Float>(0, 0, 0)
     var up: SIMD3<Float> = SIMD3<Float>(0, 1, 0)
     
+    private(set) var frustrum: Frustum?
+    
     private class AABB {
         let minPoint: SIMD3<Float>
         let maxPoint: SIMD3<Float>
@@ -29,6 +31,7 @@ class Camera {
     private(set) var cameraMatrix: matrix_float4x4?
     
     init() {
+        
     }
     
     var testPoints: [SIMD4<Float>] = []
@@ -41,22 +44,28 @@ class Camera {
     func recalculateMatrix() {
         view = Matrix.lookAt(eye: eye, center: center, up: up)
         cameraMatrix = projection! * view!
+        
+        frustrum = Frustum(pv: cameraMatrix!)
     }
     
-    func aproximateTile(tx: Int, ty: Int, tz: Int, globe: Renderer.Globe, step: Float) -> [SIMD4<Float>] {
+    func aproximateTile(tx: Int, ty: Int, tz: Int, step: Float, radius: Float, rotation: float4x4) -> [SIMD4<Float>] {
         let count = Int(1.0 / step)
         var points: [SIMD4<Float>] = Array(repeating: SIMD4<Float>(), count: (count + 1) * (count + 1) )
         for x in 0...count {
             for y in 0...count {
-                points[x * (count + 1) + y] = getTileWorldPoint(tx: Float(tx) + Float(x) * step, ty: Float(ty) + Float(y) * step, tz: tz, globe: globe)
+                points[x * (count + 1) + y] = getTileWorldPoint(tx: Float(tx) + Float(x) * step,
+                                                                ty: Float(ty) + Float(y) * step,
+                                                                tz: tz,
+                                                                radius: radius,
+                                                                rotation: rotation)
             }
         }
         return points
     }
     
     func collectVisibleTiles(x: Int, y: Int, z: Int, targetZ: Int,
-                             globe: Renderer.Globe,
-                             frustrum: Frustum,
+                             radius: Float,
+                             rotation: float4x4,
                              result: inout [Tile],
                              centerTile: Tile
     ) {
@@ -65,7 +74,7 @@ class Camera {
             step = 0.5
         }
         
-        let points = aproximateTile(tx: x, ty: y, tz: z, globe: globe, step: step)
+        let points = aproximateTile(tx: x, ty: y, tz: z, step: step, radius: radius, rotation: rotation)
         
         var maxX: Float = points[0].x
         var maxY: Float = points[0].y
@@ -87,7 +96,7 @@ class Camera {
             minZ = min(minZ, point.z)
             
             if faced == false {
-                let normal = normalize(point.xyz + SIMD3<Float>(0, 0, globe.radius))
+                let normal = normalize(point.xyz + SIMD3<Float>(0, 0, radius))
                 if dot(normal, cameraDirection) < 0.1 {
                     faced = true
                 }
@@ -101,7 +110,7 @@ class Camera {
         let minPoint = SIMD3<Float>(minX, minY, minZ)
         let maxPoint = SIMD3<Float>(maxX, maxY, maxZ)
         
-        let contains = frustrum.intersectsAABB(minPoint: minPoint, maxPoint: maxPoint)
+        let contains = frustrum!.intersectsAABB(minPoint: minPoint, maxPoint: maxPoint)
         
 //        if z == targetZ {
 //            testPoints.append(contentsOf: points)
@@ -130,43 +139,44 @@ class Camera {
             return
         }
         
-        collectVisibleTiles(x: x * 2, y: y * 2, z: z + 1, targetZ: targetZ, globe: globe, frustrum: frustrum, result: &result, centerTile: centerTile)
-        collectVisibleTiles(x: x * 2 + 1, y: y * 2, z: z + 1, targetZ: targetZ, globe: globe, frustrum: frustrum, result: &result, centerTile: centerTile)
-        collectVisibleTiles(x: x * 2, y: y * 2 + 1, z: z + 1, targetZ: targetZ, globe: globe, frustrum: frustrum, result: &result, centerTile: centerTile)
-        collectVisibleTiles(x: x * 2 + 1, y: y * 2 + 1, z: z + 1, targetZ: targetZ, globe: globe, frustrum: frustrum, result: &result, centerTile: centerTile)
+        collectVisibleTiles(x: x * 2, y: y * 2, z: z + 1, targetZ: targetZ, radius: radius, rotation: rotation, result: &result, centerTile: centerTile)
+        collectVisibleTiles(x: x * 2 + 1, y: y * 2, z: z + 1, targetZ: targetZ, radius: radius, rotation: rotation, result: &result, centerTile: centerTile)
+        collectVisibleTiles(x: x * 2, y: y * 2 + 1, z: z + 1, targetZ: targetZ, radius: radius, rotation: rotation, result: &result, centerTile: centerTile)
+        collectVisibleTiles(x: x * 2 + 1, y: y * 2 + 1, z: z + 1, targetZ: targetZ, radius: radius, rotation: rotation, result: &result, centerTile: centerTile)
     }
     
-    func getTileWorldPoint(tx: Float, ty: Float, tz: Int, globe: Renderer.Globe) -> SIMD4<Float> {
+    func createRotationMatrix(globe: Renderer.Globe) -> float4x4 {
+        let cx = cos(-globe.xRotation);
+        let sx = sin(-globe.xRotation);
+        let cy = cos(-globe.yRotation);
+        let sy = sin(-globe.yRotation);
+        
+        let rotation = float4x4(
+            SIMD4<Float>(cy,        0,         -sy,       0),  // Колонка 0
+            SIMD4<Float>(sy * sx,   cx,        cy * sx,   0),  // Колонка 1
+            SIMD4<Float>(sy * cx,  -sx,        cy * cx,   0),  // Колонка 2
+            SIMD4<Float>(0,         0,          0,        1)   // Колонка 3
+        );
+        
+        return rotation
+    }
+    
+    func getTileWorldPoint(tx: Float, ty: Float, tz: Int, radius: Float, rotation: float4x4) -> SIMD4<Float> {
         let latLon = getLatLon(tx: tx, ty: ty, tz: tz)
-        let latitudeRad = latLon.latitude
-        let longitudeRad = latLon.longitude
-        let radius = globe.radius
+        let latitudeRad = latLon.latitude - Float.pi / 2.0
+        let longitudeRad = latLon.longitude + Float.pi
         
-        let xRotation = globe.xRotation
-        let yRotation = globe.yRotation
+        let phi = latitudeRad;
+        let theta = longitudeRad;
         
-        let theta = yRotation - Float.pi / 2
-        let cosTheta = cos(theta)
-        let sinTheta = sin(theta)
-        let cosPhi = cos(xRotation)
-        let sinPhi = sin(xRotation)
+        let x = radius * sin(phi) * sin(theta);
+        let y = radius * cos(phi);
+        let z = radius * sin(phi) * cos(theta);
 
-        let cosLat = cos(latitudeRad)
-        let sinLat = sin(latitudeRad)
-        let cosLon = cos(-longitudeRad)
-        let sinLon = sin(-longitudeRad)
-
-        let x = radius * cosLat * cosLon
-        let y = radius * sinLat
-        let z = radius * cosLat * sinLon
-
-        let xp = cosTheta * x + sinTheta * z
-        let yp = cosPhi * y + sinPhi * (sinTheta * x - cosTheta * z)
-        let zp = sinPhi * y - cosPhi * sinTheta * x + cosPhi * cosTheta * z
-
-        let wp = SIMD4<Float>(xp, yp, zp - radius, 1.0)
+        let point = SIMD4<Float>(x, y, z, 1)
         
-        return wp
+        let transformedPoint = point * rotation - SIMD4<Float>(0, 0, radius, 0);
+        return transformedPoint
     }
     
     private func getLatLon(tx: Float, ty: Float, tz: Int) -> (latitude: Float, longitude: Float) {

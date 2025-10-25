@@ -24,7 +24,7 @@ class PolygonsPipeline {
         let pipelineDescriptor = MTLRenderPipelineDescriptor()
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
-        pipelineDescriptor.rasterSampleCount = 4
+        //pipelineDescriptor.rasterSampleCount = 4
         pipelineDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         
         let vertexDescriptor = MTLVertexDescriptor()
@@ -38,9 +38,6 @@ class PolygonsPipeline {
         vertexDescriptor.layouts[0].stepRate = 1
         vertexDescriptor.layouts[0].stepFunction = .perVertex
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
-        
-        pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float_stencil8
-        pipelineDescriptor.stencilAttachmentPixelFormat = .depth32Float_stencil8
         
         do {
             pipelineState = try metalDevice.makeRenderPipelineState(descriptor: pipelineDescriptor)

@@ -26,9 +26,6 @@ class GlobePipeline {
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
-        pipelineDescriptor.rasterSampleCount = 4
-        pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float_stencil8
-        pipelineDescriptor.stencilAttachmentPixelFormat = .depth32Float_stencil8
         
         pipelineDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         
