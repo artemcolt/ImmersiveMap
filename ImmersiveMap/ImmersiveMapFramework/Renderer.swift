@@ -29,6 +29,7 @@ class Renderer {
     let cameraControl: CameraControl
     private let metalTilesStorage: MetalTilesStorage
     private let tilesTexture: TilesTexture
+    private let textRenderer: TextRenderer
     
     private let sphereVerticesBuffer: MTLBuffer
     private let sphereIndicesBuffer: MTLBuffer
@@ -40,6 +41,12 @@ class Renderer {
     private var currentIndex = 0
     
     private let tile: Tile = Tile(x: 0, y: 0, z: 0)
+    private var screenMatrix: matrix_float4x4?
+    private var screenMatrixSize: CGSize = CGSize.zero
+    
+    private var tileTextVerticesBuffer: MTLBuffer
+    private var previousTilesTextKey: String = ""
+    private var tileTextVerticesCount: Int = 0
     
     let vertices: [PolygonsPipeline.Vertex] = [
         // axes
@@ -78,6 +85,7 @@ class Renderer {
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
         
+        textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
         camera = Camera()
         cameraControl = CameraControl()
@@ -90,6 +98,8 @@ class Renderer {
         sphereIndicesBuffer = metalDevice.makeBuffer(bytes: indices, length: MemoryLayout<UInt32>.stride * indices.count)!
         sphereIndicesCount = indices.count
         
+        tileTextVerticesBuffer = metalDevice.makeBuffer(length: MemoryLayout<TextVertex>.stride * 600)!
+        
         metalTilesStorage.addHandler(handler: tileReady)
     }
     
@@ -101,6 +111,18 @@ class Renderer {
     
     func render(to layer: CAMetalLayer) {
         let currentDrawableSize = layer.drawableSize
+        
+        if screenMatrixSize != currentDrawableSize {
+            screenMatrixSize = currentDrawableSize
+            screenMatrix = Matrix.orthographicMatrix(left: 0, right: Float(screenMatrixSize.width),
+                                                         bottom: 0, top: Float(screenMatrixSize.height),
+                                                         near: -1, far: 1)
+        }
+        
+        guard var screenMatrix = screenMatrix else {
+            return
+        }
+        
         if currentDrawableSize.width == 0 || currentDrawableSize.height == 0 {
             return
         }
@@ -123,13 +145,13 @@ class Renderer {
             
             let zRemains = cameraControl.zoom.truncatingRemainder(dividingBy: 1.0)
             let camUp = SIMD3<Float>(0, 1, 0)
-            let camDirection = SIMD3<Float>(0, 0, (1.0 - zRemains * 0.5))
+            let camPosition = SIMD3<Float>(0, 0, (1.0 - zRemains * 0.5))
             let camRight = SIMD3<Float>(1, 0, 0)
             
             let pitchQuat = simd_quatf(angle: pitch, axis: camRight)
             let yawQuat = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 0, 1))
             
-            camera.eye = simd_act(yawQuat * pitchQuat, camDirection)
+            camera.eye = simd_act(yawQuat * pitchQuat, camPosition)
             camera.up = simd_act(yawQuat * pitchQuat, camUp)
 //            camera.center = SIMD3<Float>(Float(cameraControl.pan.x), 0, 0)
             
@@ -153,23 +175,67 @@ class Renderer {
         
         
         let zoom = Int(cameraControl.zoom)
+        let center = getCenter(targetZoom: zoom)
         
         // Тайлы, которые пользователь видит в полностью подгруженном состоянии
         // они там могут быть в разнобой, просто все тайлы, которые пользователь видит
-        var iSeeTiles = iSeeTiles(globe: globe, targetZoom: zoom)
-        let iSeeTilesGroupedByZ = Dictionary(grouping: iSeeTiles) { tile in tile.z }
+        let seeTiles = iSeeTiles(globe: globe, targetZoom: zoom, center: center)
+        let seeTilesGroupedByZ = Dictionary(grouping: seeTiles) { tile in tile.z }
         
         // Тайлы того же зума, что и сейчас есть, это самые близкие тайлы к пользователю
-        let nearestToUser = iSeeTilesGroupedByZ[zoom]
+        guard let nearestToUser = seeTilesGroupedByZ[zoom] else {
+            semaphore.signal()
+            return
+        }
         
+        let nearestToUserSorted = nearestToUser.sorted { t1, t2 in
+            let dx1 = abs(t1.x - Int(center.tileX))
+            let dy1 = abs(t1.y - Int(center.tileY))
+            let maxD1 = max(dx1, dy1)
+            
+            let dx2 = abs(t2.x - Int(center.tileX))
+            let dy2 = abs(t2.y - Int(center.tileY))
+            let maxD2 = max(dx2, dy2)
+            
+            return maxD1 < maxD2 // true -> первый элемент двигаем влево
+        }
         
-        let orderedTiles = nearestToUser!
+        let orderedTiles = nearestToUserSorted
         print(orderedTiles)
         //let orderedTiles = [ Tile(x: 0, y: 0, z: 1), Tile(x: 1, y: 0, z: 1), Tile(x: 0, y: 1, z: 1), Tile(x: 1, y: 1, z: 1) ]
+        
+        // Определяем тайлы с наибольшей детализацией
+        var maxDetalization: [Tile] = [
+            Tile(x: Int(center.tileX), y: Int(center.tileY) - 1, z: zoom),
+            Tile(x: Int(center.tileX) - 1, y: Int(center.tileY) - 1, z: zoom),
+            Tile(x: Int(center.tileX) + 1, y: Int(center.tileY) - 1, z: zoom),
+            
+            Tile(x: Int(center.tileX), y: Int(center.tileY), z: zoom),
+            Tile(x: Int(center.tileX) - 1, y: Int(center.tileY), z: zoom),
+            Tile(x: Int(center.tileX) + 1, y: Int(center.tileY), z: zoom),
+            
+            Tile(x: Int(center.tileX), y: Int(center.tileY) + 1, z: zoom),
+            Tile(x: Int(center.tileX) - 1, y: Int(center.tileY) + 1, z: zoom),
+            Tile(x: Int(center.tileX) + 1, y: Int(center.tileY) + 1, z: zoom),
+        ]
+        
+        // depth = 0 -> покрыть всю текстуру. Вместимость: 0 тайлов
+        // depth = 1 -> покрыть 1/4 текстуры. Вместимость: 1 тайл
+        // depth = 2 -> покрыть 1/8 текстуры.
+        // depth = 3 -> покрыть 1/16 текстуры
+        
+        var depth1Count = 0
+        var depth2Count = 0
+        var depth3Count = 0
+        
+        let depth1Capacity = 1
+        let depth2Capacity = 4
+        let depth3Capacity = 32
         
         // Берем нужные тайлы из хранилища, запрашиваем по интернету тайлы, которых нету.
         // Заменяем пробелы тайлами из предыдущего кадра.
         var currentTiles: [MetalTile] = []
+        var depths: [UInt8] = []
         for i in 0..<orderedTiles.count {
             let t = orderedTiles[i]
             let tile = Tile(x: t.x, y: t.y, z: t.z)
@@ -187,18 +253,61 @@ class Renderer {
             
             guard let metalTile = metalTile else { continue }
             currentTiles.append(metalTile)
+            
+            if depth1Count < depth1Capacity {
+                depths.append(1)
+                depth1Count += 1
+            } else if depth2Count < depth2Capacity {
+                depths.append(2)
+                depth2Count += 1
+            } else if depth3Count < depth3Capacity {
+                depths.append(3)
+                depth3Count += 1
+            }
         }
         
         // Рисуем готовые тайлы в текстуре.
         // Размещаем их так, чтобы контролировать детализацию
         tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
-        for metalTile in currentTiles {
-            let placed = tilesTexture.draw(metalTile: metalTile)
+        tilesTexture.selectTilePipeline()
+        for i in currentTiles.indices {
+            let metalTile = currentTiles[i]
+            let depth = depths[i]
+            let placed = tilesTexture.draw(metalTile: metalTile, depth: depth)
             if placed == false {
                 print("no place for tile")
                 break
             }
         }
+        
+        // Рисуем координаты тайлов на самих тайлах для тестирование
+        let texts = tilesTexture.texts
+        if texts.isEmpty == false {
+            
+            if "\(texts.count)" != previousTilesTextKey {
+//                let tilesTextVertices = textRenderer.collectMultiTextVertices(for: texts)
+//                tileTextVerticesBuffer.contents().copyMemory(from: tilesTextVertices, byteCount: MemoryLayout<TextVertex>.stride * tilesTextVertices.count)
+//                previousTilesTextKey = "\(texts.count)"
+//                tileTextVerticesCount = tilesTextVertices.count
+            }
+            
+            let tilesTextVertices = textRenderer.collectMultiTextVertices(for: texts)
+            tileTextVerticesBuffer.contents().copyMemory(from: tilesTextVertices, byteCount: MemoryLayout<TextVertex>.stride * tilesTextVertices.count)
+            previousTilesTextKey = "\(texts.count)"
+            tileTextVerticesCount = tilesTextVertices.count
+            
+            var tilesTextColor = SIMD3<Float>(1, 0, 0)
+            var tilesProjection = Matrix.orthographicMatrix(left: 0, right: Float(4096), bottom: 0, top: Float(4096), near: -1, far: 1)
+            let tilesRenderEncoder = tilesTexture.renderEncoder!
+            tilesRenderEncoder.setRenderPipelineState(textRenderer.pipelineState)
+            tilesRenderEncoder.setVertexBuffer(tileTextVerticesBuffer, offset: 0, index: 0)
+            tilesRenderEncoder.setVertexBytes(&tilesProjection, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+            tilesRenderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+            tilesRenderEncoder.setFragmentBytes(&tilesTextColor, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
+            tilesRenderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tileTextVerticesCount)
+        }
+        
+        // Завершаем рисование в текстуре с тайлами
         tilesTexture.endEncoding()
         
         // Сохраняем текущие тайлы, чтобы заменять отсутствующие тайлы следующего кадра
@@ -243,8 +352,6 @@ class Renderer {
 //            renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: sphereIndicesCount, indexType: .uint32, indexBuffer: sphereIndicesBuffer, indexBufferOffset: 0)
         }
         
-        
-        
         // axes
         polygonPipeline.setPipelineState(renderEncoder: renderEncoder)
         renderEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
@@ -257,6 +364,21 @@ class Renderer {
             renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesTest.count)
         }
         
+        let zoomText = TextEntry(text: "z: " + cameraControl.zoom.formatted(.number.precision(.fractionLength(2))),
+                                 position: SIMD2<Float>(100, Float(screenMatrixSize.height) - 300),
+                                 scale: 100)
+        let textVertices = textRenderer.collectMultiTextVertices(for: [
+            zoomText
+        ])
+        
+        var zoomTextColor = SIMD3<Float>(0, 0, 0)
+        renderEncoder.setRenderPipelineState(textRenderer.pipelineState)
+        renderEncoder.setVertexBytes(textVertices, length: MemoryLayout<TextVertex>.stride * textVertices.count, index: 0)
+        renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+        renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+        renderEncoder.setFragmentBytes(&zoomTextColor, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
+        renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVertices.count)
+        
         renderEncoder.endEncoding()
         
         commandBuffer.addCompletedHandler { [weak self] _ in
@@ -266,14 +388,31 @@ class Renderer {
         commandBuffer.commit()
     }
     
-    private func iSeeTiles(globe: Renderer.Globe, targetZoom: Int) -> [Tile] {
+    private struct TileXY {
+        let tileX: Int
+        let tileY: Int
+    }
+    
+    private struct Center {
+        let tileX: Double
+        let tileY: Double
+    }
+    
+    private func getCenter(targetZoom: Int) -> Center {
         let pan = cameraControl.pan
-        let tileX = Int(-(pan.x - 1.0) / 2.0 * Double(1 << targetZoom))
+        let tileX = -(pan.x - 1.0) / 2.0 * Double(1 << targetZoom)
         
         let latitude = pan.y * maxLatitude
         let yMerc = log(tan(Double.pi / 4.0 + latitude / 2.0))
         let yNormalized = (Double.pi - yMerc) / (2.0 * Double.pi)
-        let tileY = Int(yNormalized * Double(1 << targetZoom))
+        let tileY = yNormalized * Double(1 << targetZoom)
+        
+        return Center(tileX: tileX, tileY: tileY)
+    }
+    
+    private func iSeeTiles(globe: Renderer.Globe, targetZoom: Int, center: Center) -> [Tile] {
+        let tileX = (Int) (center.tileX)
+        let tileY = (Int) (center.tileY)
         
         let rotation = camera.createRotationMatrix(globe: globe)
         var result: [Tile] = []
@@ -282,29 +421,4 @@ class Renderer {
         )
         return result
     }
-    
-//    func getVisibleTiles(globe: Renderer.Globe, targetZoom: Int) -> [Tile] {
-//        var result: [Tile] = []
-//        
-//        //print("tileX \(tileX) tileY \(tileY) targetZoom \(targetZoom) pan.y \(pan.y) pan.x \(pan.x)")
-//        
-//        result.sort { (t1, t2) -> Bool in
-//            let dx1 = abs(t1.x - tileX)
-//            let dy1 = abs(t1.y - tileY)
-//            let maxD1 = max(dx1, dy1)
-//            
-//            let dx2 = abs(t2.x - tileX)
-//            let dy2 = abs(t2.y - tileY)
-//            let maxD2 = max(dx2, dy2)
-//            
-//            if t1.z == t2.z {
-//                return maxD1 < maxD2
-//            } else {
-//                return t1.z > t2.z
-//            }
-//        }
-//        //print(result)
-//        
-//        return result
-//    }
 }

@@ -16,10 +16,21 @@ class CameraControl {
     var zoom: Float = 0
     
     func pan(deltaX: Double, deltaY: Double) {
+        let yaw = Double(yaw)
+        let startForward = SIMD2<Double>(0, 1)
         let sens = 0.05 / pow(2.0, Double(zoom))
-        pan.x += deltaX * sens / 2.0
-        pan.y += deltaY * sens
         
+        let cosYaw = cos(-yaw)
+        let sinYaw = sin(-yaw)
+        let forward = SIMD2<Double>(
+            startForward.x * cosYaw - startForward.y * sinYaw,
+            startForward.x * sinYaw + startForward.y * cosYaw
+        )
+        let right = -1 * SIMD2<Double>(
+            -forward.y, forward.x
+        )
+        
+        pan = pan + sens * (forward * deltaY + right * deltaX * 0.5)
         pan.y = min(max(-1, pan.y), 1)
         
         update = true

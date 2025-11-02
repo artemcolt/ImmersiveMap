@@ -16,14 +16,15 @@ class TilesTexture {
     }
     
     var texture: [MTLTexture] = []
-    let size: Int = 1024 * 4
+    let size: Int = 4096
     var cellSize: Int = 1024
-    private var projection: matrix_float4x4
+    var projection: matrix_float4x4
     private let tilePipeline: TilePipeline
-    private var renderEncoder: MTLRenderCommandEncoder?
+    var renderEncoder: MTLRenderCommandEncoder?
     var tileData: [TileData]
-    
-    private(set) var freePtr: Int = 0
+    var texts: [TextEntry] = []
+    var textsMatrices: [matrix_float4x4] = []
+    private var textureTree: TextureTree
     
     init(metalDevice: MTLDevice, tilePipeline: TilePipeline) {
         let descriptor = MTLTextureDescriptor()
@@ -41,13 +42,14 @@ class TilesTexture {
         let count = size / cellSize
         projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
         tileData = []
+        textureTree = TextureTree()
     }
     
     func activateEncoder(commandBuffer: MTLCommandBuffer, index: Int) {
+        textureTree = TextureTree()
         tileData = []
-        freePtr = 0
-        cellSize = 1024
-        refreshProjectionMatrix()
+        texts = []
+        textsMatrices = []
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = texture[index]
         renderPassDescriptor.colorAttachments[0].loadAction = .clear
@@ -55,6 +57,9 @@ class TilesTexture {
         renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 1, green: 1, blue: 1, alpha: 1)
         
         renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
+    }
+    
+    func selectTilePipeline() {
         tilePipeline.selectPipeline(renderEncoder: renderEncoder!)
     }
     
@@ -62,30 +67,32 @@ class TilesTexture {
         renderEncoder?.endEncoding()
     }
     
-    private func refreshProjectionMatrix() {
-        let count = size / cellSize
+    private func refreshProjectionMatrix(count: Int) {
         projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
     }
     
-    
-    func draw(metalTile: MetalTile) -> Bool {
-        if freePtr >= 2 * (size / cellSize) && cellSize == 1024 {
-            cellSize = 512
-            freePtr = size / cellSize * 4
-            
-            refreshProjectionMatrix()
-        }
+    func draw(metalTile: MetalTile, depth: UInt8) -> Bool {
+        guard let placedPos = textureTree.addNewValue(value: TextureValue(), depth: depth) else { return false }
         
-        let count = size / cellSize
-        if freePtr > count * count - 1 {
-            print("No place for tile")
-            return false
-        }
+        let tile = metalTile.tile
+        let count = 1 << depth
+        let cellSize = size / count
+        let freePtr = Int(placedPos.x) + Int(placedPos.y) * count
         
-        let x = freePtr % count
-        let y = freePtr / count
+        refreshProjectionMatrix(count: count)
+        
+        let x = Int(placedPos.x)
+        let y = Int(placedPos.y)
         let shiftMatrix = Matrix.translationMatrix(x: Float(x) * 4096, y: Float(y) * 4096, z: 0)
         var cameraUniform = CameraUniform(matrix: projection * shiftMatrix)
+        let scaleParam = Float( 1 << (UInt8(3) - depth))
+        let shift = scaleParam * 10
+        
+        texts.append(TextEntry(
+            text: "x: \(tile.x) y: \(tile.y) z: \(tile.z)",
+            position: SIMD2<Float>(Float(x) * 4096 / Float(count) + shift, Float(y) * 4096 / Float(count) + shift),
+            scale: 10 * scaleParam
+        ))
         
         guard let renderEncoder = renderEncoder else { return true }
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
@@ -96,12 +103,10 @@ class TilesTexture {
         
         renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: buffers.indicesCount, indexType: .uint32, indexBuffer: buffers.indicesBuffer, indexBufferOffset: 0)
         
-        let tile = metalTile.tile
         tileData.append(TileData(position: simd_int1(freePtr),
                                  textureSize: simd_int1(size),
                                  cellSize: simd_int1(cellSize),
                                  tile: simd_int3(Int32(tile.x), Int32(tile.y), Int32(tile.z))))
-        freePtr += 1
         return true
     }
 }

@@ -92,7 +92,7 @@ class DefaultMapStyle: MapStyle {
             "road_minor": SIMD4<Float>(0.7, 0.7, 0.7, 1.0),       // Light gray
             "fallback": SIMD4<Float>(0.5, 0.5, 0.5, 0.5),          // Neutral gray
             "background": mapBaseColors.getTileBgColor(),
-            "border": SIMD4<Float>(0.0, 0.0, 0.0, 1.0),
+            "border": SIMD4<Float>(1.0, 0.0, 0.0, 1.0),
             
             "building": SIMD4<Float>(0.8, 0.7, 0.6, 0.8),         // Warm beige
         ]
@@ -198,12 +198,12 @@ class DefaultMapStyle: MapStyle {
 //                color: colors["building"]!,
 //                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 0) // Filled polygon
 //            )
-//        case "border":
-//            return FeatureStyle(
-//                key: 211,
-//                color: colors["border"]!,
-//                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 0)
-//            )
+        case "border":
+            return FeatureStyle(
+                key: 211,
+                color: colors["border"]!,
+                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 0)
+            )
 
         default:
             return FeatureStyle(

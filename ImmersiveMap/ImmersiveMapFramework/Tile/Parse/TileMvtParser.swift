@@ -83,6 +83,60 @@ class TileMvtParser {
         )
     }
     
+    private func addBorder(polygonByStyle: inout [UInt8: [ParsedPolygon]], styles: inout [UInt8: FeatureStyle], borderWidth: Int16) {
+        let style = determineFeatureStyle.makeStyle(data: DetFeatureStyleData(
+            layerName: "border",
+            properties: [:],
+            tile: Tile(x: 0, y: 0, z: 0))
+        )
+        
+        let tileSize: Int16 = 4096
+        var polygons = [ParsedPolygon]()
+        
+        // Bottom border
+        var vertices: [SIMD2<Int16>] = [
+            SIMD2(0, 0),
+            SIMD2(tileSize, 0),
+            SIMD2(0, borderWidth),
+            SIMD2(tileSize, borderWidth)
+        ]
+        var indices: [UInt32] = [0, 2, 1, 1, 2, 3]
+        polygons.append(ParsedPolygon(vertices: vertices, indices: indices))
+        
+        // Top border
+        vertices = [
+            SIMD2(0, tileSize - borderWidth),
+            SIMD2(tileSize, tileSize - borderWidth),
+            SIMD2(0, tileSize),
+            SIMD2(tileSize, tileSize)
+        ]
+        indices = [0, 2, 1, 1, 2, 3]
+        polygons.append(ParsedPolygon(vertices: vertices, indices: indices))
+        
+        // Left border
+        vertices = [
+            SIMD2(0, 0),
+            SIMD2(borderWidth, 0),
+            SIMD2(0, tileSize),
+            SIMD2(borderWidth, tileSize)
+        ]
+        indices = [0, 2, 1, 1, 2, 3]
+        polygons.append(ParsedPolygon(vertices: vertices, indices: indices))
+        
+        // Right border
+        vertices = [
+            SIMD2(tileSize - borderWidth, 0),
+            SIMD2(tileSize, 0),
+            SIMD2(tileSize - borderWidth, tileSize),
+            SIMD2(tileSize, tileSize)
+        ]
+        indices = [0, 2, 1, 1, 2, 3]
+        polygons.append(ParsedPolygon(vertices: vertices, indices: indices))
+        
+        polygonByStyle[style.key] = polygons
+        styles[style.key] = style
+    }
+    
     private func addBackground(polygonByStyle: inout [UInt8: [ParsedPolygon]], styles: inout [UInt8: FeatureStyle]) {
         let style = determineFeatureStyle.makeStyle(data: DetFeatureStyleData(
             layerName: "background",
@@ -187,6 +241,7 @@ class TileMvtParser {
         }
         
         addBackground(polygonByStyle: &polygonByStyle, styles: &styles)
+        addBorder(polygonByStyle: &polygonByStyle, styles: &styles, borderWidth: 16)
         
         return ReadingStageResult(
             polygonByStyle: polygonByStyle.filter { $0.value.isEmpty == false },
