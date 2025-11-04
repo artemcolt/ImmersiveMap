@@ -15,6 +15,7 @@ class TilesTexture {
         let tile: simd_int3
     }
     
+    let textSize: Float = 40
     var texture: [MTLTexture] = []
     let size: Int = 4096
     var cellSize: Int = 1024
@@ -91,7 +92,7 @@ class TilesTexture {
         texts.append(TextEntry(
             text: "x: \(tile.x) y: \(tile.y) z: \(tile.z)",
             position: SIMD2<Float>(Float(x) * 4096 / Float(count) + shift, Float(y) * 4096 / Float(count) + shift),
-            scale: 10 * scaleParam
+            scale: textSize * scaleParam
         ))
         
         guard let renderEncoder = renderEncoder else { return true }

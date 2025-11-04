@@ -45,7 +45,7 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
     private var pitchSlider: UISlider!
     private var renderer: Renderer?
     private var displayLink: CADisplayLink?
-    private var redraw: Bool = false
+    var redraw: Bool = false
     
     private func startDisplayLink() {
         guard displayLink == nil else { return }
@@ -61,7 +61,7 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
     
     private func setup() {
         metalLayer.contentsScale = UIScreen.main.scale
-        renderer = Renderer(layer: metalLayer)
+        renderer = Renderer(layer: metalLayer, uiView: self)
         
         // Добавляем обработчик жеста панорамирования одним пальцем
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))

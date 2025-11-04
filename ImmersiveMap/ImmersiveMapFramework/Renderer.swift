@@ -27,9 +27,10 @@ class Renderer {
     let globePipeline: GlobePipeline
     let camera: Camera
     let cameraControl: CameraControl
-    private let metalTilesStorage: MetalTilesStorage
+    private var metalTilesStorage: MetalTilesStorage?
     private let tilesTexture: TilesTexture
     private let textRenderer: TextRenderer
+    private let uiView: ImmersiveMapUIView
     
     private let sphereVerticesBuffer: MTLBuffer
     private let sphereIndicesBuffer: MTLBuffer
@@ -60,8 +61,9 @@ class Renderer {
         PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 1.0, 1.0),   color: SIMD4<Float>(0, 0, 1, 1)),
     ]
     
-    init(layer: CAMetalLayer) {
+    init(layer: CAMetalLayer, uiView: ImmersiveMapUIView) {
         self.metalLayer = layer
+        self.uiView = uiView
         guard let metalDevice = MTLCreateSystemDefaultDevice() else {
             fatalError("Metal не поддерживается на этом устройстве")
         }
@@ -89,22 +91,22 @@ class Renderer {
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
         camera = Camera()
         cameraControl = CameraControl()
-        metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(), metalDevice: metalDevice)
         
-        let sphereGeometry = SphereGeometry(stacks: 64, slices: 64)
+        let sphereGeometry = SphereGeometry(stacks: 128, slices: 128)
         let vertices = sphereGeometry.vertices
         let indices = sphereGeometry.indices
         sphereVerticesBuffer = metalDevice.makeBuffer(bytes: vertices, length: MemoryLayout<SphereGeometry.Vertex>.stride * vertices.count)!
         sphereIndicesBuffer = metalDevice.makeBuffer(bytes: indices, length: MemoryLayout<UInt32>.stride * indices.count)!
         sphereIndicesCount = indices.count
         
-        tileTextVerticesBuffer = metalDevice.makeBuffer(length: MemoryLayout<TextVertex>.stride * 600)!
+        let len = MemoryLayout<TextVertex>.stride * 3000
+        tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
         
-        metalTilesStorage.addHandler(handler: tileReady)
+        metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(), metalDevice: metalDevice, renderer: self)
     }
     
-    private func tileReady(tile: Tile) {
-        render(to: metalLayer)
+    func newTileAvailable(tile: Tile) {
+        uiView.redraw = true
     }
     
     private var previousTiles: [MetalTile] = []
@@ -115,8 +117,8 @@ class Renderer {
         if screenMatrixSize != currentDrawableSize {
             screenMatrixSize = currentDrawableSize
             screenMatrix = Matrix.orthographicMatrix(left: 0, right: Float(screenMatrixSize.width),
-                                                         bottom: 0, top: Float(screenMatrixSize.height),
-                                                         near: -1, far: 1)
+                                                     bottom: 0, top: Float(screenMatrixSize.height),
+                                                     near: -1, far: 1)
         }
         
         guard var screenMatrix = screenMatrix else {
@@ -171,7 +173,7 @@ class Renderer {
         
         var globe = Globe(xRotation: Float(cameraControl.pan.y) * Float(maxLatitude),
                           yRotation: Float(cameraControl.pan.x) * Float.pi,
-                          radius: 0.15 * worldScale)
+                          radius: 0.14 * worldScale)
         
         
         let zoom = Int(cameraControl.zoom)
@@ -189,6 +191,10 @@ class Renderer {
         }
         
         let nearestToUserSorted = nearestToUser.sorted { t1, t2 in
+            if (t1.z != t2.z && t1.z > t2.z) {
+                return true
+            }
+            
             let dx1 = abs(t1.x - Int(center.tileX))
             let dy1 = abs(t1.y - Int(center.tileY))
             let maxD1 = max(dx1, dy1)
@@ -199,25 +205,6 @@ class Renderer {
             
             return maxD1 < maxD2 // true -> первый элемент двигаем влево
         }
-        
-        let orderedTiles = nearestToUserSorted
-        print(orderedTiles)
-        //let orderedTiles = [ Tile(x: 0, y: 0, z: 1), Tile(x: 1, y: 0, z: 1), Tile(x: 0, y: 1, z: 1), Tile(x: 1, y: 1, z: 1) ]
-        
-        // Определяем тайлы с наибольшей детализацией
-        var maxDetalization: [Tile] = [
-            Tile(x: Int(center.tileX), y: Int(center.tileY) - 1, z: zoom),
-            Tile(x: Int(center.tileX) - 1, y: Int(center.tileY) - 1, z: zoom),
-            Tile(x: Int(center.tileX) + 1, y: Int(center.tileY) - 1, z: zoom),
-            
-            Tile(x: Int(center.tileX), y: Int(center.tileY), z: zoom),
-            Tile(x: Int(center.tileX) - 1, y: Int(center.tileY), z: zoom),
-            Tile(x: Int(center.tileX) + 1, y: Int(center.tileY), z: zoom),
-            
-            Tile(x: Int(center.tileX), y: Int(center.tileY) + 1, z: zoom),
-            Tile(x: Int(center.tileX) - 1, y: Int(center.tileY) + 1, z: zoom),
-            Tile(x: Int(center.tileX) + 1, y: Int(center.tileY) + 1, z: zoom),
-        ]
         
         // depth = 0 -> покрыть всю текстуру. Вместимость: 0 тайлов
         // depth = 1 -> покрыть 1/4 текстуры. Вместимость: 1 тайл
@@ -232,18 +219,25 @@ class Renderer {
         let depth2Capacity = 4
         let depth3Capacity = 32
         
+        
+        let orderedTiles = nearestToUserSorted
+        //print(orderedTiles.count)
+        
+        // Запрашиваем тайлы, которые нужны для отрисовки карты
+        // Тайлы, которых нету будут запрошены по интернету и так же будет попытка локальной загрузки с диска
+        let tilesFromStorage = metalTilesStorage!.request(tiles: orderedTiles)
+        
         // Берем нужные тайлы из хранилища, запрашиваем по интернету тайлы, которых нету.
         // Заменяем пробелы тайлами из предыдущего кадра.
         var currentTiles: [MetalTile] = []
         var depths: [UInt8] = []
-        for i in 0..<orderedTiles.count {
-            let t = orderedTiles[i]
-            let tile = Tile(x: t.x, y: t.y, z: t.z)
+        for i in 0..<tilesFromStorage.count {
+            let storageTile = tilesFromStorage[i]
+            var metalTile = storageTile.metalTile
+            let tile = storageTile.tile
             
-            var metalTile = metalTilesStorage.getMetalTile(tile: tile)
+            // заменяем тайл, которого еще нету на временный тайл с предыдущего кадра
             if metalTile == nil {
-                metalTilesStorage.requestMetalTile(tile: tile)
-                
                 for prevTile in previousTiles {
                     if prevTile.tile.covers(tile) || tile.covers(prevTile.tile) {
                         metalTile = prevTile
@@ -271,11 +265,15 @@ class Renderer {
         tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
         tilesTexture.selectTilePipeline()
         for i in currentTiles.indices {
+            if depths.count <= i {
+                print("(ERROR) No place for tile in texture!")
+                break
+            }
             let metalTile = currentTiles[i]
             let depth = depths[i]
             let placed = tilesTexture.draw(metalTile: metalTile, depth: depth)
             if placed == false {
-                print("no place for tile")
+                print("(ERROR) No place for tile in texture!")
                 break
             }
         }

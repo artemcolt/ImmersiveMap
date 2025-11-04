@@ -37,7 +37,7 @@ class Camera {
     var testPoints: [SIMD4<Float>] = []
     
     func recalculateProjection(aspect: Float) {
-        self.projection = Matrix.perspectiveMatrix(fovRadians: Float.pi / 4, aspect: aspect, near: 0.001, far: 30.0)
+        self.projection = Matrix.perspectiveMatrix(fovRadians: Float.pi / 4, aspect: aspect, near: 0.001, far: 50.0)
         recalculateMatrix()
     }
     

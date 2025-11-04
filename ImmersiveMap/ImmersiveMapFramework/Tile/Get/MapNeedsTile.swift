@@ -10,16 +10,16 @@ import MetalKit
 class MapNeedsTile {
     private var tileDownloader: TileDownloader!
     private var tileDiskCaching: TileDiskCaching!
-    private var onComplete: (Data?, Tile) -> Void
     private var ongoingTasks: [String: Task<Void, Never>] = [:]
     private let maxConcurrentFetchs: Int
-    private let lifo: LIFOStack<Tile>
+    private let fifo: FIFOStack<Tile>
+    private let metalTilesStorage: MetalTilesStorage
     
-    init(onComplete: @escaping (Data?, Tile) -> Void) {
-        self.onComplete = onComplete
+    init(metalTilesStorage: MetalTilesStorage) {
+        self.metalTilesStorage = metalTilesStorage
         self.maxConcurrentFetchs = MapParameters.maxConcurrentFetchs
         let maxFifoCapacity = MapParameters.maxFifoCapacity
-        self.lifo = LIFOStack(capacity: maxFifoCapacity)
+        self.fifo = FIFOStack(capacity: maxFifoCapacity)
         
         tileDiskCaching = TileDiskCaching()
         tileDownloader = TileDownloader()
@@ -29,47 +29,68 @@ class MapNeedsTile {
         return maxConcurrentFetchs - ongoingTasks.count
     }
     
-    func please(tile: Tile) {
-        let debugAssemblingMap = MapParameters.debugAssemblingMap
+    func request(tiles: [Tile]) {
+        if tiles.isEmpty {
+            return
+        }
         
+        // У нас теперь требуются новые тайлы, зачистить очередь
+        fifo.clear()
+        
+        // Запрашиваем столько, сколько можем.
+        // Остальное будет добавлено в очередь fifo и вызвано позже
+        for tile in tiles {
+            requestSingleTile(tile: tile)
+        }
+    }
+    
+    private func requestSingleTile(tile: Tile) {
         if ongoingTasks[tile.key()] != nil {
-            if debugAssemblingMap { print("Requested already tile \(tile)") }
             return
         }
         
         if ongoingTasks.count >= maxConcurrentFetchs {
-            lifo.push(tile)
-            if debugAssemblingMap { print("Request fifo enque tile \(tile)") }
+            fifo.push(tile)
             return
         }
         
-        if debugAssemblingMap { print("Request tile \(tile)") }
+        createLoadTileTask(tile: tile)
+    }
+    
+    private func createLoadTileTask(tile: Tile) {
+        print("[TILE] " + tile.key() + " load task created.")
         let task = Task {
-            if let data = await tileDiskCaching.requestDiskCached(tile: tile) {
-                if debugAssemblingMap {print("Fetched disk tile: \(tile.key())")}
-                await MainActor.run {
-                    _onComplete(data: data, tile: tile)
-                }
-                return
-            }
-            
-            if let data = await tileDownloader.download(tile: tile) {
-                tileDiskCaching.saveOnDisk(tile: tile, data: data)
-                await MainActor.run {
-                    _onComplete(data: data, tile: tile)
-                }
-                return
-            }
+            // Взять с диска, если нету то пойти в интернет
+            await loadTile(tile: tile)
         }
-        
         ongoingTasks[tile.key()] = task
     }
     
-    private func _onComplete(data: Data?, tile: Tile) {
-        ongoingTasks.removeValue(forKey: tile.key())
-        if let deqeueTile = lifo.pop() {
-            please(tile: deqeueTile)
+    private func loadTile(tile: Tile) async {
+        if let data = await tileDiskCaching.requestDiskCached(tile: tile) {
+            await onComplete(data: data, tile: tile)
+            return
         }
-        onComplete(data, tile)
+        
+        if let data = await tileDownloader.download(tile: tile) {
+            tileDiskCaching.saveOnDisk(tile: tile, data: data)
+            await onComplete(data: data, tile: tile)
+            return
+        }
+    }
+    
+    private func onComplete(data: Data?, tile: Tile) async {
+        if let data = data {
+            await metalTilesStorage.parseTile(tile: tile, data: data)
+        }
+        
+        await MainActor.run {
+            ongoingTasks.removeValue(forKey: tile.key())
+            if let deqeueTile = fifo.pop() {
+                requestSingleTile(tile: deqeueTile)
+            }
+        }
+        
+        print("[TILE] " + tile.key() + " ready.")
     }
 }

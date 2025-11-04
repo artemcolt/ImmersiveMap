@@ -10,81 +10,93 @@ internal import GISTools
 import MetalKit
 
 class MetalTilesStorage {
-    var mapNeedsTile                : MapNeedsTile!
+    private var mapNeedsTile        : MapNeedsTile?
     var tileParser                  : TileMvtParser!
     private var memoryMetalTile     : MemoryMetalTileCache!
-    private var onMetalingTileEnd   : [(Tile) -> Void] = []
     private let metalDevice         : MTLDevice
+    private let debugAssemblingMap  = MapParameters.debugAssemblingMap
+    private let renderer            : Renderer
     
     init(
         mapStyle: MapStyle,
         metalDevice: MTLDevice,
+        renderer: Renderer
     ) {
         self.metalDevice = metalDevice
+        self.renderer = renderer
         let maxCachedTilesMemory = MapParameters.maxCachedTilesMemInBytes
         memoryMetalTile = MemoryMetalTileCache(maxCacheSizeInBytes: maxCachedTilesMemory)
         let determineFeatureStyle = DetermineFeatureStyle(mapStyle: mapStyle)
         tileParser = TileMvtParser(determineFeatureStyle: determineFeatureStyle)
-        mapNeedsTile = MapNeedsTile(onComplete: onTileComplete)
-    }
-    
-    func addHandler(handler: @escaping (Tile) -> Void) {
-        onMetalingTileEnd.append(handler)
-    }
-    
-    private func onTileComplete(data: Data?, tile: Tile) {
-        guard let data = data else { return }
         
-        let debugAssemblingMap = MapParameters.debugAssemblingMap
-        let tileExtent = 4096
-        if debugAssemblingMap { print("Parsing and metaling \(tile)") }
-        Task {
-            let parsedTile = tileParser.parse(
-                tile: tile,
-                mvtData: data
-            )
-            
-            let tileBuffers = TileBuffers(
-                verticesBuffer: metalDevice.makeBuffer(
-                    bytes: parsedTile.drawingPolygon.vertices,
-                    length: parsedTile.drawingPolygon.vertices.count * MemoryLayout<TilePipeline.VertexIn>.stride
-                )!,
-                indicesBuffer: metalDevice.makeBuffer(
-                    bytes: parsedTile.drawingPolygon.indices,
-                    length: parsedTile.drawingPolygon.indices.count * MemoryLayout<UInt32>.stride
-                )!,
-                stylesBuffer: metalDevice.makeBuffer(
-                    bytes: parsedTile.styles,
-                    length: parsedTile.styles.count * MemoryLayout<TilePolygonStyle>.stride
-                )!,
-                indicesCount: parsedTile.drawingPolygon.indices.count,
-                verticesCount: parsedTile.drawingPolygon.vertices.count
-            )
-            
-            
-            let metalTile = MetalTile(tile: tile, tileBuffers: tileBuffers)
-            
-            await MainActor.run {
-                let key = tile.key()
-                self.memoryMetalTile.setTileData(
-                    tile: metalTile,
-                    forKey: key
-                )
-                if onMetalingTileEnd.count > 2 {
-                    print("Warning. onMetalingTileEnd has ", onMetalingTileEnd.count, " handlers.")
-                }
-                for handler in onMetalingTileEnd {
-                    handler(tile)
-                }
-            }
-        }
+        mapNeedsTile = MapNeedsTile(metalTilesStorage: self)
     }
     
     func getMetalTile(tile: Tile) -> MetalTile? {
         return memoryMetalTile.getTile(forKey: tile.key())
     }
     
-    func requestMetalTile(tile: Tile) {
-        mapNeedsTile.please(tile: tile)
+    func request(tiles: [Tile]) -> [TileInStorage] {
+        var tilesInStorage: [TileInStorage] = []
+        var request: [Tile] = []
+        for tile in tiles {
+            let metalTile = getMetalTile(tile: tile)
+            
+            // Готового тайла к отображению нету, его нужно запросить, загрузить с диска или с интернета
+            // Так же распарсить и после загрузить в кэш
+            if metalTile == nil {
+                request.append(tile)
+            }
+            
+            // Подготавливаем массив отрисовки
+            tilesInStorage.append(TileInStorage(metalTile: metalTile, tile: tile))
+        }
+        
+        
+        // отправляем все тайлы, которых нету на загрузку
+        mapNeedsTile!.request(tiles: request)
+        
+        return tilesInStorage
+    }
+    
+    func parseTile(tile: Tile, data: Data) async {
+        let parsedTile = tileParser.parse(
+            tile: tile,
+            mvtData: data
+        )
+        
+        let tileBuffers = TileBuffers(
+            verticesBuffer: metalDevice.makeBuffer(
+                bytes: parsedTile.drawingPolygon.vertices,
+                length: parsedTile.drawingPolygon.vertices.count * MemoryLayout<TilePipeline.VertexIn>.stride
+            )!,
+            indicesBuffer: metalDevice.makeBuffer(
+                bytes: parsedTile.drawingPolygon.indices,
+                length: parsedTile.drawingPolygon.indices.count * MemoryLayout<UInt32>.stride
+            )!,
+            stylesBuffer: metalDevice.makeBuffer(
+                bytes: parsedTile.styles,
+                length: parsedTile.styles.count * MemoryLayout<TilePolygonStyle>.stride
+            )!,
+            indicesCount: parsedTile.drawingPolygon.indices.count,
+            verticesCount: parsedTile.drawingPolygon.vertices.count
+        )
+        
+        let metalTile = MetalTile(tile: tile, tileBuffers: tileBuffers)
+        
+        await MainActor.run {
+            let key = tile.key()
+            self.memoryMetalTile.setTileData(
+                tile: metalTile,
+                forKey: key
+            )
+            
+            renderer.newTileAvailable(tile: tile)
+        }
+    }
+    
+    struct TileInStorage {
+        let metalTile: MetalTile?
+        let tile: Tile
     }
 }

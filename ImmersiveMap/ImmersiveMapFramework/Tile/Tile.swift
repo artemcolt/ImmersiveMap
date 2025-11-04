@@ -27,7 +27,7 @@ struct Tile: Hashable {
     }
     
     func key() -> String {
-        return "\(z)_\(x)_\(y)"
+        return "\(x)_\(y)_\(z)"
     }
     
     init(x: Int, y: Int, z: Int) {
