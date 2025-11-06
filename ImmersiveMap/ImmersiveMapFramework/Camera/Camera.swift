@@ -73,6 +73,9 @@ class Camera {
         if z > 3 {
             step = 0.5
         }
+        if z > 5 {
+            step = 1.0
+        }
         
         let points = aproximateTile(tx: x, ty: y, tz: z, step: step, radius: radius, rotation: rotation)
         

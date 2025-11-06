@@ -41,6 +41,7 @@ class Renderer {
     private let semaphore = DispatchSemaphore(value: 3)
     private var currentIndex = 0
     
+    private var previousTiles: [PlaceTile] = []
     private let tile: Tile = Tile(x: 0, y: 0, z: 0)
     private var screenMatrix: matrix_float4x4?
     private var screenMatrixSize: CGSize = CGSize.zero
@@ -108,8 +109,6 @@ class Renderer {
     func newTileAvailable(tile: Tile) {
         uiView.redraw = true
     }
-    
-    private var previousTiles: [MetalTile] = []
     
     func render(to layer: CAMetalLayer) {
         let currentDrawableSize = layer.drawableSize
@@ -181,18 +180,9 @@ class Renderer {
         
         // Тайлы, которые пользователь видит в полностью подгруженном состоянии
         // они там могут быть в разнобой, просто все тайлы, которые пользователь видит
-        let seeTiles = iSeeTiles(globe: globe, targetZoom: zoom, center: center)
-        let seeTilesGroupedByZ = Dictionary(grouping: seeTiles) { tile in tile.z }
-        
-        // Тайлы того же зума, что и сейчас есть, это самые близкие тайлы к пользователю
-        guard let nearestToUser = seeTilesGroupedByZ[zoom] else {
-            semaphore.signal()
-            return
-        }
-        
-        let nearestToUserSorted = nearestToUser.sorted { t1, t2 in
-            if (t1.z != t2.z && t1.z > t2.z) {
-                return true
+        let seeTiles = iSeeTiles(globe: globe, targetZoom: zoom, center: center).sorted(by: { t1, t2 in
+            if t1.z != t2.z {
+                return t1.z > t2.z
             }
             
             let dx1 = abs(t1.x - Int(center.tileX))
@@ -203,8 +193,8 @@ class Renderer {
             let dy2 = abs(t2.y - Int(center.tileY))
             let maxD2 = max(dx2, dy2)
             
-            return maxD1 < maxD2 // true -> первый элемент двигаем влево
-        }
+            return maxD1 < maxD2 // true -> элементы остаются на месте
+        })
         
         // depth = 0 -> покрыть всю текстуру. Вместимость: 0 тайлов
         // depth = 1 -> покрыть 1/4 текстуры. Вместимость: 1 тайл
@@ -214,39 +204,38 @@ class Renderer {
         var depth1Count = 0
         var depth2Count = 0
         var depth3Count = 0
+        var depth4Count = 0
         
         let depth1Capacity = 1
-        let depth2Capacity = 4
-        let depth3Capacity = 32
+        let depth2Capacity = 8
+        let depth3Capacity = 12
+        let depth4Capacity = 8
         
-        
-        let orderedTiles = nearestToUserSorted
-        //print(orderedTiles.count)
+        var placeTiles: [PlaceTile] = []
+        var depths: [UInt8] = []
         
         // Запрашиваем тайлы, которые нужны для отрисовки карты
         // Тайлы, которых нету будут запрошены по интернету и так же будет попытка локальной загрузки с диска
-        let tilesFromStorage = metalTilesStorage!.request(tiles: orderedTiles)
+        let tilesFromStorage = metalTilesStorage!.request(tiles: seeTiles)
         
-        // Берем нужные тайлы из хранилища, запрашиваем по интернету тайлы, которых нету.
         // Заменяем пробелы тайлами из предыдущего кадра.
-        var currentTiles: [MetalTile] = []
-        var depths: [UInt8] = []
         for i in 0..<tilesFromStorage.count {
             let storageTile = tilesFromStorage[i]
             var metalTile = storageTile.metalTile
             let tile = storageTile.tile
             
-            // заменяем тайл, которого еще нету на временный тайл с предыдущего кадра
+            // Заменяем тайл, которого еще нету на временный тайл с предыдущего кадра
             if metalTile == nil {
-                for prevTile in previousTiles {
-                    if prevTile.tile.covers(tile) || tile.covers(prevTile.tile) {
-                        metalTile = prevTile
+                for prev in previousTiles {
+                    let prevTile = prev.metalTile.tile
+                    if prevTile.covers(tile) || tile.covers(prevTile) {
+                        metalTile = prev.metalTile
                     }
                 }
             }
             
             guard let metalTile = metalTile else { continue }
-            currentTiles.append(metalTile)
+            placeTiles.append(PlaceTile(metalTile: metalTile, placeIn: tile))
             
             if depth1Count < depth1Capacity {
                 depths.append(1)
@@ -257,23 +246,28 @@ class Renderer {
             } else if depth3Count < depth3Capacity {
                 depths.append(3)
                 depth3Count += 1
+            } else if depth4Count < depth4Capacity {
+                depths.append(4)
+                depth4Count += 1
             }
         }
+        
+        
         
         // Рисуем готовые тайлы в текстуре.
         // Размещаем их так, чтобы контролировать детализацию
         tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
         tilesTexture.selectTilePipeline()
-        for i in currentTiles.indices {
+        for i in placeTiles.indices {
             if depths.count <= i {
-                print("(ERROR) No place for tile in texture!")
+                print("[ERROR] No place for tile in texture!")
                 break
             }
-            let metalTile = currentTiles[i]
+            let placeTile = placeTiles[i]
             let depth = depths[i]
-            let placed = tilesTexture.draw(metalTile: metalTile, depth: depth)
+            let placed = tilesTexture.draw(placeTile: placeTile, depth: depth, maxDepth: 4)
             if placed == false {
-                print("(ERROR) No place for tile in texture!")
+                print("[ERROR] No place for tile in texture!")
                 break
             }
         }
@@ -309,7 +303,7 @@ class Renderer {
         tilesTexture.endEncoding()
         
         // Сохраняем текущие тайлы, чтобы заменять отсутствующие тайлы следующего кадра
-        previousTiles = currentTiles
+        previousTiles = placeTiles
         
         
         // Camera uniform
@@ -418,5 +412,14 @@ class Renderer {
                                    centerTile: Tile(x: tileX, y: tileY, z: targetZoom)
         )
         return result
+    }
+    
+    struct PlaceTile {
+        let metalTile: MetalTile
+        let placeIn: Tile
+        
+        func isReplacement() -> Bool {
+            return metalTile.tile != placeIn
+        }
     }
 }

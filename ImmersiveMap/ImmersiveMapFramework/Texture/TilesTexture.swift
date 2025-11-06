@@ -72,8 +72,12 @@ class TilesTexture {
         projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
     }
     
-    func draw(metalTile: MetalTile, depth: UInt8) -> Bool {
+    func draw(placeTile: Renderer.PlaceTile, depth: UInt8, maxDepth: UInt8) -> Bool {
         guard let placedPos = textureTree.addNewValue(value: TextureValue(), depth: depth) else { return false }
+        
+        let metalTile = placeTile.metalTile
+        let placeIn = placeTile.placeIn
+        let replaced = placeTile.isReplacement()
         
         let tile = metalTile.tile
         let count = 1 << depth
@@ -86,7 +90,7 @@ class TilesTexture {
         let y = Int(placedPos.y)
         let shiftMatrix = Matrix.translationMatrix(x: Float(x) * 4096, y: Float(y) * 4096, z: 0)
         var cameraUniform = CameraUniform(matrix: projection * shiftMatrix)
-        let scaleParam = Float( 1 << (UInt8(3) - depth))
+        let scaleParam = Float( 1 << (UInt8(maxDepth) - depth))
         let shift = scaleParam * 10
         
         texts.append(TextEntry(

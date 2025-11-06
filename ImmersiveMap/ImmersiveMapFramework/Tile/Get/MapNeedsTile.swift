@@ -68,20 +68,21 @@ class MapNeedsTile {
     
     private func loadTile(tile: Tile) async {
         if let data = await tileDiskCaching.requestDiskCached(tile: tile) {
-            await onComplete(data: data, tile: tile)
+            await parseTile(data: data, tile: tile)
             return
         }
         
         if let data = await tileDownloader.download(tile: tile) {
             tileDiskCaching.saveOnDisk(tile: tile, data: data)
-            await onComplete(data: data, tile: tile)
+            await parseTile(data: data, tile: tile)
             return
         }
     }
     
-    private func onComplete(data: Data?, tile: Tile) async {
+    private func parseTile(data: Data?, tile: Tile) async {
         if let data = data {
             await metalTilesStorage.parseTile(tile: tile, data: data)
+            print("[TILE] " + tile.key() + " ready.")
         }
         
         await MainActor.run {
@@ -90,7 +91,5 @@ class MapNeedsTile {
                 requestSingleTile(tile: deqeueTile)
             }
         }
-        
-        print("[TILE] " + tile.key() + " ready.")
     }
 }

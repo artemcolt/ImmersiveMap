@@ -50,7 +50,6 @@ class CameraControl {
         let factor = Float(0.4)
         zoom += (scale - 1.0) * factor
         zoom = min(max(0, zoom), 20)
-        print("zoom = \(zoom)")
         update = true
     }
 }
