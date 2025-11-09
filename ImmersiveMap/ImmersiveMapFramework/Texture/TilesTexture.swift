@@ -77,9 +77,8 @@ class TilesTexture {
         
         let metalTile = placeTile.metalTile
         let placeIn = placeTile.placeIn
-        let replaced = placeTile.isReplacement()
+        let isReplacement = placeTile.isReplacement()
         
-        let tile = metalTile.tile
         let count = 1 << depth
         let cellSize = size / count
         let freePtr = Int(placedPos.x) + Int(placedPos.y) * count
@@ -93,14 +92,39 @@ class TilesTexture {
         let scaleParam = Float( 1 << (UInt8(maxDepth) - depth))
         let shift = scaleParam * 10
         
+        let placeInCount = 1 << placeIn.z
+        let zDiff = placeIn.z - metalTile.tile.z
+        let scale = powf(2.0, Float(zDiff))
+        
+        let mtCount = 1 << metalTile.tile.z
+        
+        
+        let relX = Float(placeIn.x) - (Float(metalTile.tile.x) * scale)
+        let relY = Float(placeIn.y) + (Float((mtCount - 1) - metalTile.tile.y) * scale)
+        
+        let shiftX = -1.0 * Float(relX) * 4096.0
+        let shiftY = -1.0 * Float(Float(placeInCount - 1) - relY) * 4096.0
+        
+        var modelMatrix = Matrix.translationMatrix(x: shiftX, y: shiftY, z: 0) * Matrix.scaleMatrix(sx: scale, sy: scale, sz: 1)
+        
+        let tile = placeIn
         texts.append(TextEntry(
             text: "x: \(tile.x) y: \(tile.y) z: \(tile.z)",
             position: SIMD2<Float>(Float(x) * 4096 / Float(count) + shift, Float(y) * 4096 / Float(count) + shift),
             scale: textSize * scaleParam
         ))
         
+        let scissorRect = MTLScissorRect(
+            x: Int(placedPos.x) * cellSize,
+            y: ((count - 1) - Int(placedPos.y)) * cellSize,
+            width: cellSize,
+            height: cellSize
+        )
+        
         guard let renderEncoder = renderEncoder else { return true }
+        renderEncoder.setScissorRect(scissorRect)
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
+        renderEncoder.setVertexBytes(&modelMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 3)
         
         let buffers = metalTile.tileBuffers
         renderEncoder.setVertexBuffer(buffers.verticesBuffer, offset: 0, index: 0)

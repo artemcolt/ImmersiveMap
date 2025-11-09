@@ -36,6 +36,14 @@ class Matrix {
         )
     }
     
+    static func scaleMatrix(sx: Float, sy: Float, sz: Float) -> matrix_float4x4 {
+        var matrix = matrix_identity_float4x4
+        matrix[0][0] = sx
+        matrix[1][1] = sy
+        matrix[2][2] = sz
+        return matrix
+    }
+    
     // Create a translation matrix
     static func translationMatrix(x: Float, y: Float, z: Float) -> matrix_float4x4 {
         var matrix = matrix_identity_float4x4

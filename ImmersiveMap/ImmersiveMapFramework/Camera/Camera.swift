@@ -79,64 +79,40 @@ class Camera {
         
         let points = aproximateTile(tx: x, ty: y, tz: z, step: step, radius: radius, rotation: rotation)
         
-        var maxX: Float = points[0].x
-        var maxY: Float = points[0].y
-        var maxZ: Float = points[0].z
+        if x == 3 && y == 3 && z == 3 {
+            testPoints.append(contentsOf: points)
+        }
         
-        var minX: Float = points[0].x
-        var minY: Float = points[0].y
-        var minZ: Float = points[0].z
-        
-        let cameraDirection = normalize(center - eye)
-        var faced = false
+        var excludeByFaceDirection = false
+        var contains = false
         for point in points {
-            maxX = max(maxX, point.x)
-            maxY = max(maxY, point.y)
-            maxZ = max(maxZ, point.z)
+            let pointNorm = normalize(point.xyz)
+            let viewDirectionToTile = normalize(point.xyz - eye)
+            let dotProduct = dot(pointNorm, viewDirectionToTile)
+            excludeByFaceDirection = dotProduct < 0.0
             
-            minX = min(minX, point.x)
-            minY = min(minY, point.y)
-            minZ = min(minZ, point.z)
-            
-            if faced == false {
-                let normal = normalize(point.xyz + SIMD3<Float>(0, 0, radius))
-                if dot(normal, cameraDirection) < 0.1 {
-                    faced = true
-                }
-            }
+            contains = frustrum!.contain(point: point)
+            if contains && excludeByFaceDirection == false { break }
         }
         
-        if faced == false {
-            return
-        }
-        
-        let minPoint = SIMD3<Float>(minX, minY, minZ)
-        let maxPoint = SIMD3<Float>(maxX, maxY, maxZ)
-        
-        let contains = frustrum!.intersectsAABB(minPoint: minPoint, maxPoint: maxPoint)
-        
-//        if z == targetZ {
-//            testPoints.append(contentsOf: points)
-//        }
-        
-        if contains == false {
+        if contains == false || excludeByFaceDirection {
             return
         }
         
         let zDiff = abs(centerTile.z - z)
-        let diff = 1 << zDiff
-        let relCenterX = Int(centerTile.x / diff)
-        let relCenterY = Int(centerTile.y / diff)
-        
-        let dx = abs(x - relCenterX)
-        let dy = abs(y - relCenterY)
-        let maxD = max(dx, dy)
-        
-        if zDiff > 0 && maxD > 1 {
-            result.append(Tile(x: x, y: y, z: z))
-            return
-        }
-        
+//        let diff = 1 << zDiff
+//        let relCenterX = Int(centerTile.x / diff)
+//        let relCenterY = Int(centerTile.y / diff)
+//        
+//        let dx = abs(x - relCenterX)
+//        let dy = abs(y - relCenterY)
+//        let maxD = max(dx, dy)
+//        
+//        if zDiff > 0 && maxD > 1 {
+//            result.append(Tile(x: x, y: y, z: z))
+//            return
+//        }
+//        
         if zDiff == 0 {
             result.append(Tile(x: x, y: y, z: z))
             return
@@ -251,6 +227,18 @@ struct Frustum {
         p = SIMD4<Float>(m0w - m0z, m1w - m1z, m2w - m2z, m3w - m3z)
         p /= length(SIMD3<Float>(p.x, p.y, p.z))
         planes.append(p)
+    }
+    
+    func contain(point: SIMD4<Float>) -> Bool {
+        var isInside = true
+        for plane in planes {
+            let distance = dot(plane, point)
+            if distance < 0 {
+                isInside = false
+                break
+            }
+        }
+        return isInside
     }
     
     func containsAny(points: [SIMD4<Float>]) -> Bool {

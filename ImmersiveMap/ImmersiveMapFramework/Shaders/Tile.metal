@@ -27,12 +27,13 @@ struct Style {
 
 vertex VertexOut tileVertexShader(VertexIn vertexIn [[stage_in]],
                                   constant Camera& camera [[buffer(1)]],
-                                  constant Style* styles [[buffer(2)]]) {
+                                  constant Style* styles [[buffer(2)]],
+                                  constant float4x4& modelMatrix [[buffer(3)]]) {
     
     Style style = styles[vertexIn.styleIndex];
     float4x4 matrix = camera.matrix;
     
-    float4 worldPosition = float4(float2(vertexIn.position.xy), 0.0, 1.0);
+    float4 worldPosition = modelMatrix * float4(float2(vertexIn.position.xy), 0.0, 1.0);
     float4 clipPosition = matrix * worldPosition;
     
     VertexOut out;

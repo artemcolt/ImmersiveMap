@@ -196,6 +196,11 @@ class Renderer {
             return maxD1 < maxD2 // true -> элементы остаются на месте
         })
         
+        print("- - -")
+        seeTiles.forEach { t in
+            print(t)
+        }
+        
         // depth = 0 -> покрыть всю текстуру. Вместимость: 0 тайлов
         // depth = 1 -> покрыть 1/4 текстуры. Вместимость: 1 тайл
         // depth = 2 -> покрыть 1/8 текстуры.
@@ -218,6 +223,7 @@ class Renderer {
         // Тайлы, которых нету будут запрошены по интернету и так же будет попытка локальной загрузки с диска
         let tilesFromStorage = metalTilesStorage!.request(tiles: seeTiles)
         
+
         // Заменяем пробелы тайлами из предыдущего кадра.
         for i in 0..<tilesFromStorage.count {
             let storageTile = tilesFromStorage[i]
@@ -277,10 +283,7 @@ class Renderer {
         if texts.isEmpty == false {
             
             if "\(texts.count)" != previousTilesTextKey {
-//                let tilesTextVertices = textRenderer.collectMultiTextVertices(for: texts)
-//                tileTextVerticesBuffer.contents().copyMemory(from: tilesTextVertices, byteCount: MemoryLayout<TextVertex>.stride * tilesTextVertices.count)
-//                previousTilesTextKey = "\(texts.count)"
-//                tileTextVerticesCount = tilesTextVertices.count
+                
             }
             
             let tilesTextVertices = textRenderer.collectMultiTextVertices(for: texts)
@@ -291,6 +294,7 @@ class Renderer {
             var tilesTextColor = SIMD3<Float>(1, 0, 0)
             var tilesProjection = Matrix.orthographicMatrix(left: 0, right: Float(4096), bottom: 0, top: Float(4096), near: -1, far: 1)
             let tilesRenderEncoder = tilesTexture.renderEncoder!
+            tilesRenderEncoder.setScissorRect(MTLScissorRect(x: 0, y: 0, width: tilesTexture.size, height: tilesTexture.size))
             tilesRenderEncoder.setRenderPipelineState(textRenderer.pipelineState)
             tilesRenderEncoder.setVertexBuffer(tileTextVerticesBuffer, offset: 0, index: 0)
             tilesRenderEncoder.setVertexBytes(&tilesProjection, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
@@ -351,10 +355,11 @@ class Renderer {
         renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: 6)
         
         for point in camera.testPoints {
-            let verticesTest = [PolygonsPipeline.Vertex(position: point, color: SIMD4<Float>(1, 0, 0, 1))]
+            let verticesTest = [PolygonsPipeline.Vertex(position: point, color: SIMD4<Float>(0, 0, 0, 1))]
             renderEncoder.setVertexBytes(verticesTest, length: MemoryLayout<PolygonsPipeline.Vertex>.stride * verticesTest.count, index: 0)
             renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesTest.count)
         }
+        camera.testPoints = []
         
         let zoomText = TextEntry(text: "z: " + cameraControl.zoom.formatted(.number.precision(.fractionLength(2))),
                                  position: SIMD2<Float>(100, Float(screenMatrixSize.height) - 300),
