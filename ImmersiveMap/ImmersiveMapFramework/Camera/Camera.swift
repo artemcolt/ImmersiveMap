@@ -48,7 +48,12 @@ class Camera {
         frustrum = Frustum(pv: cameraMatrix!)
     }
     
-    func aproximateTile(tx: Int, ty: Int, tz: Int, step: Float, radius: Float, rotation: float4x4) -> [SIMD4<Float>] {
+    func aproximateTile(tx: Int, ty: Int, tz: Int, radius: Float, rotation: float4x4) -> [SIMD4<Float>] {
+        var step = Float(0.25)
+        if tz >= 4 {
+            step = Float(0.5)
+        }
+        
         let count = Int(1.0 / step)
         var points: [SIMD4<Float>] = Array(repeating: SIMD4<Float>(), count: (count + 1) * (count + 1) )
         for x in 0...count {
@@ -63,56 +68,72 @@ class Camera {
         return points
     }
     
+    func boundingBox(for points: [SIMD4<Float>]) -> (min: SIMD4<Float>, max: SIMD4<Float>) {
+        guard !points.isEmpty else {
+            fatalError("Массив точек не может быть пустым")
+        }
+        
+        // Инициализируем min и max первой точкой
+        var minBounds = points[0]
+        var maxBounds = points[0]
+        
+        // Проходим по остальным точкам и обновляем границы
+        for point in points.dropFirst() {
+            minBounds = simd_min(minBounds, point)
+            maxBounds = simd_max(maxBounds, point)
+        }
+        
+        return (min: minBounds, max: maxBounds)
+    }
+    
     func collectVisibleTiles(x: Int, y: Int, z: Int, targetZ: Int,
                              radius: Float,
                              rotation: float4x4,
                              result: inout [Tile],
                              centerTile: Tile
     ) {
-        var step = Float(0.25)
-        if z > 3 {
-            step = 0.5
-        }
-        if z > 5 {
-            step = 1.0
+        let points = aproximateTile(tx: x, ty: y, tz: z, radius: radius, rotation: rotation)
+        let boundingBox = boundingBox(for: points)
+        //testPoints.append(boundingBox.min)
+        //testPoints.append(boundingBox.max)
+        let isVisibleBox = frustrum!.isBoxVisible(min: boundingBox.min, max: boundingBox.max)
+        if isVisibleBox == false {
+            return
         }
         
-        let points = aproximateTile(tx: x, ty: y, tz: z, step: step, radius: radius, rotation: rotation)
-        
-        if x == 3 && y == 3 && z == 3 {
-            testPoints.append(contentsOf: points)
-        }
+//        if z == 5 {
+//            testPoints.append(contentsOf: points)
+//        }
         
         var excludeByFaceDirection = false
-        var contains = false
         for point in points {
-            let pointNorm = normalize(point.xyz)
-            let viewDirectionToTile = normalize(point.xyz - eye)
-            let dotProduct = dot(pointNorm, viewDirectionToTile)
-            excludeByFaceDirection = dotProduct < 0.0
+            let shiftPlanePoint = point.xyz + SIMD3<Float>(0, 0, radius)
+            let pointNorm = normalize(shiftPlanePoint)
+            let directionToCamera = normalize(eye)
+            let dotProduct = dot(pointNorm, directionToCamera)
+            excludeByFaceDirection = dotProduct <= 0.0
             
-            contains = frustrum!.contain(point: point)
-            if contains && excludeByFaceDirection == false { break }
+            if excludeByFaceDirection == false { break }
         }
         
-        if contains == false || excludeByFaceDirection {
+        if excludeByFaceDirection {
             return
         }
         
         let zDiff = abs(centerTile.z - z)
-//        let diff = 1 << zDiff
-//        let relCenterX = Int(centerTile.x / diff)
-//        let relCenterY = Int(centerTile.y / diff)
-//        
-//        let dx = abs(x - relCenterX)
-//        let dy = abs(y - relCenterY)
-//        let maxD = max(dx, dy)
-//        
-//        if zDiff > 0 && maxD > 1 {
-//            result.append(Tile(x: x, y: y, z: z))
-//            return
-//        }
-//        
+        let diff = 1 << zDiff
+        let relCenterX = Int(centerTile.x / diff)
+        let relCenterY = Int(centerTile.y / diff)
+        
+        let dx = abs(x - relCenterX)
+        let dy = abs(y - relCenterY)
+        let maxD = max(dx, dy)
+        
+        if zDiff > 0 && maxD > 1 {
+            result.append(Tile(x: x, y: y, z: z))
+            return
+        }
+        
         if zDiff == 0 {
             result.append(Tile(x: x, y: y, z: z))
             return
@@ -229,60 +250,16 @@ struct Frustum {
         planes.append(p)
     }
     
-    func contain(point: SIMD4<Float>) -> Bool {
-        var isInside = true
+    func isBoxVisible(min: SIMD4<Float>, max: SIMD4<Float>) -> Bool {
         for plane in planes {
-            let distance = dot(plane, point)
-            if distance < 0 {
-                isInside = false
-                break
+            let px = plane.x >= 0 ? max.x : min.x
+            let py = plane.y >= 0 ? max.y : min.y
+            let pz = plane.z >= 0 ? max.z : min.z
+            let dist = plane.x * px + plane.y * py + plane.z * pz + plane.w
+            if dist < 0 {
+                return false
             }
         }
-        return isInside
+        return true
     }
-    
-    func containsAny(points: [SIMD4<Float>]) -> Bool {
-        for point in points {
-            var isInside = true
-            for plane in planes {
-                let distance = dot(plane, point)
-                if distance < 0 {
-                    isInside = false
-                    break
-                }
-            }
-            if isInside {
-                return true
-            }
-        }
-        return false
-    }
-    
-    func intersectsAABB(minPoint: SIMD3<Float>, maxPoint: SIMD3<Float>) -> Bool {
-            let corners: [SIMD4<Float>] = [
-                SIMD4<Float>(minPoint.x, minPoint.y, minPoint.z, 1.0),
-                SIMD4<Float>(minPoint.x, minPoint.y, maxPoint.z, 1.0),
-                SIMD4<Float>(minPoint.x, maxPoint.y, minPoint.z, 1.0),
-                SIMD4<Float>(minPoint.x, maxPoint.y, maxPoint.z, 1.0),
-                SIMD4<Float>(maxPoint.x, minPoint.y, minPoint.z, 1.0),
-                SIMD4<Float>(maxPoint.x, minPoint.y, maxPoint.z, 1.0),
-                SIMD4<Float>(maxPoint.x, maxPoint.y, minPoint.z, 1.0),
-                SIMD4<Float>(maxPoint.x, maxPoint.y, maxPoint.z, 1.0)
-            ]
-            
-            for plane in planes {
-                var allOutside = true
-                for corner in corners {
-                    let distance = dot(plane, corner)
-                    if distance >= 0 {
-                        allOutside = false
-                        break
-                    }
-                }
-                if allOutside {
-                    return false // Completely outside this plane
-                }
-            }
-            return true // Intersects or is inside the frustum
-        }
 }
