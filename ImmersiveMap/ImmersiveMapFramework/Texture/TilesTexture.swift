@@ -27,6 +27,10 @@ class TilesTexture {
     var textsMatrices: [matrix_float4x4] = []
     private var textureTree: TextureTree
     
+    private var previousShiftX: Float? = nil
+    private var previousShiftY: Float? = nil
+    private var previousScale: Float? = nil
+    
     init(metalDevice: MTLDevice, tilePipeline: TilePipeline) {
         let descriptor = MTLTextureDescriptor()
         descriptor.textureType = .type2D
@@ -47,6 +51,9 @@ class TilesTexture {
     }
     
     func activateEncoder(commandBuffer: MTLCommandBuffer, index: Int) {
+        previousShiftX = nil
+        previousShiftY = nil
+        previousScale = nil
         textureTree = TextureTree()
         tileData = []
         texts = []
@@ -74,10 +81,10 @@ class TilesTexture {
     
     func draw(placeTile: Renderer.PlaceTile, depth: UInt8, maxDepth: UInt8) -> Bool {
         guard let placedPos = textureTree.addNewValue(value: TextureValue(), depth: depth) else { return false }
+        guard let renderEncoder = renderEncoder else { return true }
         
         let metalTile = placeTile.metalTile
         let placeIn = placeTile.placeIn
-        let isReplacement = placeTile.isReplacement()
         
         let count = 1 << depth
         let cellSize = size / count
@@ -104,8 +111,14 @@ class TilesTexture {
         
         let shiftX = -1.0 * Float(relX) * 4096.0
         let shiftY = -1.0 * Float(Float(placeInCount - 1) - relY) * 4096.0
+        if shiftX != previousShiftX || shiftY != previousShiftY || scale != previousScale {
+            var modelMatrix = Matrix.translationMatrix(x: shiftX, y: shiftY, z: 0) * Matrix.scaleMatrix(sx: scale, sy: scale, sz: 1)
+            renderEncoder.setVertexBytes(&modelMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 3)
+        }
         
-        var modelMatrix = Matrix.translationMatrix(x: shiftX, y: shiftY, z: 0) * Matrix.scaleMatrix(sx: scale, sy: scale, sz: 1)
+        previousShiftX = shiftX
+        previousShiftY = shiftY
+        previousScale = scale
         
         let tile = placeIn
         texts.append(TextEntry(
@@ -121,10 +134,8 @@ class TilesTexture {
             height: cellSize
         )
         
-        guard let renderEncoder = renderEncoder else { return true }
         renderEncoder.setScissorRect(scissorRect)
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
-        renderEncoder.setVertexBytes(&modelMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 3)
         
         let buffers = metalTile.tileBuffers
         renderEncoder.setVertexBuffer(buffers.verticesBuffer, offset: 0, index: 0)

@@ -92,6 +92,7 @@ class Renderer {
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
         camera = Camera()
         cameraControl = CameraControl()
+        cameraControl.setZoom(zoom: 2)
         
         let sphereGeometry = SphereGeometry(stacks: 128, slices: 128)
         let vertices = sphereGeometry.vertices
@@ -100,12 +101,12 @@ class Renderer {
         sphereIndicesBuffer = metalDevice.makeBuffer(bytes: indices, length: MemoryLayout<UInt32>.stride * indices.count)!
         sphereIndicesCount = indices.count
         
-        let len = MemoryLayout<TextVertex>.stride * 3000
+        let len = MemoryLayout<TextVertex>.stride * 4000
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
         
         metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(), metalDevice: metalDevice, renderer: self)
     }
-    
+        
     func newTileAvailable(tile: Tile) {
         uiView.redraw = true
     }
@@ -213,8 +214,8 @@ class Renderer {
         
         let depth1Capacity = 1
         let depth2Capacity = 8
-        let depth3Capacity = 12
-        let depth4Capacity = 8
+        let depth3Capacity = 5
+        let depth4Capacity = 16 + 28
         
         var placeTiles: [PlaceTile] = []
         var depths: [UInt8] = []
@@ -223,11 +224,15 @@ class Renderer {
         // Тайлы, которых нету будут запрошены по интернету и так же будет попытка локальной загрузки с диска
         let tilesFromStorage = metalTilesStorage!.request(tiles: seeTiles)
         
-
+        if (zoom == 0) {
+            print("asd")
+        }
+        
         // Заменяем пробелы тайлами из предыдущего кадра.
         for i in 0..<tilesFromStorage.count {
             let storageTile = tilesFromStorage[i]
-            var metalTile = storageTile.metalTile
+            let metalTile = storageTile.metalTile
+            var metalTiles: [MetalTile] = []
             let tile = storageTile.tile
             
             // Заменяем тайл, которого еще нету на временный тайл с предыдущего кадра
@@ -235,29 +240,35 @@ class Renderer {
                 for prev in previousTiles {
                     let prevTile = prev.metalTile.tile
                     if prevTile.covers(tile) || tile.covers(prevTile) {
-                        metalTile = prev.metalTile
+                        metalTiles.append(prev.metalTile)
                     }
                 }
+            } else {
+                metalTiles.append(metalTile!)
             }
             
-            guard let metalTile = metalTile else { continue }
-            placeTiles.append(PlaceTile(metalTile: metalTile, placeIn: tile))
-            
-            if depth1Count < depth1Capacity {
-                depths.append(1)
-                depth1Count += 1
-            } else if depth2Count < depth2Capacity {
-                depths.append(2)
-                depth2Count += 1
-            } else if depth3Count < depth3Capacity {
-                depths.append(3)
-                depth3Count += 1
-            } else if depth4Count < depth4Capacity {
-                depths.append(4)
-                depth4Count += 1
+            for metalTileR in metalTiles {
+                placeTiles.append(PlaceTile(metalTile: metalTileR, placeIn: metalTileR.tile))
+                
+                if depth1Count < depth1Capacity {
+                    depths.append(1)
+                    depth1Count += 1
+                } else if depth2Count < depth2Capacity {
+                    depths.append(2)
+                    depth2Count += 1
+                } else if depth3Count < depth3Capacity {
+                    depths.append(3)
+                    depth3Count += 1
+                } else if depth4Count < depth4Capacity {
+                    depths.append(4)
+                    depth4Count += 1
+                }
             }
         }
         
+        // Сохраняем текущие тайлы, чтобы заменять отсутствующие тайлы следующего кадра
+        previousTiles = placeTiles
+
         
         
         // Рисуем готовые тайлы в текстуре.
@@ -306,8 +317,6 @@ class Renderer {
         // Завершаем рисование в текстуре с тайлами
         tilesTexture.endEncoding()
         
-        // Сохраняем текущие тайлы, чтобы заменять отсутствующие тайлы следующего кадра
-        previousTiles = placeTiles
         
         
         // Camera uniform
@@ -331,7 +340,6 @@ class Renderer {
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setVertexBuffer(sphereVerticesBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
-        
         renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
         
         var tileData = tilesTexture.tileData
@@ -411,12 +419,15 @@ class Renderer {
         let tileX = (Int) (center.tileX)
         let tileY = (Int) (center.tileY)
         
+        print("[CENTER] \(tileX), \(tileY), \(targetZoom)")
         let rotation = camera.createRotationMatrix(globe: globe)
         var result: [Tile] = []
         camera.collectVisibleTiles(x: 0, y: 0, z: 0, targetZ: targetZoom, radius: globe.radius, rotation: rotation, result: &result,
                                    centerTile: Tile(x: tileX, y: tileY, z: targetZoom)
         )
-        return result
+        
+        // удаляем все дубликаты из результата
+        return Array(Set(result))
     }
     
     struct PlaceTile {

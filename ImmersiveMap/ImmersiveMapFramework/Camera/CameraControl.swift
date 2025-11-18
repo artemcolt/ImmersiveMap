@@ -36,6 +36,11 @@ class CameraControl {
         update = true
     }
     
+    func setZoom(zoom: Float) {
+        self.zoom = zoom
+        update = true
+    }
+    
     func rotateYaw(delta: Float) {
         yaw += delta
         update = true

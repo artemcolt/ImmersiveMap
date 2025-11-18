@@ -121,21 +121,27 @@ class Camera {
         }
         
         let zDiff = abs(centerTile.z - z)
-        let diff = 1 << zDiff
-        let relCenterX = Int(centerTile.x / diff)
-        let relCenterY = Int(centerTile.y / diff)
-        
-        let dx = abs(x - relCenterX)
-        let dy = abs(y - relCenterY)
-        let maxD = max(dx, dy)
-        
-        if zDiff > 0 && maxD > 1 {
-            result.append(Tile(x: x, y: y, z: z))
-            return
-        }
-        
         if zDiff == 0 {
-            result.append(Tile(x: x, y: y, z: z))
+            let addTile = Tile(x: x, y: y, z: z)
+            let relX = abs(centerTile.x - x)
+            let relY = abs(centerTile.y - y)
+            if relX > 6 || relY > 6 {
+                // добавляем родителя, чтобы оптимизировать рендринг
+                if let parent = addTile.findParentTile(atZoom: z - 2) {
+                    result.append(parent)
+                    return
+                }
+            }
+            
+            if relX > 3 || relY > 3 {
+                // добавляем родителя, чтобы оптимизировать рендринг
+                if let parent = addTile.findParentTile(atZoom: z - 1) {
+                    result.append(parent)
+                    return
+                }
+            }
+            
+            result.append(addTile)
             return
         }
         
