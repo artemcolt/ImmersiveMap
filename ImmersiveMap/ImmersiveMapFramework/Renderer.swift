@@ -42,6 +42,7 @@ class Renderer {
     private var currentIndex = 0
     
     private var previousTiles: [PlaceTile] = []
+    private var previousZoom: Int
     private let tile: Tile = Tile(x: 0, y: 0, z: 0)
     private var screenMatrix: matrix_float4x4?
     private var screenMatrixSize: CGSize = CGSize.zero
@@ -93,6 +94,8 @@ class Renderer {
         camera = Camera()
         cameraControl = CameraControl()
         cameraControl.setZoom(zoom: 2)
+        cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
+        previousZoom = Int(cameraControl.zoom)
         
         let sphereGeometry = SphereGeometry(stacks: 128, slices: 128)
         let vertices = sphereGeometry.vertices
@@ -217,6 +220,22 @@ class Renderer {
         let depth3Capacity = 5
         let depth4Capacity = 16 + 28
         
+        func countTexturePlaces() {
+            if depth1Count < depth1Capacity {
+                depths.append(1)
+                depth1Count += 1
+            } else if depth2Count < depth2Capacity {
+                depths.append(2)
+                depth2Count += 1
+            } else if depth3Count < depth3Capacity {
+                depths.append(3)
+                depth3Count += 1
+            } else if depth4Count < depth4Capacity {
+                depths.append(4)
+                depth4Count += 1
+            }
+        }
+        
         var placeTiles: [PlaceTile] = []
         var depths: [UInt8] = []
         
@@ -232,44 +251,63 @@ class Renderer {
         for i in 0..<tilesFromStorage.count {
             let storageTile = tilesFromStorage[i]
             let metalTile = storageTile.metalTile
-            var metalTiles: [MetalTile] = []
             let tile = storageTile.tile
+            
+            func findFullReplacement() -> Bool {
+                for prev in previousTiles {
+                    let prevMetalTile = prev.metalTile
+                    let prevTile = prev.metalTile.tile
+                    
+                    // Предыдущий тайл полностью покрывает наш необходимый тайл
+                    if prevTile.covers(tile) {
+                        placeTiles.append(PlaceTile(metalTile: prevMetalTile, placeIn: tile))
+                        countTexturePlaces()
+                        // Нашли замену, выходим из цикла
+                        return true
+                    }
+                }
+                return false
+            }
+            
+            func findPartialReplacement() {
+                for prev in previousTiles {
+                    let prevMetalTile = prev.metalTile
+                    let prevTile = prev.metalTile.tile
+                    
+                    // Предыдущий тайл частично покрывает наш необходимый тайл
+                    if tile.covers(prevTile) {
+                        // Добавляем его, и продолжаем искать другие тайлы, покрывающие текущий
+                        placeTiles.append(PlaceTile(metalTile: prevMetalTile, placeIn: prevTile))
+                        countTexturePlaces()
+                    }
+                }
+            }
             
             // Заменяем тайл, которого еще нету на временный тайл с предыдущего кадра
             if metalTile == nil {
-                for prev in previousTiles {
-                    let prevTile = prev.metalTile.tile
-                    if prevTile.covers(tile) || tile.covers(prevTile) {
-                        metalTiles.append(prev.metalTile)
-                    }
+                let zDiff = zoom - previousZoom
+                
+                if zDiff >= 0 {
+                    let found = findFullReplacement()
+                    if (found == false) { findPartialReplacement() }
+                } else {
+                    findPartialReplacement()
                 }
-            } else {
-                metalTiles.append(metalTile!)
+                
+                // Для текущего тайла нашли замену (или нет)
+                // Идем к следующему необходимому тайлу
+                continue
             }
             
-            for metalTileR in metalTiles {
-                placeTiles.append(PlaceTile(metalTile: metalTileR, placeIn: metalTileR.tile))
-                
-                if depth1Count < depth1Capacity {
-                    depths.append(1)
-                    depth1Count += 1
-                } else if depth2Count < depth2Capacity {
-                    depths.append(2)
-                    depth2Count += 1
-                } else if depth3Count < depth3Capacity {
-                    depths.append(3)
-                    depth3Count += 1
-                } else if depth4Count < depth4Capacity {
-                    depths.append(4)
-                    depth4Count += 1
-                }
-            }
+            // Нужный нам тайл готов, устанавливаем его
+            placeTiles.append(PlaceTile(metalTile: metalTile!, placeIn: tile))
+            countTexturePlaces()
         }
         
         // Сохраняем текущие тайлы, чтобы заменять отсутствующие тайлы следующего кадра
         previousTiles = placeTiles
-
-        
+        previousZoom = zoom
+            
         
         // Рисуем готовые тайлы в текстуре.
         // Размещаем их так, чтобы контролировать детализацию
@@ -292,11 +330,6 @@ class Renderer {
         // Рисуем координаты тайлов на самих тайлах для тестирование
         let texts = tilesTexture.texts
         if texts.isEmpty == false {
-            
-            if "\(texts.count)" != previousTilesTextKey {
-                
-            }
-            
             let tilesTextVertices = textRenderer.collectMultiTextVertices(for: texts)
             tileTextVerticesBuffer.contents().copyMemory(from: tilesTextVertices, byteCount: MemoryLayout<TextVertex>.stride * tilesTextVertices.count)
             previousTilesTextKey = "\(texts.count)"

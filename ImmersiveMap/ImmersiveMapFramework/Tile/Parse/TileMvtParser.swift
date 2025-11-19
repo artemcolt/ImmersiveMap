@@ -189,9 +189,7 @@ class TileMvtParser {
     func readingStage(vectorTile: VectorTile_Tile, tile: Tile) -> ReadingStageResult {
         var polygonByStyle: [UInt8: [ParsedPolygon]] = [:]
         var rawLineByStyle: [UInt8: [ParsedLineRawVertices]] = [:]
-        
         var styles: [UInt8: FeatureStyle] = [:]
-        
         
         for layer in vectorTile.layers {
             let layerName = layer.name
@@ -241,7 +239,7 @@ class TileMvtParser {
         }
         
         addBackground(polygonByStyle: &polygonByStyle, styles: &styles)
-        addBorder(polygonByStyle: &polygonByStyle, styles: &styles, borderWidth: 16)
+        if (MapParameters.addTestBorders) { addBorder(polygonByStyle: &polygonByStyle, styles: &styles, borderWidth: 10) }
         
         return ReadingStageResult(
             polygonByStyle: polygonByStyle.filter { $0.value.isEmpty == false },

@@ -14,6 +14,7 @@ class CameraControl {
     var yaw: Float = 0
     var pitch: Float = 0
     var zoom: Float = 0
+    private let maxLatitude = (2.0 * atan(exp(Double.pi)) - Double.pi / 2.0)
     
     func pan(deltaX: Double, deltaY: Double) {
         let yaw = Double(yaw)
@@ -37,8 +38,15 @@ class CameraControl {
     }
     
     func setZoom(zoom: Float) {
-        self.zoom = zoom
+        self.zoom = min(max(0, zoom), 20)
         update = true
+    }
+    
+    func setLatLonDeg(latDeg: Double, lonDeg: Double) {
+        pan.x = -(lonDeg / 180)
+        
+        let maxLatitudeDeg = maxLatitude * (180.0 / .pi)
+        pan.y = (latDeg / maxLatitudeDeg)
     }
     
     func rotateYaw(delta: Float) {
