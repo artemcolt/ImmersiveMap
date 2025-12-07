@@ -224,7 +224,6 @@ class Renderer {
         }
         
         
-        
         // depth = 0 -> покрыть всю текстуру. Вместимость: 0 тайлов
         // depth = 1 -> покрыть 1/4 текстуры. Вместимость: 1 тайл
         // depth = 2 -> покрыть 1/8 текстуры.
@@ -486,14 +485,5 @@ class Renderer {
         
         // Удаляем все дубликаты из результата
         return Array(Set(result))
-    }
-    
-    struct PlaceTile {
-        let metalTile: MetalTile
-        let placeIn: Tile
-        
-        func isReplacement() -> Bool {
-            return metalTile.tile != placeIn
-        }
     }
 }

@@ -75,37 +75,44 @@ class TilesTexture {
         renderEncoder?.endEncoding()
     }
     
-    private func refreshProjectionMatrix(count: Int) {
-        projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
-    }
-    
-    func draw(placeTile: Renderer.PlaceTile, depth: UInt8, maxDepth: UInt8) -> Bool {
+    func draw(placeTile: PlaceTile, depth: UInt8, maxDepth: UInt8) -> Bool {
         guard let placedPos = textureTree.addNewValue(value: TextureValue(), depth: depth) else { return false }
         guard let renderEncoder = renderEncoder else { return true }
         
-        let metalTile = placeTile.metalTile
         let placeIn = placeTile.placeIn
-        
         let count = 1 << depth
+        projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
+        
+        // Добавляем мета информацию о тайле для размещения на глобусе
         let cellSize = size / count
         let freePtr = Int(placedPos.x) + Int(placedPos.y) * count
+        tileData.append(TileData(position: simd_int1(freePtr),
+                                 textureSize: simd_int1(size),
+                                 cellSize: simd_int1(cellSize),
+                                 tile: simd_int3(Int32(placeIn.x), Int32(placeIn.y), Int32(placeIn.z))))
         
-        refreshProjectionMatrix(count: count)
         
+        // Добавляем мета информацию о тексте для отрисвоки координат текста на текстуре карты
         let x = Int(placedPos.x)
         let y = Int(placedPos.y)
         let shiftMatrix = Matrix.translationMatrix(x: Float(x) * 4096, y: Float(y) * 4096, z: 0)
         var cameraUniform = CameraUniform(matrix: projection * shiftMatrix)
         let scaleParam = Float( 1 << (UInt8(maxDepth) - depth))
         let shift = scaleParam * 10
+        texts.append(TextEntry(
+            text: "x: \(placeIn.x) y: \(placeIn.y) z: \(placeIn.z)",
+            position: SIMD2<Float>(Float(x) * 4096 / Float(count) + shift, Float(y) * 4096 / Float(count) + shift),
+            scale: textSize * scaleParam
+        ))
         
+        // Располагаем тайл так, чтобы покрыть нужную область
+        // Для этого тайл нудно масштабировать, перемещать
+        let metalTile = placeTile.metalTile
         let placeInCount = 1 << placeIn.z
         let zDiff = placeIn.z - metalTile.tile.z
         let scale = powf(2.0, Float(zDiff))
         
         let mtCount = 1 << metalTile.tile.z
-        
-        
         let relX = Float(placeIn.x) - (Float(metalTile.tile.x) * scale)
         let relY = Float(placeIn.y) + (Float((mtCount - 1) - metalTile.tile.y) * scale)
         
@@ -114,39 +121,34 @@ class TilesTexture {
         if shiftX != previousShiftX || shiftY != previousShiftY || scale != previousScale {
             var modelMatrix = Matrix.translationMatrix(x: shiftX, y: shiftY, z: 0) * Matrix.scaleMatrix(sx: scale, sy: scale, sz: 1)
             renderEncoder.setVertexBytes(&modelMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 3)
+            previousShiftX = shiftX
+            previousShiftY = shiftY
+            previousScale = scale
         }
         
-        previousShiftX = shiftX
-        previousShiftY = shiftY
-        previousScale = scale
         
-        let tile = placeIn
-        texts.append(TextEntry(
-            text: "x: \(tile.x) y: \(tile.y) z: \(tile.z)",
-            position: SIMD2<Float>(Float(x) * 4096 / Float(count) + shift, Float(y) * 4096 / Float(count) + shift),
-            scale: textSize * scaleParam
-        ))
-        
+        // Рисуем тайл на текстуре всех тайлов, текстуре карты
+        // Задаем допустимую область рисования
         let scissorRect = MTLScissorRect(
             x: Int(placedPos.x) * cellSize,
             y: ((count - 1) - Int(placedPos.y)) * cellSize,
             width: cellSize,
             height: cellSize
         )
-        
         renderEncoder.setScissorRect(scissorRect)
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         
+        // Устанавливаем ифнормацию тайла для отрисовки
         let buffers = metalTile.tileBuffers
         renderEncoder.setVertexBuffer(buffers.verticesBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBuffer(buffers.stylesBuffer, offset: 0, index: 2)
         
-        renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: buffers.indicesCount, indexType: .uint32, indexBuffer: buffers.indicesBuffer, indexBufferOffset: 0)
+        renderEncoder.drawIndexedPrimitives(type: .triangle,
+                                            indexCount: buffers.indicesCount,
+                                            indexType: .uint32,
+                                            indexBuffer: buffers.indicesBuffer,
+                                            indexBufferOffset: 0)
         
-        tileData.append(TileData(position: simd_int1(freePtr),
-                                 textureSize: simd_int1(size),
-                                 cellSize: simd_int1(cellSize),
-                                 tile: simd_int3(Int32(tile.x), Int32(tile.y), Int32(tile.z))))
         return true
     }
 }
