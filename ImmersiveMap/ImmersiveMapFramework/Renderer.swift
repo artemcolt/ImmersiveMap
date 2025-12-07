@@ -93,7 +93,7 @@ class Renderer {
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
         camera = Camera()
         cameraControl = CameraControl()
-        cameraControl.setZoom(zoom: 2)
+        cameraControl.setZoom(zoom: 4)
         cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
@@ -115,8 +115,21 @@ class Renderer {
     }
     
     func render(to layer: CAMetalLayer) {
-        let currentDrawableSize = layer.drawableSize
+        semaphore.wait()
         
+        let currentDrawableSize = layer.drawableSize
+        if currentDrawableSize.width == 0 || currentDrawableSize.height == 0 {
+            return
+        }
+        
+        // При изменении размера экрана пересчитываем матрицы вида.
+        if currentDrawableSize != lastDrawableSize {
+            let aspect = Float(currentDrawableSize.width) / Float(currentDrawableSize.height)
+            camera.recalculateProjection(aspect: aspect)
+            lastDrawableSize = currentDrawableSize
+        }
+        
+        // Экранная матрица для размещения 2д элементов на экране
         if screenMatrixSize != currentDrawableSize {
             screenMatrixSize = currentDrawableSize
             screenMatrix = Matrix.orthographicMatrix(left: 0, right: Float(screenMatrixSize.width),
@@ -124,26 +137,19 @@ class Renderer {
                                                      near: -1, far: 1)
         }
         
+        // Без экранной матрицы не можем продолжить рендринг
         guard var screenMatrix = screenMatrix else {
             return
         }
+
         
-        if currentDrawableSize.width == 0 || currentDrawableSize.height == 0 {
-            return
-        }
-        
-        semaphore.wait()
-        
-        if currentDrawableSize != lastDrawableSize {
-            let aspect = Float(currentDrawableSize.width) / Float(currentDrawableSize.height)
-            camera.recalculateProjection(aspect: aspect)
-            lastDrawableSize = currentDrawableSize
-        }
-        
+        // Не используем tripple buffering
+        // На моем телефоне и без него хорошо работает
         let nextIndex = (currentIndex + 1) % 3
         currentIndex = nextIndex
         currentIndex = 0
         
+        // Движение камеры
         if cameraControl.update {
             let yaw = cameraControl.yaw
             let pitch = cameraControl.pitch
@@ -158,12 +164,14 @@ class Renderer {
             
             camera.eye = simd_act(yawQuat * pitchQuat, camPosition)
             camera.up = simd_act(yawQuat * pitchQuat, camUp)
-//            camera.center = SIMD3<Float>(Float(cameraControl.pan.x), 0, 0)
             
             camera.recalculateMatrix()
+            
+            // Мы камеру обновили, флаг возвращаем в исходное состояние
+            // Когда в камере что-то меняется, то этот флаг становится true
             cameraControl.update = false
         }
-        let worldScale = pow(2.0, floor(cameraControl.zoom))
+        
         
         guard let cameraMatrix = camera.cameraMatrix,
               let drawable = layer.nextDrawable() else {
@@ -174,18 +182,27 @@ class Renderer {
         let clearColor = parameters.clearColor
         let commandBuffer = commandQueue.makeCommandBuffer()!
         
+        // При увеличении зума, мы масштабируем глобус, возвращая камеру в исходное нулевое положение
+        let worldScale = pow(2.0, floor(cameraControl.zoom))
         var globe = Globe(xRotation: Float(cameraControl.pan.y) * Float(maxLatitude),
                           yRotation: Float(cameraControl.pan.x) * Float.pi,
                           radius: 0.14 * worldScale)
         
         
+        // Получаем текущий центральный тайл
         let zoom = Int(cameraControl.zoom)
         let center = getCenter(targetZoom: zoom)
         
+        
         // Тайлы, которые пользователь видит в полностью подгруженном состоянии
         // они там могут быть в разнобой, просто все тайлы, которые пользователь видит
-        let seeTiles = iSeeTiles(globe: globe, targetZoom: zoom, center: center).sorted(by: { t1, t2 in
+        let seeTiles = iSeeTiles(globe: globe, targetZoom: zoom, center: center)
+        
+        // Сортируем тайлы для правильной, последовательной отрисовки
+        let sortedSeeTiles = seeTiles.sorted(by: { t1, t2 in
             if t1.z != t2.z {
+                // Сперва тайлы, которые занимают меньшую площадь
+                // То есть с большим z
                 return t1.z > t2.z
             }
             
@@ -197,13 +214,16 @@ class Renderer {
             let dy2 = abs(t2.y - Int(center.tileY))
             let maxD2 = max(dx2, dy2)
             
+            // Сперва тайлы, которые ближе всего к центру
             return maxD1 < maxD2 // true -> элементы остаются на месте
         })
         
         print("- - -")
-        seeTiles.forEach { t in
+        sortedSeeTiles.forEach { t in
             print(t)
         }
+        
+        
         
         // depth = 0 -> покрыть всю текстуру. Вместимость: 0 тайлов
         // depth = 1 -> покрыть 1/4 текстуры. Вместимость: 1 тайл
@@ -243,16 +263,13 @@ class Renderer {
         // Тайлы, которых нету будут запрошены по интернету и так же будет попытка локальной загрузки с диска
         let tilesFromStorage = metalTilesStorage!.request(tiles: seeTiles)
         
-        if (zoom == 0) {
-            print("asd")
-        }
-        
         // Заменяем пробелы тайлами из предыдущего кадра.
         for i in 0..<tilesFromStorage.count {
             let storageTile = tilesFromStorage[i]
             let metalTile = storageTile.metalTile
             let tile = storageTile.tile
             
+            // Ищем один тайл, который полностью покрывает необходимый
             func findFullReplacement() -> Bool {
                 for prev in previousTiles {
                     let prevMetalTile = prev.metalTile
@@ -269,6 +286,7 @@ class Renderer {
                 return false
             }
             
+            // Ищем тайлы, которые частично покрывают необходимый
             func findPartialReplacement() {
                 for prev in previousTiles {
                     let prevMetalTile = prev.metalTile
@@ -288,9 +306,15 @@ class Renderer {
                 let zDiff = zoom - previousZoom
                 
                 if zDiff >= 0 {
+                    // Мы увеличили зум карты, приблизили карту
+                    // В этом случае у нас есть полностью покрывающий тайл с предыдущего кадра
                     let found = findFullReplacement()
+                    
+                    // но если нету, то ищем внутренние тайлы необходимого тайла
                     if (found == false) { findPartialReplacement() }
                 } else {
+                    // Мы уменьшили зум карты, отодвинули карту
+                    // Ищем внутренние тайлы необходимого тайла
                     findPartialReplacement()
                 }
                 
@@ -308,6 +332,7 @@ class Renderer {
         previousTiles = placeTiles
         previousZoom = zoom
             
+        
         
         // Рисуем готовые тайлы в текстуре.
         // Размещаем их так, чтобы контролировать детализацию
@@ -459,7 +484,7 @@ class Renderer {
                                    centerTile: Tile(x: tileX, y: tileY, z: targetZoom)
         )
         
-        // удаляем все дубликаты из результата
+        // Удаляем все дубликаты из результата
         return Array(Set(result))
     }
     
