@@ -36,7 +36,8 @@ class MetalTilesStorage {
         return memoryMetalTile.getTile(forKey: tile.key())
     }
     
-    func request(tiles: [Tile]) -> [TileInStorage] {
+    func request(tiles: [Tile], hash: inout Int) -> [TileInStorage] {
+        var forHash: Set<Tile> = []
         var tilesInStorage: [TileInStorage] = []
         var request: [Tile] = []
         for tile in tiles {
@@ -46,16 +47,22 @@ class MetalTilesStorage {
             // Так же распарсить и после загрузить в кэш
             if metalTile == nil {
                 request.append(tile)
+            } else {
+                // В хэше учитываем только готовые тайлы
+                // При подгрузке нужных тайлов хэш будет меняться и провоцировать перерисовку карты
+                forHash.insert(tile)
             }
             
             // Подготавливаем массив отрисовки
             tilesInStorage.append(TileInStorage(metalTile: metalTile, tile: tile))
+            
         }
         
         
         // отправляем все тайлы, которых нету на загрузку
         mapNeedsTile!.request(tiles: request)
         
+        hash = forHash.hashValue
         return tilesInStorage
     }
     
