@@ -197,9 +197,10 @@ class Renderer {
         // Тайлы, которые пользователь видит в полностью подгруженном состоянии
         // они там могут быть в разнобой, просто все тайлы, которые пользователь видит
         let seeTiles = iSeeTiles(globe: globe, targetZoom: zoom, center: center)
+        let seeTilesHash = seeTiles.hashValue
         
         // Сортируем тайлы для правильной, последовательной отрисовки
-        let sortedSeeTiles = seeTiles.sorted(by: { t1, t2 in
+        let sortedSeeTiles = Array(seeTiles).sorted(by: { t1, t2 in
             if t1.z != t2.z {
                 // Сперва тайлы, которые занимают меньшую площадь
                 // То есть с большим z
@@ -219,65 +220,39 @@ class Renderer {
         })
         
         print("- - -")
-        sortedSeeTiles.forEach { t in
-            print(t)
+        print("count = \(sortedSeeTiles.count)")
+        for i in 0..<sortedSeeTiles.count {
+            let sortedSeeTile = sortedSeeTiles[i]
+            print("\(i+1)) x=\(sortedSeeTile.x), y=\(sortedSeeTile.y), z=\(sortedSeeTile.z)")
         }
         
-        
-        // depth = 0 -> покрыть всю текстуру. Вместимость: 0 тайлов
-        // depth = 1 -> покрыть 1/4 текстуры. Вместимость: 1 тайл
-        // depth = 2 -> покрыть 1/8 текстуры.
-        // depth = 3 -> покрыть 1/16 текстуры
-        
-        var depth1Count = 0
-        var depth2Count = 0
-        var depth3Count = 0
-        var depth4Count = 0
-        
-        let depth1Capacity = 1
-        let depth2Capacity = 8
-        let depth3Capacity = 5
-        let depth4Capacity = 16 + 28
-        
-        func countTexturePlaces() {
-            if depth1Count < depth1Capacity {
-                depths.append(1)
-                depth1Count += 1
-            } else if depth2Count < depth2Capacity {
-                depths.append(2)
-                depth2Count += 1
-            } else if depth3Count < depth3Capacity {
-                depths.append(3)
-                depth3Count += 1
-            } else if depth4Count < depth4Capacity {
-                depths.append(4)
-                depth4Count += 1
-            }
-        }
-        
-        var placeTiles: [PlaceTile] = []
-        var depths: [UInt8] = []
         
         // Запрашиваем тайлы, которые нужны для отрисовки карты
         // Тайлы, которых нету будут запрошены по интернету и так же будет попытка локальной загрузки с диска
-        let tilesFromStorage = metalTilesStorage!.request(tiles: seeTiles)
+        let tilesFromStorage = metalTilesStorage!.request(tiles: sortedSeeTiles)
+        
         
         // Заменяем пробелы тайлами из предыдущего кадра.
+        var placeTiles: [PlaceTile] = []
+        let tileDepthCount = TileDepthCount()
         for i in 0..<tilesFromStorage.count {
             let storageTile = tilesFromStorage[i]
             let metalTile = storageTile.metalTile
             let tile = storageTile.tile
             
             // Ищем один тайл, который полностью покрывает необходимый
-            func findFullReplacement() -> Bool {
+            func findFullReplacement() -> Bool? {
                 for prev in previousTiles {
                     let prevMetalTile = prev.metalTile
                     let prevTile = prev.metalTile.tile
                     
                     // Предыдущий тайл полностью покрывает наш необходимый тайл
                     if prevTile.covers(tile) {
-                        placeTiles.append(PlaceTile(metalTile: prevMetalTile, placeIn: tile))
-                        countTexturePlaces()
+                        guard let depth = tileDepthCount.getTexturePlaceDepth() else {
+                            // Больше мы ничего в текстуре разместить не можем
+                            return nil
+                        }
+                        placeTiles.append(PlaceTile(metalTile: prevMetalTile, placeIn: tile, depth: depth))
                         // Нашли замену, выходим из цикла
                         return true
                     }
@@ -286,7 +261,8 @@ class Renderer {
             }
             
             // Ищем тайлы, которые частично покрывают необходимый
-            func findPartialReplacement() {
+            func findPartialReplacement() -> Bool? {
+                var foundSome = false
                 for prev in previousTiles {
                     let prevMetalTile = prev.metalTile
                     let prevTile = prev.metalTile.tile
@@ -294,27 +270,39 @@ class Renderer {
                     // Предыдущий тайл частично покрывает наш необходимый тайл
                     if tile.covers(prevTile) {
                         // Добавляем его, и продолжаем искать другие тайлы, покрывающие текущий
-                        placeTiles.append(PlaceTile(metalTile: prevMetalTile, placeIn: prevTile))
-                        countTexturePlaces()
+                        guard let depth = tileDepthCount.getTexturePlaceDepth() else {
+                            // Больше мы ничего в текстуре разместить не можем
+                            return nil
+                        }
+                        placeTiles.append(PlaceTile(metalTile: prevMetalTile, placeIn: prevTile, depth: depth))
+                        foundSome = true
                     }
                 }
+                return foundSome
             }
             
             // Заменяем тайл, которого еще нету на временный тайл с предыдущего кадра
             if metalTile == nil {
                 let zDiff = zoom - previousZoom
                 
+                var found: Bool? = false
                 if zDiff >= 0 {
                     // Мы увеличили зум карты, приблизили карту
                     // В этом случае у нас есть полностью покрывающий тайл с предыдущего кадра
-                    let found = findFullReplacement()
+                    found = findFullReplacement()
                     
                     // но если нету, то ищем внутренние тайлы необходимого тайла
-                    if (found == false) { findPartialReplacement() }
+                    if (found == false) { found = findPartialReplacement() }
                 } else {
                     // Мы уменьшили зум карты, отодвинули карту
                     // Ищем внутренние тайлы необходимого тайла
-                    findPartialReplacement()
+                    found = findPartialReplacement()
+                }
+                
+                if found == nil {
+                    // В текстуре больше нету места
+                    // Бесполезно искать замены
+                    break
                 }
                 
                 // Для текущего тайла нашли замену (или нет)
@@ -322,9 +310,13 @@ class Renderer {
                 continue
             }
             
+            guard let depth = tileDepthCount.getTexturePlaceDepth() else {
+                // В текстуре больше нету места для тайлов
+                break
+            }
+            
             // Нужный нам тайл готов, устанавливаем его
-            placeTiles.append(PlaceTile(metalTile: metalTile!, placeIn: tile))
-            countTexturePlaces()
+            placeTiles.append(PlaceTile(metalTile: metalTile!, placeIn: tile, depth: depth))
         }
         
         // Сохраняем текущие тайлы, чтобы заменять отсутствующие тайлы следующего кадра
@@ -338,12 +330,8 @@ class Renderer {
         tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
         tilesTexture.selectTilePipeline()
         for i in placeTiles.indices {
-            if depths.count <= i {
-                print("[ERROR] No place for tile in texture!")
-                break
-            }
             let placeTile = placeTiles[i]
-            let depth = depths[i]
+            let depth = placeTile.depth
             let placed = tilesTexture.draw(placeTile: placeTile, depth: depth, maxDepth: 4)
             if placed == false {
                 print("[ERROR] No place for tile in texture!")
@@ -352,28 +340,29 @@ class Renderer {
         }
         
         // Рисуем координаты тайлов на самих тайлах для тестирование
-        let texts = tilesTexture.texts
-        if texts.isEmpty == false {
-            let tilesTextVertices = textRenderer.collectMultiTextVertices(for: texts)
-            tileTextVerticesBuffer.contents().copyMemory(from: tilesTextVertices, byteCount: MemoryLayout<TextVertex>.stride * tilesTextVertices.count)
-            previousTilesTextKey = "\(texts.count)"
-            tileTextVerticesCount = tilesTextVertices.count
-            
-            var tilesTextColor = SIMD3<Float>(1, 0, 0)
-            var tilesProjection = Matrix.orthographicMatrix(left: 0, right: Float(4096), bottom: 0, top: Float(4096), near: -1, far: 1)
-            let tilesRenderEncoder = tilesTexture.renderEncoder!
-            tilesRenderEncoder.setScissorRect(MTLScissorRect(x: 0, y: 0, width: tilesTexture.size, height: tilesTexture.size))
-            tilesRenderEncoder.setRenderPipelineState(textRenderer.pipelineState)
-            tilesRenderEncoder.setVertexBuffer(tileTextVerticesBuffer, offset: 0, index: 0)
-            tilesRenderEncoder.setVertexBytes(&tilesProjection, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
-            tilesRenderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
-            tilesRenderEncoder.setFragmentBytes(&tilesTextColor, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
-            tilesRenderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tileTextVerticesCount)
+        if false {
+            let texts = tilesTexture.texts
+            if texts.isEmpty == false {
+                let tilesTextVertices = textRenderer.collectMultiTextVertices(for: texts)
+                tileTextVerticesBuffer.contents().copyMemory(from: tilesTextVertices, byteCount: MemoryLayout<TextVertex>.stride * tilesTextVertices.count)
+                previousTilesTextKey = "\(texts.count)"
+                tileTextVerticesCount = tilesTextVertices.count
+                
+                var tilesTextColor = SIMD3<Float>(1, 0, 0)
+                var tilesProjection = Matrix.orthographicMatrix(left: 0, right: Float(4096), bottom: 0, top: Float(4096), near: -1, far: 1)
+                let tilesRenderEncoder = tilesTexture.renderEncoder!
+                tilesRenderEncoder.setScissorRect(MTLScissorRect(x: 0, y: 0, width: tilesTexture.size, height: tilesTexture.size))
+                tilesRenderEncoder.setRenderPipelineState(textRenderer.pipelineState)
+                tilesRenderEncoder.setVertexBuffer(tileTextVerticesBuffer, offset: 0, index: 0)
+                tilesRenderEncoder.setVertexBytes(&tilesProjection, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+                tilesRenderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+                tilesRenderEncoder.setFragmentBytes(&tilesTextColor, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
+                tilesRenderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tileTextVerticesCount)
+            }
         }
         
         // Завершаем рисование в текстуре с тайлами
         tilesTexture.endEncoding()
-        
         
         
         // Camera uniform
@@ -387,7 +376,6 @@ class Renderer {
                                                                             blue: clearColor.z,
                                                                             alpha: clearColor.w)
         renderPassDescriptor.colorAttachments[0].storeAction = .store
-        //renderPassDescriptor.colorAttachments[0].resolveTexture = drawable.texture
         
         let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
         globePipeline.selectPipeline(renderEncoder: renderEncoder)
@@ -409,11 +397,9 @@ class Renderer {
                                                 indexBuffer: sphereIndicesBuffer,
                                                 indexBufferOffset: 0,
                                                 instanceCount: tileData.count)
-            
-//            renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: sphereIndicesCount, indexType: .uint32, indexBuffer: sphereIndicesBuffer, indexBufferOffset: 0)
         }
         
-        // axes
+        // Axes
         polygonPipeline.setPipelineState(renderEncoder: renderEncoder)
         renderEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
@@ -472,18 +458,18 @@ class Renderer {
         return Center(tileX: tileX, tileY: tileY)
     }
     
-    private func iSeeTiles(globe: Renderer.Globe, targetZoom: Int, center: Center) -> [Tile] {
+    private func iSeeTiles(globe: Renderer.Globe, targetZoom: Int, center: Center) -> Set<Tile> {
         let tileX = (Int) (center.tileX)
         let tileY = (Int) (center.tileY)
         
         print("[CENTER] \(tileX), \(tileY), \(targetZoom)")
         let rotation = camera.createRotationMatrix(globe: globe)
-        var result: [Tile] = []
+        var result: Set<Tile> = []
         camera.collectVisibleTiles(x: 0, y: 0, z: 0, targetZ: targetZoom, radius: globe.radius, rotation: rotation, result: &result,
                                    centerTile: Tile(x: tileX, y: tileY, z: targetZoom)
         )
         
         // Удаляем все дубликаты из результата
-        return Array(Set(result))
+        return result
     }
 }

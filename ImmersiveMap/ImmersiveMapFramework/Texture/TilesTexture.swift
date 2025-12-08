@@ -20,6 +20,8 @@ class TilesTexture {
     let size: Int = 4096
     var cellSize: Int = 1024
     var projection: matrix_float4x4
+    var previousProjectionCount: Int = 0
+    
     private let tilePipeline: TilePipeline
     var renderEncoder: MTLRenderCommandEncoder?
     var tileData: [TileData]
@@ -81,7 +83,10 @@ class TilesTexture {
         
         let placeIn = placeTile.placeIn
         let count = 1 << depth
-        projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
+        if count != previousProjectionCount {
+            projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
+            previousProjectionCount = count
+        }
         
         // Добавляем мета информацию о тайле для размещения на глобусе
         let cellSize = size / count
@@ -106,7 +111,7 @@ class TilesTexture {
         ))
         
         // Располагаем тайл так, чтобы покрыть нужную область
-        // Для этого тайл нудно масштабировать, перемещать
+        // Для этого тайл нужно масштабировать, перемещать
         let metalTile = placeTile.metalTile
         let placeInCount = 1 << placeIn.z
         let zDiff = placeIn.z - metalTile.tile.z
@@ -138,7 +143,7 @@ class TilesTexture {
         renderEncoder.setScissorRect(scissorRect)
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         
-        // Устанавливаем ифнормацию тайла для отрисовки
+        // Устанавливаем информацию тайла для отрисовки
         let buffers = metalTile.tileBuffers
         renderEncoder.setVertexBuffer(buffers.verticesBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBuffer(buffers.stylesBuffer, offset: 0, index: 2)

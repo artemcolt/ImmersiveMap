@@ -89,7 +89,7 @@ class Camera {
     func collectVisibleTiles(x: Int, y: Int, z: Int, targetZ: Int,
                              radius: Float,
                              rotation: float4x4,
-                             result: inout [Tile],
+                             result: inout Set<Tile>,
                              centerTile: Tile
     ) {
         let points = aproximateTile(tx: x, ty: y, tz: z, radius: radius, rotation: rotation)
@@ -125,23 +125,23 @@ class Camera {
             let addTile = Tile(x: x, y: y, z: z)
             let relX = abs(centerTile.x - x)
             let relY = abs(centerTile.y - y)
-            if relX > 6 || relY > 6 {
-                // добавляем родителя, чтобы оптимизировать рендринг
-                if let parent = addTile.findParentTile(atZoom: z - 2) {
-                    result.append(parent)
-                    return
-                }
+            let maxRelative = max(relX, relY)
+            
+            if maxRelative > 10 {
+                // Тайл слишком далеко
+                return
             }
             
-            if relX > 3 || relY > 3 {
+            
+            if maxRelative > 2 {
                 // добавляем родителя, чтобы оптимизировать рендринг
                 if let parent = addTile.findParentTile(atZoom: z - 1) {
-                    result.append(parent)
+                    result.insert(parent)
                     return
                 }
             }
             
-            result.append(addTile)
+            result.insert(addTile)
             return
         }
         
