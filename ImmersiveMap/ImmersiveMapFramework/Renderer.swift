@@ -216,14 +216,15 @@ class Renderer {
                 
                 let dx1 = abs(t1.x - Int(center.tileX))
                 let dy1 = abs(t1.y - Int(center.tileY))
-                let maxD1 = max(dx1, dy1)
+                let d1 = dx1 + dy1
                 
                 let dx2 = abs(t2.x - Int(center.tileX))
                 let dy2 = abs(t2.y - Int(center.tileY))
-                let maxD2 = max(dx2, dy2)
+                let d2 = dx2 + dy2
+                
                 
                 // Сперва тайлы, которые ближе всего к центру
-                return maxD1 < maxD2 // true -> элементы остаются на месте
+                return d1 < d2 // true -> элементы остаются на месте
             })
             previousSeeTilesHash = seeTilesHash
         }
