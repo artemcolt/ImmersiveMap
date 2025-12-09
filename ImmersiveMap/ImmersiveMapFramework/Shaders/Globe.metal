@@ -61,6 +61,11 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float radius = globe.radius;
     float4x4 matrix = camera.matrix;
     
+    float sphereP = 2 * M_PI_F * radius;
+    float xFlat = sphereP * (vertexIn.uv.x - 0.5);
+    float yFlat = -sphereP * (vertexIn.uv.y - 0.5);
+    float zFlat = 0;
+    
     float phi = -M_PI_F * vertexIn.uv.y;
     float theta = 2 * M_PI_F * vertexIn.uv.x;
      
@@ -68,7 +73,10 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float y = radius * cos(phi);
     float z = radius * sin(phi) * cos(theta);
     
-    float3 position = float3(x, y, z);
+    float3 spherePosition = float3(x, y, z);
+    float3 flatPosition = float3(xFlat, yFlat, zFlat);
+    
+    // Рассчитываем текстурные координаты для наложения
     float u = 1.0 - vertexIn.uv.x;
     
     // Adjust for Web Mercator projection (non-linear vertically)
@@ -80,6 +88,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float y_merc = 0.5 * log((1.0 + clamped_sin) / (1.0 - clamped_sin));
     v = (y_merc + M_PI_F) / (2.0 * M_PI_F);
     
+    // Вращаем планету
     float cx = cos(-globe.xRotation);
     float sx = sin(-globe.xRotation);
     float cy = cos(-globe.yRotation);
@@ -92,8 +101,21 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
         float4(0,         0,          0,        1)   // Колонка 3
     );
     
-    float4 worldPosition = float4(position, 1.0) * rotation - float4(0, 0, radius, 0);
-    float4 clipPosition = matrix * worldPosition;
+    float4 spherePositionTranslated = float4(spherePosition, 1.0) * rotation - float4(0, 0, radius, 0);
+    
+    float4x4 translation = float4x4(
+        float4(1, 0, 0, globe.yRotation / M_PI_F),
+        float4(0, 1, 0, 0.0),
+        float4(0, 0, 1, 0),
+        float4(0, 0, 0, 1)
+                                    
+    );
+    
+    float4 flatPositionTranslated = float4(flatPosition, 1.0) * translation;
+    
+    float4 position = mix(spherePositionTranslated, flatPositionTranslated, 1.0);
+    
+    float4 clipPosition = matrix * position;
     
     float zPow = pow(2.0, tileZ);
     int tilesCount = int(zPow);

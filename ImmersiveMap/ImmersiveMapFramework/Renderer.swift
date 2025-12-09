@@ -96,8 +96,8 @@ class Renderer {
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
         camera = Camera()
         cameraControl = CameraControl()
-        cameraControl.setZoom(zoom: 4)
-        cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
+        cameraControl.setZoom(zoom: 0)
+        //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
         let sphereGeometry = SphereGeometry(stacks: 128, slices: 128)
