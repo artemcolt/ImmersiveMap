@@ -26,9 +26,10 @@ struct VertexOut {
 };
 
 struct Globe {
-    float xRotation;
-    float yRotation;
+    float panX;
+    float panY;
     float radius;
+    float transition;
 };
 
 struct Tile {
@@ -38,12 +39,28 @@ struct Tile {
     int3 tile;
 };
 
+float inverseProjection(float phi) {
+    float lat = phi;
+    float sin_lat = sin(lat);
+    float max_sin = tanh(M_PI_F);
+    float clamped_sin = max(-max_sin, min(max_sin, sin_lat));
+    float y_merc = 0.5 * log((1.0 + clamped_sin) / (1.0 - clamped_sin));
+    float sphereV = (y_merc + M_PI_F) / (2.0 * M_PI_F);
+    return sphereV;
+}
 
 vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
                                    constant Camera& camera [[buffer(1)]],
                                    constant Globe& globe [[buffer(2)]],
                                    constant Tile* tile [[buffer(3)]],
                                    uint instanceId [[instance_id]]) {
+    
+    float transition = globe.transition;
+    float maxLatitude = 2.0 * atan(exp(M_PI_F)) - M_PI_2_F;
+    float xRotation = globe.panY * maxLatitude;
+    float yRotation = globe.panX * M_PI_F;
+    float distortion = cos(xRotation);
+    
     Tile tileData = tile[instanceId];
     
     float textureSize = tileData.textureSize;
@@ -62,8 +79,10 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float4x4 matrix = camera.matrix;
     
     float sphereP = 2 * M_PI_F * radius;
-    float xFlat = sphereP * (vertexIn.uv.x - 0.5);
-    float yFlat = -sphereP * (vertexIn.uv.y - 0.5);
+    float mapSize = sphereP * distortion;
+    
+    float xFlat = mapSize * (vertexIn.uv.x - 0.5);
+    float yFlat = -mapSize * (vertexIn.uv.y - 0.5);
     float zFlat = 0;
     
     float phi = -M_PI_F * vertexIn.uv.y;
@@ -79,20 +98,21 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     // Рассчитываем текстурные координаты для наложения
     float u = 1.0 - vertexIn.uv.x;
     
+    float flatV = 1.0 - vertexIn.uv.y;
+    
     // Adjust for Web Mercator projection (non-linear vertically)
-    float v = vertexIn.uv.y;
     float lat = M_PI_F / 2.0 - phi;
     float sin_lat = sin(lat);
     float max_sin = tanh(M_PI_F);
     float clamped_sin = max(-max_sin, min(max_sin, sin_lat));
     float y_merc = 0.5 * log((1.0 + clamped_sin) / (1.0 - clamped_sin));
-    v = (y_merc + M_PI_F) / (2.0 * M_PI_F);
+    float sphereV = (y_merc + M_PI_F) / (2.0 * M_PI_F);
     
     // Вращаем планету
-    float cx = cos(-globe.xRotation);
-    float sx = sin(-globe.xRotation);
-    float cy = cos(-globe.yRotation);
-    float sy = sin(-globe.yRotation);
+    float cx = cos(-xRotation);
+    float sx = sin(-xRotation);
+    float cy = cos(-yRotation);
+    float sy = sin(-yRotation);
 
     float4x4 rotation = float4x4(
         float4(cy,        0,         -sy,       0),  // Колонка 0
@@ -101,11 +121,11 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
         float4(0,         0,          0,        1)   // Колонка 3
     );
     
-    float4 spherePositionTranslated = float4(spherePosition, 1.0) * rotation - float4(0, 0, radius, 0);
     
+    float4 spherePositionTranslated = float4(spherePosition, 1.0) * rotation - float4(0, 0, radius, 0);
     float4x4 translation = float4x4(
-        float4(1, 0, 0, globe.yRotation / M_PI_F),
-        float4(0, 1, 0, 0.0),
+        float4(1, 0, 0,  (mapSize / 2.0) * globe.panX),
+        float4(0, 1, 0, -1 * (mapSize / 2.0) * (inverseProjection(xRotation) * 2 - 1) ),
         float4(0, 0, 1, 0),
         float4(0, 0, 0, 1)
                                     
@@ -113,7 +133,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     
     float4 flatPositionTranslated = float4(flatPosition, 1.0) * translation;
     
-    float4 position = mix(spherePositionTranslated, flatPositionTranslated, 1.0);
+    float4 position = mix(spherePositionTranslated, flatPositionTranslated, transition);
     
     float4 clipPosition = matrix * position;
     
@@ -121,6 +141,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     int tilesCount = int(zPow);
     int lastTile = tilesCount - 1;
     
+    float v = mix(sphereV, flatV, transition);
     float t_u = ((1.0 - u) * zPow - tileX + posU) / count;
     float t_v = (1.0 - v * zPow + (lastTile - tileY) + float(lastPos - posV)) / count;
     

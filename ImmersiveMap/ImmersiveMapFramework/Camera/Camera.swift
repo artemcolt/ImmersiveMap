@@ -151,11 +151,18 @@ class Camera {
         collectVisibleTiles(x: x * 2 + 1, y: y * 2 + 1, z: z + 1, targetZ: targetZ, radius: radius, rotation: rotation, result: &result, centerTile: centerTile)
     }
     
-    func createRotationMatrix(globe: Renderer.Globe) -> float4x4 {
-        let cx = cos(-globe.xRotation);
-        let sx = sin(-globe.xRotation);
-        let cy = cos(-globe.yRotation);
-        let sy = sin(-globe.yRotation);
+    func createRotationMatrix(globe: Globe) -> float4x4 {
+        let rotationPair = globe.getRotation()
+        let xRotation = rotationPair.0
+        let yRotation = rotationPair.1
+        
+        let distortion = cos(xRotation);
+        print("distortion = \(distortion)")
+        
+        let cx = cos(-xRotation);
+        let sx = sin(-xRotation);
+        let cy = cos(-yRotation);
+        let sy = sin(-yRotation);
         
         let rotation = float4x4(
             SIMD4<Float>(cy,        0,         -sy,       0),  // Колонка 0

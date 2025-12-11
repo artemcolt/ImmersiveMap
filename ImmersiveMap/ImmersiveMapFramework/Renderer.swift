@@ -5,18 +5,13 @@
 //  Created by Artem on 8/31/25.
 //
 
+import Foundation
 import simd
 import Metal
 import MetalKit
 import QuartzCore // Для CAMetalLayer
 
 class Renderer {
-    struct Globe {
-        let xRotation: Float
-        let yRotation: Float
-        let radius: Float
-    }
-    
     private let metalLayer: CAMetalLayer
     let metalDevice: MTLDevice
     let commandQueue: MTLCommandQueue
@@ -41,6 +36,7 @@ class Renderer {
     private let semaphore = DispatchSemaphore(value: 3)
     private var currentIndex = 0
     
+    private let startDate = Date()
     private var previousSeeTilesHash: Int = 0
     private var savedSeeTiles: [Tile] = []
     private var savedTiles: [PlaceTile] = []
@@ -187,9 +183,14 @@ class Renderer {
         
         // При увеличении зума, мы масштабируем глобус, возвращая камеру в исходное нулевое положение
         let worldScale = pow(2.0, floor(cameraControl.zoom))
-        var globe = Globe(xRotation: Float(cameraControl.pan.y) * Float(maxLatitude),
-                          yRotation: Float(cameraControl.pan.x) * Float.pi,
-                          radius: 0.14 * worldScale)
+        let seconds = startDate.timeIntervalSince(Date())
+        var transition = (sin(seconds) + 1.0) / 2.0
+        transition = 0.0
+        var globe = Globe(panX: Float(cameraControl.pan.x),
+                          panY: Float(cameraControl.pan.y),
+                          radius: 0.14 * worldScale,
+                          transition: Float(transition))
+//        print("xRotation: \(xRotation), yRotation: \(yRotation)")
         
         
         // Получаем текущий центральный тайл
@@ -472,7 +473,7 @@ class Renderer {
         return Center(tileX: tileX, tileY: tileY)
     }
     
-    private func iSeeTiles(globe: Renderer.Globe, targetZoom: Int, center: Center) -> Set<Tile> {
+    private func iSeeTiles(globe: Globe, targetZoom: Int, center: Center) -> Set<Tile> {
         let tileX = (Int) (center.tileX)
         let tileY = (Int) (center.tileY)
         
