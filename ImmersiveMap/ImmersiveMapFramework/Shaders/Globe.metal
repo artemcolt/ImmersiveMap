@@ -81,10 +81,6 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float sphereP = 2 * M_PI_F * radius;
     float mapSize = sphereP * distortion;
     
-    float xFlat = mapSize * (vertexIn.uv.x - 0.5);
-    float yFlat = -mapSize * (vertexIn.uv.y - 0.5);
-    float zFlat = 0;
-    
     float phi = -M_PI_F * vertexIn.uv.y;
     float theta = 2 * M_PI_F * vertexIn.uv.x;
      
@@ -93,11 +89,9 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float z = radius * sin(phi) * cos(theta);
     
     float3 spherePosition = float3(x, y, z);
-    float3 flatPosition = float3(xFlat, yFlat, zFlat);
     
     // Рассчитываем текстурные координаты для наложения
     float u = 1.0 - vertexIn.uv.x;
-    
     float flatV = 1.0 - vertexIn.uv.y;
     
     // Adjust for Web Mercator projection (non-linear vertically)
@@ -123,25 +117,14 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     
     
     float4 spherePositionTranslated = float4(spherePosition, 1.0) * rotation - float4(0, 0, radius, 0);
-    float4x4 translation = float4x4(
-        float4(1, 0, 0,  (mapSize / 2.0) * globe.panX),
-        float4(0, 1, 0, -1 * (mapSize / 2.0) * (inverseProjection(xRotation) * 2 - 1) ),
-        float4(0, 0, 1, 0),
-        float4(0, 0, 0, 1)
-                                    
-    );
-    
-    float4 flatPositionTranslated = float4(flatPosition, 1.0) * translation;
-    
-    float4 position = mix(spherePositionTranslated, flatPositionTranslated, transition);
-    
+    float4 position = spherePositionTranslated;
     float4 clipPosition = matrix * position;
     
     float zPow = pow(2.0, tileZ);
     int tilesCount = int(zPow);
     int lastTile = tilesCount - 1;
     
-    float v = mix(sphereV, flatV, transition);
+    float v = sphereV;
     float t_u = ((1.0 - u) * zPow - tileX + posU) / count;
     float t_v = (1.0 - v * zPow + (lastTile - tileY) + float(lastPos - posV)) / count;
     
