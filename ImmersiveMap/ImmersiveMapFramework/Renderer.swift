@@ -185,7 +185,7 @@ class Renderer {
         let worldScale = pow(2.0, floor(cameraControl.zoom))
         let seconds = startDate.timeIntervalSince(Date())
         var transition = (sin(seconds) + 1.0) / 2.0
-        transition = 0.0
+        //transition = 1.0
         var globe = Globe(panX: Float(cameraControl.pan.x),
                           panY: Float(cameraControl.pan.y),
                           radius: 0.14 * worldScale,

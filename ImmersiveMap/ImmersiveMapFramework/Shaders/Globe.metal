@@ -39,26 +39,24 @@ struct Tile {
     int3 tile;
 };
 
-float inverseProjection(float phi) {
-    float lat = phi;
-    float sin_lat = sin(lat);
-    float max_sin = tanh(M_PI_F);
-    float clamped_sin = max(-max_sin, min(max_sin, sin_lat));
-    float y_merc = 0.5 * log((1.0 + clamped_sin) / (1.0 - clamped_sin));
-    float sphereV = (y_merc + M_PI_F) / (2.0 * M_PI_F);
-    return sphereV;
-}
-
 vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
                                    constant Camera& camera [[buffer(1)]],
                                    constant Globe& globe [[buffer(2)]],
                                    constant Tile* tile [[buffer(3)]],
                                    uint instanceId [[instance_id]]) {
     
+    float vertexUvX = vertexIn.uv.x;
+    float vertexUvY = vertexIn.uv.y;
+    
+    float globePanX = globe.panX;
+    float globePanY = globe.panY;
     float transition = globe.transition;
+    float globeRadius = globe.radius;
+    
+    
     float maxLatitude = 2.0 * atan(exp(M_PI_F)) - M_PI_2_F;
-    float xRotation = globe.panY * maxLatitude;
-    float yRotation = globe.panX * M_PI_F;
+    float xRotation = globePanY * maxLatitude;
+    float yRotation = globePanX * M_PI_F;
     float distortion = cos(xRotation);
     
     Tile tileData = tile[instanceId];
@@ -75,24 +73,21 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     int posV = tileData.position / count;
     int lastPos = count - 1;
     
-    float radius = globe.radius;
     float4x4 matrix = camera.matrix;
     
-    float sphereP = 2 * M_PI_F * radius;
-    float mapSize = sphereP * distortion;
+    float sphereP = 2 * M_PI_F * globeRadius;
     
-    float phi = -M_PI_F * vertexIn.uv.y;
-    float theta = 2 * M_PI_F * vertexIn.uv.x;
+    float phi = -M_PI_F * vertexUvY;
+    float theta = 2 * M_PI_F * vertexUvX;
      
-    float x = radius * sin(phi) * sin(theta);
-    float y = radius * cos(phi);
-    float z = radius * sin(phi) * cos(theta);
+    float x = globeRadius * sin(phi) * sin(theta);
+    float y = globeRadius * cos(phi);
+    float z = globeRadius * sin(phi) * cos(theta);
     
     float3 spherePosition = float3(x, y, z);
     
     // Рассчитываем текстурные координаты для наложения
-    float u = 1.0 - vertexIn.uv.x;
-    float flatV = 1.0 - vertexIn.uv.y;
+    float u = 1.0 - vertexUvX;
     
     // Adjust for Web Mercator projection (non-linear vertically)
     float lat = M_PI_F / 2.0 - phi;
@@ -109,22 +104,29 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float sy = sin(-yRotation);
 
     float4x4 rotation = float4x4(
-        float4(cy,        0,         -sy,       0),  // Колонка 0
-        float4(sy * sx,   cx,        cy * sx,   0),  // Колонка 1
-        float4(sy * cx,  -sx,        cy * cx,   0),  // Колонка 2
-        float4(0,         0,          0,        1)   // Колонка 3
+        float4(cy,        0,         -sy,       0),
+        float4(sy * sx,   cx,        cy * sx,   0),
+        float4(sy * cx,  -sx,        cy * cx,   0),
+        float4(0,         0,          0,        1)
     );
     
     
-    float4 spherePositionTranslated = float4(spherePosition, 1.0) * rotation - float4(0, 0, radius, 0);
-    float4 position = spherePositionTranslated;
+    float4 spherePositionRotated = float4(spherePosition, 1.0) * rotation;
+    float4 spherePositionTranslated = spherePositionRotated - float4(0, 0, globeRadius, 0);
+    float3 spherePos3 = normalize(spherePositionRotated.xyz);
+    float sphLon = atan2(spherePos3.x, spherePos3.z);
+    float posUvX = (sphLon / M_PI_F + 1.0) / 2.0;
+    float posUvY = vertexUvY;
+    float4 flatPosition = float4(posUvX * sphereP - sphereP / 2, -posUvY * sphereP + sphereP / 2, 0, 1.0);
+    
+    float4 position = mix(spherePositionTranslated, flatPosition, transition);
     float4 clipPosition = matrix * position;
     
     float zPow = pow(2.0, tileZ);
     int tilesCount = int(zPow);
     int lastTile = tilesCount - 1;
     
-    float v = sphereV;
+    float v = mix(sphereV, 1.0 - vertexUvY, transition);
     float t_u = ((1.0 - u) * zPow - tileX + posU) / count;
     float t_v = (1.0 - v * zPow + (lastTile - tileY) + float(lastPos - posV)) / count;
     
@@ -140,8 +142,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     return out;
 }
 
-fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
-                                    texture2d<float> texture [[texture(0)]]) {
+fragment float4 globeFragmentShader(VertexOut in [[stage_in]], texture2d<float> texture [[texture(0)]]) {
     constexpr sampler textureSampler(filter::linear, mip_filter::linear, mag_filter::linear);
     
     float u = in.texCoord.x;
@@ -163,7 +164,7 @@ fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
         u > u_max + delta || u < u_min - delta) {
         discard_fragment();
     }
-
+    
     // Inset clamp for sampling to prevent bleed from adjacent tiles
     float u_clamped = max(u_min + in.halfTexel, min(u_max - in.halfTexel, u));
     float v_clamped = max(v_min + in.halfTexel, min(v_max - in.halfTexel, v));
