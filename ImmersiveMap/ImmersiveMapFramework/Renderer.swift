@@ -191,10 +191,10 @@ class Renderer {
         // Sinusoidal transition driven by time (0..1). Uses time since startDate for stability.
         let t = Float(Date().timeIntervalSince(startDate))
         let speed: Float = 1.0 // cycles per ~2π seconds; increase for faster oscillation
-        transition = (sinf(t * speed) + 1.0) * 0.5
+        //transition = (sinf(t * speed) + 1.0) * 0.5
         var globe = Globe(panX: Float(cameraControl.pan.x),
                           panY: Float(cameraControl.pan.y),
-                          radius: 0.14 * worldScale,
+                          radius: 0.12 * worldScale,
                           transition: Float(transition))
 //        print("xRotation: \(xRotation), yRotation: \(yRotation)")
         
