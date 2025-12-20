@@ -82,7 +82,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float longitude = globePanX * M_PI_F;
     
     float distortion = cos(latitude);
-    float widthScale = mix(distortion, 1.0, transition);
+    float mapSizeScale = mix(distortion, 1.0, transition);
     
     float globeRadius = globe.radius;
     
@@ -102,7 +102,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     
     float4x4 matrix = camera.matrix;
     
-    float mapSize = 2 * M_PI_F * globeRadius * distortion;
+    float mapSize = 2 * M_PI_F * globeRadius * mapSizeScale;
     
     float phi = -M_PI_F * vertexUvY;
     float theta = 2 * M_PI_F * vertexUvX;
@@ -133,10 +133,9 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float panY_merc_norm = getYMercNorm(latitude);
 
     float halfMapSize = mapSize / 2.0;
-    float posUvX =  wrap(vertexUvX * mapSize - halfMapSize + globePanX * halfMapSize, mapSize);
+    float posUvX = wrap(vertexUvX * mapSize - halfMapSize + globePanX * halfMapSize, mapSize);
     
     
-    //float posUvY = -vertexUvY * mapSize + halfMapSize - panY_merc_norm * halfMapSize;
     float lat_v = M_PI_F * vertexUvY - M_PI_2_F;      // [-pi/2..pi/2]
     float v_merc_norm = -getYMercNorm(lat_v);          // [-1..1]
 
@@ -159,8 +158,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     int lastTile = tilesCount - 1;
     
     
-    float sphereV = (getYMercNorm(M_PI_F * vertexUvY - M_PI_2_F) - 1.0) / -2.0;
-    //float v = mix(sphereV, 1.0 - vertexUvY, transition);
+    float sphereV = (-v_merc_norm - 1.0) / -2.0;
     float v = sphereV;
     float t_u = ((1.0 - u) * zPow - tileX + posU) / count;
     float t_v = (1.0 - v * zPow + (lastTile - tileY) + float(lastPos - posV)) / count;

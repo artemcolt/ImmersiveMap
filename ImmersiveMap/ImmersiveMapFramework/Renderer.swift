@@ -97,7 +97,7 @@ class Renderer {
         //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
-        let sphereGeometry = SphereGeometry(stacks: 64, slices: 64)
+        let sphereGeometry = SphereGeometry(stacks: 128, slices: 128)
         let vertices = sphereGeometry.vertices
         let indices = sphereGeometry.indices
         sphereVerticesBuffer = metalDevice.makeBuffer(bytes: vertices, length: MemoryLayout<SphereGeometry.Vertex>.stride * vertices.count)!
@@ -187,7 +187,7 @@ class Renderer {
         let from = Float(5.0)
         let span = Float(1.0)
         let to = from + span
-        //var transition = max(0.0, min(1.0, (z - from) / (to - from)))
+        transition = max(0.0, min(1.0, (z - from) / (to - from)))
         // Sinusoidal transition driven by time (0..1). Uses time since startDate for stability.
         let t = Float(Date().timeIntervalSince(startDate))
         let speed: Float = 1.0 // cycles per ~2π seconds; increase for faster oscillation
