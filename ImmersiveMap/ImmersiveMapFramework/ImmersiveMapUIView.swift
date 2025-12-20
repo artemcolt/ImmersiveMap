@@ -79,6 +79,10 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
         pinchGesture.delegate = self
         addGestureRecognizer(pinchGesture)
         
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        addGestureRecognizer(doubleTap)
+        
         // Добавляем ползунок для контроля pitch (наклона камеры)
         pitchSlider = UISlider()
         pitchSlider.minimumValue = 0.0
@@ -99,6 +103,11 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
             return true
         }
         return false
+    }
+    
+    @objc private func handleDoubleTap(_ gestrue: UITapGestureRecognizer) {
+        let location = gestrue.location(in: self)
+        renderer!.transition = Float(1.0) - renderer!.transition
     }
     
     @objc private func handleRotation(_ gesture: UIRotationGestureRecognizer) {

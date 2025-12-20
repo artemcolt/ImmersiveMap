@@ -39,25 +39,52 @@ struct Tile {
     int3 tile;
 };
 
+float wrap(float x, float size) {
+    return x - size * floor((x + size * 0.5) / size);
+}
+
+float4x4 translationMatrix(float3 t) {
+    return float4x4(
+        float4(1, 0, 0, t.x),
+        float4(0, 1, 0, t.y),
+        float4(0, 0, 1, t.z),
+        float4(0, 0, 0, 1)
+    );
+}
+
+float getYMercNorm(float latitude) {
+    float sin_pan = sin(latitude);
+    float max_sin_pan = tanh(M_PI_F); // == sin(maxLatitude)
+    float clamped_sin_pan = max(-max_sin_pan, min(max_sin_pan, sin_pan));
+    float y_pan_merc = 0.5 * log((1.0 + clamped_sin_pan) / (1.0 - clamped_sin_pan));
+    float panY_merc_norm = y_pan_merc / M_PI_F; // normalized to [-1, 1]
+    return panY_merc_norm;
+}
+
 vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
                                    constant Camera& camera [[buffer(1)]],
                                    constant Globe& globe [[buffer(2)]],
                                    constant Tile* tile [[buffer(3)]],
                                    uint instanceId [[instance_id]]) {
     
-    float vertexUvX = vertexIn.uv.x;
-    float vertexUvY = vertexIn.uv.y;
+    float vertexUvX = vertexIn.uv.x; // goes 0 to 1
+    float vertexUvY = vertexIn.uv.y; // goes 0 to 1
     
-    float globePanX = globe.panX;
-    float globePanY = globe.panY;
-    float transition = globe.transition;
+    float globePanX = globe.panX; // goes -1 to 1
+    float globePanY = globe.panY; // goes -1 to 1
+    float transition = globe.transition; // from globe view to flat view
+    
+    
+    float maxLatitude = 2.0 * atan(exp(M_PI_F)) - M_PI_2_F; // Max globe latitude
+    
+    // Map coordinates
+    float latitude = globePanY * maxLatitude;
+    float longitude = globePanX * M_PI_F;
+    
+    float distortion = cos(latitude);
+    float widthScale = mix(distortion, 1.0, transition);
+    
     float globeRadius = globe.radius;
-    
-    
-    float maxLatitude = 2.0 * atan(exp(M_PI_F)) - M_PI_2_F;
-    float xRotation = globePanY * maxLatitude;
-    float yRotation = globePanX * M_PI_F;
-    float distortion = cos(xRotation);
     
     Tile tileData = tile[instanceId];
     
@@ -75,7 +102,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     
     float4x4 matrix = camera.matrix;
     
-    float sphereP = 2 * M_PI_F * globeRadius;
+    float mapSize = 2 * M_PI_F * globeRadius * distortion;
     
     float phi = -M_PI_F * vertexUvY;
     float theta = 2 * M_PI_F * vertexUvX;
@@ -83,25 +110,16 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float x = globeRadius * sin(phi) * sin(theta);
     float y = globeRadius * cos(phi);
     float z = globeRadius * sin(phi) * cos(theta);
-    
     float3 spherePosition = float3(x, y, z);
     
     // Рассчитываем текстурные координаты для наложения
     float u = 1.0 - vertexUvX;
     
-    // Adjust for Web Mercator projection (non-linear vertically)
-    float lat = M_PI_F / 2.0 - phi;
-    float sin_lat = sin(lat);
-    float max_sin = tanh(M_PI_F);
-    float clamped_sin = max(-max_sin, min(max_sin, sin_lat));
-    float y_merc = 0.5 * log((1.0 + clamped_sin) / (1.0 - clamped_sin));
-    float sphereV = (y_merc + M_PI_F) / (2.0 * M_PI_F);
-    
     // Вращаем планету
-    float cx = cos(-xRotation);
-    float sx = sin(-xRotation);
-    float cy = cos(-yRotation);
-    float sy = sin(-yRotation);
+    float cx = cos(-latitude);
+    float sx = sin(-latitude);
+    float cy = cos(-longitude);
+    float sy = sin(-longitude);
 
     float4x4 rotation = float4x4(
         float4(cy,        0,         -sy,       0),
@@ -109,29 +127,46 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
         float4(sy * cx,  -sx,        cy * cx,   0),
         float4(0,         0,          0,        1)
     );
+
+
+    // Convert globePanY (-1..1) to a Mercator-aligned vertical pan so the flat map
+    float panY_merc_norm = getYMercNorm(latitude);
+
+    float halfMapSize = mapSize / 2.0;
+    float posUvX =  wrap(vertexUvX * mapSize - halfMapSize + globePanX * halfMapSize, mapSize);
     
     
-    float4 spherePositionRotated = float4(spherePosition, 1.0) * rotation;
-    float4 spherePositionTranslated = spherePositionRotated - float4(0, 0, globeRadius, 0);
-    float3 spherePos3 = normalize(spherePositionRotated.xyz);
-    float sphLon = atan2(spherePos3.x, spherePos3.z);
-    float posUvX = (sphLon / M_PI_F + 1.0) / 2.0;
-    float posUvY = vertexUvY;
-    float4 flatPosition = float4(posUvX * sphereP - sphereP / 2, -posUvY * sphereP + sphereP / 2, 0, 1.0);
+    //float posUvY = -vertexUvY * mapSize + halfMapSize - panY_merc_norm * halfMapSize;
+    float lat_v = M_PI_F * vertexUvY - M_PI_2_F;      // [-pi/2..pi/2]
+    float v_merc_norm = -getYMercNorm(lat_v);          // [-1..1]
+
+    float posUvY = (v_merc_norm - panY_merc_norm) * halfMapSize;
     
-    float4 position = mix(spherePositionTranslated, flatPosition, transition);
-    float4 clipPosition = matrix * position;
+    float4x4 translationM = translationMatrix(float3(0, 0, -globeRadius));
+    float4 spherePositionTranslated = float4(spherePosition, 1.0) * rotation * translationM;
+    float4 flatPosition = float4(posUvX, posUvY, 0, 1.0);
+    
+    float4 clipSphere = matrix * spherePositionTranslated;
+    float4 clipFlat = matrix * flatPosition;
+    
+    float4 ndcSphere = clipSphere / clipSphere.w;
+    float4 ndcFlat   = clipFlat   / clipFlat.w;
+
+    float4 ndc = mix(ndcSphere, ndcFlat, transition);
     
     float zPow = pow(2.0, tileZ);
     int tilesCount = int(zPow);
     int lastTile = tilesCount - 1;
     
-    float v = mix(sphereV, 1.0 - vertexUvY, transition);
+    
+    float sphereV = (getYMercNorm(M_PI_F * vertexUvY - M_PI_2_F) - 1.0) / -2.0;
+    //float v = mix(sphereV, 1.0 - vertexUvY, transition);
+    float v = sphereV;
     float t_u = ((1.0 - u) * zPow - tileX + posU) / count;
     float t_v = (1.0 - v * zPow + (lastTile - tileY) + float(lastPos - posV)) / count;
     
     VertexOut out;
-    out.position = clipPosition;
+    out.position = float4(ndc.xyz, 1.0);
     out.pointSize = 5.0;
     out.texCoord = float2(t_u, t_v);
     out.uvSize = 1.0 / count;

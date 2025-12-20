@@ -22,6 +22,7 @@ class Renderer {
     let globePipeline: GlobePipeline
     let camera: Camera
     let cameraControl: CameraControl
+    var transition: Float = 0
     private var metalTilesStorage: MetalTilesStorage?
     private let tilesTexture: TilesTexture
     private let textRenderer: TextRenderer
@@ -96,7 +97,7 @@ class Renderer {
         //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
-        let sphereGeometry = SphereGeometry(stacks: 128, slices: 128)
+        let sphereGeometry = SphereGeometry(stacks: 64, slices: 64)
         let vertices = sphereGeometry.vertices
         let indices = sphereGeometry.indices
         sphereVerticesBuffer = metalDevice.makeBuffer(bytes: vertices, length: MemoryLayout<SphereGeometry.Vertex>.stride * vertices.count)!
@@ -171,7 +172,6 @@ class Renderer {
             cameraControl.update = false
         }
         
-        
         guard let cameraMatrix = camera.cameraMatrix,
               let drawable = layer.nextDrawable() else {
             semaphore.signal()
@@ -183,9 +183,15 @@ class Renderer {
         
         // При увеличении зума, мы масштабируем глобус, возвращая камеру в исходное нулевое положение
         let worldScale = pow(2.0, floor(cameraControl.zoom))
-        let seconds = startDate.timeIntervalSince(Date())
-        var transition = (sin(seconds) + 1.0) / 2.0
-        //transition = 1.0
+        let z = cameraControl.zoom
+        let from = Float(5.0)
+        let span = Float(1.0)
+        let to = from + span
+        //var transition = max(0.0, min(1.0, (z - from) / (to - from)))
+        // Sinusoidal transition driven by time (0..1). Uses time since startDate for stability.
+        let t = Float(Date().timeIntervalSince(startDate))
+        let speed: Float = 1.0 // cycles per ~2π seconds; increase for faster oscillation
+        transition = (sinf(t * speed) + 1.0) * 0.5
         var globe = Globe(panX: Float(cameraControl.pan.x),
                           panY: Float(cameraControl.pan.y),
                           radius: 0.14 * worldScale,
