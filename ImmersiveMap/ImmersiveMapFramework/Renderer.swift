@@ -28,9 +28,10 @@ class Renderer {
     private let textRenderer: TextRenderer
     private let uiView: ImmersiveMapUIView
     
-    private let sphereVerticesBuffer: MTLBuffer
-    private let sphereIndicesBuffer: MTLBuffer
-    private let sphereIndicesCount: Int
+    private let baseGrid: SphereGeometry.Grid
+    
+    private let sphereVerticesBuffer: [MTLBuffer]
+    private let sphereIndicesBuffer: [MTLBuffer]
     private var lastDrawableSize: CGSize = .zero
     private let maxLatitude = 2.0 * atan(exp(Double.pi)) - Double.pi / 2.0
     
@@ -100,9 +101,29 @@ class Renderer {
         let sphereGeometry = SphereGeometry(stacks: 128, slices: 128)
         let vertices = sphereGeometry.vertices
         let indices = sphereGeometry.indices
-        sphereVerticesBuffer = metalDevice.makeBuffer(bytes: vertices, length: MemoryLayout<SphereGeometry.Vertex>.stride * vertices.count)!
-        sphereIndicesBuffer = metalDevice.makeBuffer(bytes: indices, length: MemoryLayout<UInt32>.stride * indices.count)!
-        sphereIndicesCount = indices.count
+        
+        let buffersCount = 10
+        var verticesBuffers: [MTLBuffer] = []
+        for _ in 0..<buffersCount {
+            let buffer = metalDevice.makeBuffer(
+                bytes: [],
+                length: MemoryLayout<SphereGeometry.Vertex>.stride * vertices.count
+            )!
+            verticesBuffers.append(buffer)
+        }
+        sphereVerticesBuffer = verticesBuffers
+        
+        var indicesBuffers: [MTLBuffer] = []
+        for _ in 0..<buffersCount {
+            let buffer = metalDevice.makeBuffer(
+                bytes: [],
+                length: MemoryLayout<UInt32>.stride * indices.count
+            )!
+            indicesBuffers.append(buffer)
+        }
+        sphereIndicesBuffer = indicesBuffers
+        
+        baseGrid = sphereGeometry.createGrid(stacks: 30, slices: 30)
         
         let len = MemoryLayout<TextVertex>.stride * 4000
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
@@ -404,20 +425,44 @@ class Renderer {
         renderEncoder.setCullMode(.front)
         
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
-        renderEncoder.setVertexBuffer(sphereVerticesBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
         renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
         
-        var tileData = tilesTexture.tileData
-        renderEncoder.setVertexBytes(&tileData, length: MemoryLayout<TilesTexture.TileData>.stride * tileData.count, index: 3)
-        
-        if tileData.isEmpty == false {
-            renderEncoder.drawIndexedPrimitives(type: .triangle,
-                                                indexCount: sphereIndicesCount,
-                                                indexType: .uint32,
-                                                indexBuffer: sphereIndicesBuffer,
-                                                indexBufferOffset: 0,
-                                                instanceCount: tileData.count)
+        var currentPlace = 0
+        let tileMappings = tilesTexture.tileData
+        if tileMappings.isEmpty == false {
+            for mapping in tileMappings {
+                if sphereVerticesBuffer.count <= currentPlace {
+                    break
+                }
+                
+                let tile = mapping.tile
+                let geometry = SphereGeometry(stacks: 30, slices: 30, tile: Tile(x: Int(tile.x), y: Int(tile.y), z: Int(tile.z)))
+                
+                let verticesBuffer = sphereVerticesBuffer[currentPlace]
+                let indicesBuffer = sphereIndicesBuffer[currentPlace]
+                
+                verticesBuffer.contents().copyMemory(
+                    from: geometry.vertices,
+                    byteCount: MemoryLayout<SphereGeometry.Vertex>.stride * geometry.vertices.count
+                )
+                indicesBuffer.contents().copyMemory(
+                    from: geometry.indices,
+                    byteCount: MemoryLayout<UInt32>.stride * geometry.indices.count
+                )
+                renderEncoder.setVertexBuffer(verticesBuffer, offset: 0, index: 0)
+                
+                var toMapping = mapping
+                renderEncoder.setVertexBytes(&toMapping, length: MemoryLayout<TilesTexture.TileData>.stride, index: 3)
+                
+                renderEncoder.drawIndexedPrimitives(type: .triangle,
+                                                    indexCount: geometry.indices.count,
+                                                    indexType: .uint32,
+                                                    indexBuffer: indicesBuffer,
+                                                    indexBufferOffset: 0)
+                
+                currentPlace += 1
+            }
         }
         
         // Axes

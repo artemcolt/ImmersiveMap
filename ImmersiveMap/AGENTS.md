@@ -1,4 +1,5 @@
 # Repository Guidelines
+You are a senior Metal + IOS mobile engineer.
 
 ## Project Structure & Module Organization
 - `ImmersiveMap/` contains the app entry point and assets (e.g., `ImmersiveMapApp.swift`, `Assets.xcassets`).

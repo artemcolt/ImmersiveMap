@@ -64,8 +64,7 @@ float getYMercNorm(float latitude) {
 vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
                                    constant Camera& camera [[buffer(1)]],
                                    constant Globe& globe [[buffer(2)]],
-                                   constant Tile* tile [[buffer(3)]],
-                                   uint instanceId [[instance_id]]) {
+                                   constant Tile& tile [[buffer(3)]]) {
     
     float vertexUvX = vertexIn.uv.x; // goes 0 to 1
     float vertexUvY = vertexIn.uv.y; // goes 0 to 1
@@ -86,7 +85,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     
     float globeRadius = globe.radius;
     
-    Tile tileData = tile[instanceId];
+    Tile tileData = tile;
     
     float textureSize = tileData.textureSize;
     float cellSize = tileData.cellSize;
@@ -144,14 +143,10 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float4x4 translationM = translationMatrix(float3(0, 0, -globeRadius));
     float4 spherePositionTranslated = float4(spherePosition, 1.0) * rotation * translationM;
     float4 flatPosition = float4(posUvX, posUvY, 0, 1.0);
-    
-    float4 clipSphere = matrix * spherePositionTranslated;
-    float4 clipFlat = matrix * flatPosition;
-    
-    float4 ndcSphere = clipSphere / clipSphere.w;
-    float4 ndcFlat   = clipFlat   / clipFlat.w;
+    float4 position = mix(spherePositionTranslated, flatPosition, transition);
+    float4 clip = matrix * position;
+    float4 ndc = clip / clip.w;
 
-    float4 ndc = mix(ndcSphere, ndcFlat, transition);
     
     float zPow = pow(2.0, tileZ);
     int tilesCount = int(zPow);
