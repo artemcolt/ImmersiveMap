@@ -160,7 +160,7 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
     }
     
     @objc private func renderLoop() {
-        if redraw || true {
+        if redraw {
             render()
             redraw = false
         }

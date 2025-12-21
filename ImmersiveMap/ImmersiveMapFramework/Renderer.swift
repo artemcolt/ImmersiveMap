@@ -28,10 +28,13 @@ class Renderer {
     private let textRenderer: TextRenderer
     private let uiView: ImmersiveMapUIView
     
-    private let baseGrid: SphereGeometry.Grid
+    struct GridBuffers {
+        let verticesBuffer: MTLBuffer
+        let indicesBuffer: MTLBuffer
+        let indicesCount: Int
+    }
     
-    private let sphereVerticesBuffer: [MTLBuffer]
-    private let sphereIndicesBuffer: [MTLBuffer]
+    private let baseGridBuffers: GridBuffers
     private var lastDrawableSize: CGSize = .zero
     private let maxLatitude = 2.0 * atan(exp(Double.pi)) - Double.pi / 2.0
     
@@ -98,32 +101,18 @@ class Renderer {
         //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
-        let sphereGeometry = SphereGeometry(stacks: 128, slices: 128)
-        let vertices = sphereGeometry.vertices
-        let indices = sphereGeometry.indices
-        
-        let buffersCount = 10
-        var verticesBuffers: [MTLBuffer] = []
-        for _ in 0..<buffersCount {
-            let buffer = metalDevice.makeBuffer(
-                bytes: [],
-                length: MemoryLayout<SphereGeometry.Vertex>.stride * vertices.count
-            )!
-            verticesBuffers.append(buffer)
-        }
-        sphereVerticesBuffer = verticesBuffers
-        
-        var indicesBuffers: [MTLBuffer] = []
-        for _ in 0..<buffersCount {
-            let buffer = metalDevice.makeBuffer(
-                bytes: [],
-                length: MemoryLayout<UInt32>.stride * indices.count
-            )!
-            indicesBuffers.append(buffer)
-        }
-        sphereIndicesBuffer = indicesBuffers
-        
-        baseGrid = sphereGeometry.createGrid(stacks: 30, slices: 30)
+        let baseGrid = SphereGeometry.createGrid(stacks: 30, slices: 30)
+        baseGridBuffers = GridBuffers(
+            verticesBuffer: metalDevice.makeBuffer(
+                bytes: baseGrid.vertices,
+                length: MemoryLayout<SphereGeometry.Vertex>.stride * baseGrid.vertices.count
+            )!,
+            indicesBuffer: metalDevice.makeBuffer(
+                bytes: baseGrid.indices,
+                length: MemoryLayout<UInt32>.stride * baseGrid.indices.count
+            )!,
+            indicesCount: baseGrid.indices.count
+        )
         
         let len = MemoryLayout<TextVertex>.stride * 4000
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
@@ -215,7 +204,7 @@ class Renderer {
         //transition = (sinf(t * speed) + 1.0) * 0.5
         var globe = Globe(panX: Float(cameraControl.pan.x),
                           panY: Float(cameraControl.pan.y),
-                          radius: 0.12 * worldScale,
+                          radius: 0.14 * worldScale,
                           transition: Float(transition))
 //        print("xRotation: \(xRotation), yRotation: \(yRotation)")
         
@@ -249,7 +238,6 @@ class Renderer {
                 let dx2 = abs(t2.x - Int(center.tileX))
                 let dy2 = abs(t2.y - Int(center.tileY))
                 let d2 = dx2 + dy2
-                
                 
                 // Сперва тайлы, которые ближе всего к центру
                 return d1 < d2 // true -> элементы остаются на месте
@@ -427,41 +415,19 @@ class Renderer {
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
         renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
+        renderEncoder.setVertexBuffer(baseGridBuffers.verticesBuffer, offset: 0, index: 0)
         
-        var currentPlace = 0
         let tileMappings = tilesTexture.tileData
         if tileMappings.isEmpty == false {
             for mapping in tileMappings {
-                if sphereVerticesBuffer.count <= currentPlace {
-                    break
-                }
-                
-                let tile = mapping.tile
-                let geometry = SphereGeometry(stacks: 30, slices: 30, tile: Tile(x: Int(tile.x), y: Int(tile.y), z: Int(tile.z)))
-                
-                let verticesBuffer = sphereVerticesBuffer[currentPlace]
-                let indicesBuffer = sphereIndicesBuffer[currentPlace]
-                
-                verticesBuffer.contents().copyMemory(
-                    from: geometry.vertices,
-                    byteCount: MemoryLayout<SphereGeometry.Vertex>.stride * geometry.vertices.count
-                )
-                indicesBuffer.contents().copyMemory(
-                    from: geometry.indices,
-                    byteCount: MemoryLayout<UInt32>.stride * geometry.indices.count
-                )
-                renderEncoder.setVertexBuffer(verticesBuffer, offset: 0, index: 0)
-                
                 var toMapping = mapping
                 renderEncoder.setVertexBytes(&toMapping, length: MemoryLayout<TilesTexture.TileData>.stride, index: 3)
                 
                 renderEncoder.drawIndexedPrimitives(type: .triangle,
-                                                    indexCount: geometry.indices.count,
+                                                    indexCount: baseGridBuffers.indicesCount,
                                                     indexType: .uint32,
-                                                    indexBuffer: indicesBuffer,
+                                                    indexBuffer: baseGridBuffers.indicesBuffer,
                                                     indexBufferOffset: 0)
-                
-                currentPlace += 1
             }
         }
         

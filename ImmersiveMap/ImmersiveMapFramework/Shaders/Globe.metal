@@ -64,10 +64,27 @@ float getYMercNorm(float latitude) {
 vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
                                    constant Camera& camera [[buffer(1)]],
                                    constant Globe& globe [[buffer(2)]],
-                                   constant Tile& tile [[buffer(3)]]) {
+                                   constant Tile& tileData [[buffer(3)]]) {
     
     float vertexUvX = vertexIn.uv.x; // goes 0 to 1
     float vertexUvY = vertexIn.uv.y; // goes 0 to 1
+    
+    int tileX = tileData.tile.x;
+    int tileY = tileData.tile.y;
+    int tileZ = tileData.tile.z;
+    
+    float zPow = pow(2.0, tileZ);
+    float size = 1.0 / zPow;
+    
+    vertexUvX = vertexUvX / zPow + size * tileX;
+    
+    float latNorth = atan(sinh(M_PI_F * (1.0 - 2.0 * tileY / zPow)));
+    float latSouth = atan(sinh(M_PI_F * (1.0 - 2.0 * (tileY + 1) / zPow)));
+    float vNorth = 1.0 - (latNorth + M_PI_2_F) / M_PI_F;
+    float vSouth = 1.0 - (latSouth + M_PI_2_F) / M_PI_F;
+    float vSize = abs(vSouth - vNorth);
+    vertexUvY = vNorth + vertexUvY * vSize;
+    
     
     float globePanX = globe.panX; // goes -1 to 1
     float globePanY = globe.panY; // goes -1 to 1
@@ -85,15 +102,11 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     
     float globeRadius = globe.radius;
     
-    Tile tileData = tile;
     
     float textureSize = tileData.textureSize;
     float cellSize = tileData.cellSize;
     int count = textureSize / cellSize;
     
-    int tileX = tileData.tile.x;
-    int tileY = tileData.tile.y;
-    int tileZ = tileData.tile.z;
     
     int posU = tileData.position % count;
     int posV = tileData.position / count;
@@ -111,8 +124,6 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float z = globeRadius * sin(phi) * cos(theta);
     float3 spherePosition = float3(x, y, z);
     
-    // Рассчитываем текстурные координаты для наложения
-    float u = 1.0 - vertexUvX;
     
     // Вращаем планету
     float cx = cos(-latitude);
@@ -134,10 +145,8 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float halfMapSize = mapSize / 2.0;
     float posUvX = wrap(vertexUvX * mapSize - halfMapSize + globePanX * halfMapSize, mapSize);
     
-    
     float lat_v = M_PI_F * vertexUvY - M_PI_2_F;      // [-pi/2..pi/2]
     float v_merc_norm = -getYMercNorm(lat_v);          // [-1..1]
-
     float posUvY = (v_merc_norm - panY_merc_norm) * halfMapSize;
     
     float4x4 translationM = translationMatrix(float3(0, 0, -globeRadius));
@@ -147,12 +156,11 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float4 clip = matrix * position;
     float4 ndc = clip / clip.w;
 
+    // Рассчитываем текстурные координаты для наложения
+    float u = 1.0 - vertexUvX;
     
-    float zPow = pow(2.0, tileZ);
     int tilesCount = int(zPow);
     int lastTile = tilesCount - 1;
-    
-    
     float sphereV = (-v_merc_norm - 1.0) / -2.0;
     float v = sphereV;
     float t_u = ((1.0 - u) * zPow - tileX + posU) / count;
@@ -190,7 +198,8 @@ fragment float4 globeFragmentShader(VertexOut in [[stage_in]], texture2d<float> 
     float delta = in.halfTexel;
     if (v > v_max + delta || v < v_min - delta ||
         u > u_max + delta || u < u_min - delta) {
-        discard_fragment();
+        return float4(1.0, 0, 0, 1.0);
+        //discard_fragment();
     }
     
     // Inset clamp for sampling to prevent bleed from adjacent tiles
