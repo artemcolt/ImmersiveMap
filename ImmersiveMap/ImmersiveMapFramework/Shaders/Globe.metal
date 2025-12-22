@@ -154,7 +154,6 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float4 flatPosition = float4(posUvX, posUvY, 0, 1.0);
     float4 position = mix(spherePositionTranslated, flatPosition, transition);
     float4 clip = matrix * position;
-    float4 ndc = clip / clip.w;
 
     // Рассчитываем текстурные координаты для наложения
     float u = 1.0 - vertexUvX;
@@ -167,7 +166,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float t_v = (1.0 - v * zPow + (lastTile - tileY) + float(lastPos - posV)) / count;
     
     VertexOut out;
-    out.position = float4(ndc.xyz, 1.0);
+    out.position = clip;
     out.pointSize = 5.0;
     out.texCoord = float2(t_u, t_v);
     out.uvSize = 1.0 / count;
@@ -180,6 +179,8 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
 
 fragment float4 globeFragmentShader(VertexOut in [[stage_in]], texture2d<float> texture [[texture(0)]]) {
     constexpr sampler textureSampler(filter::linear, mip_filter::linear, mag_filter::linear);
+    
+//    return float4(1.0, 0, 0, 1);
     
     float u = in.texCoord.x;
     float v = in.texCoord.y;

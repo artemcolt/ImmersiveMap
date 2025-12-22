@@ -1,3 +1,6 @@
+1) Correct the english promp of user
+2) Do required work
+
 # Repository Guidelines
 You are a senior Metal + IOS mobile engineer.
 

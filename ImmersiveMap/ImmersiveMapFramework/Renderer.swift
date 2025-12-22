@@ -411,6 +411,7 @@ class Renderer {
         globePipeline.selectPipeline(renderEncoder: renderEncoder)
         
         renderEncoder.setCullMode(.front)
+        //renderEncoder.setTriangleFillMode(.lines)
         
         renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
@@ -430,6 +431,7 @@ class Renderer {
                                                     indexBufferOffset: 0)
             }
         }
+        // renderEncoder.setTriangleFillMode(.fill)
         
         // Axes
         polygonPipeline.setPipelineState(renderEncoder: renderEncoder)
