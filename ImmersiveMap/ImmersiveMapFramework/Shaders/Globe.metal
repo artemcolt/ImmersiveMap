@@ -154,7 +154,6 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float4 flatPosition = float4(posUvX, posUvY, 0, 1.0);
     float4 position = mix(spherePositionTranslated, flatPosition, transition);
     float4 clip = matrix * position;
-
     // Рассчитываем текстурные координаты для наложения
     float u = 1.0 - vertexUvX;
     
@@ -166,6 +165,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     float t_v = (1.0 - v * zPow + (lastTile - tileY) + float(lastPos - posV)) / count;
     
     VertexOut out;
+    // Keep clip-space position; GPU performs the perspective divide.
     out.position = clip;
     out.pointSize = 5.0;
     out.texCoord = float2(t_u, t_v);
