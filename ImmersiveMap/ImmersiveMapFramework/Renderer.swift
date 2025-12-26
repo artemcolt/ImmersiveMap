@@ -194,7 +194,7 @@ class Renderer {
         // При увеличении зума, мы масштабируем глобус, возвращая камеру в исходное нулевое положение
         let worldScale = pow(2.0, floor(cameraControl.zoom))
         let z = cameraControl.zoom
-        let from = Float(5.0)
+        let from = Float(4.0)
         let span = Float(1.0)
         let to = from + span
         transition = max(0.0, min(1.0, (z - from) / (to - from)))
@@ -207,6 +207,7 @@ class Renderer {
                           radius: 0.14 * worldScale,
                           transition: Float(transition))
 //        print("xRotation: \(xRotation), yRotation: \(yRotation)")
+        let viewMode = transition >= 1.0 ? ViewMode.flat : ViewMode.spherical
         
         
         // Получаем текущий центральный тайл
@@ -216,7 +217,8 @@ class Renderer {
         
         // Тайлы, которые пользователь видит в полностью подгруженном состоянии
         // они там могут быть в разнобой, просто все тайлы, которые пользователь видит
-        let seeTiles = iSeeTiles(globe: globe, targetZoom: zoom, center: center)
+        let seeTiles = iSeeTiles(globe: globe, targetZoom: zoom, center: center, viewMode: viewMode,
+                                 pan: SIMD2<Float>(Float(cameraControl.pan.x), Float(cameraControl.pan.y)))
         let seeTilesHash = seeTiles.hashValue
         
         // Если мы видим такие же тайлы, что и на предыдущем кадре, то тогда нету смысла обрабатывать их опять
@@ -440,7 +442,7 @@ class Renderer {
         renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: 6)
         
         for point in camera.testPoints {
-            let verticesTest = [PolygonsPipeline.Vertex(position: point, color: SIMD4<Float>(0, 0, 0, 1))]
+            let verticesTest = [PolygonsPipeline.Vertex(position: point, color: SIMD4<Float>(1, 0, 0, 1))]
             renderEncoder.setVertexBytes(verticesTest, length: MemoryLayout<PolygonsPipeline.Vertex>.stride * verticesTest.count, index: 0)
             renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesTest.count)
         }
@@ -492,7 +494,7 @@ class Renderer {
         return Center(tileX: tileX, tileY: tileY)
     }
     
-    private func iSeeTiles(globe: Globe, targetZoom: Int, center: Center) -> Set<Tile> {
+    private func iSeeTiles(globe: Globe, targetZoom: Int, center: Center, viewMode: ViewMode, pan: SIMD2<Float>) -> Set<Tile> {
         let tileX = (Int) (center.tileX)
         let tileY = (Int) (center.tileY)
         
@@ -500,7 +502,7 @@ class Renderer {
         let rotation = camera.createRotationMatrix(globe: globe)
         var result: Set<Tile> = []
         camera.collectVisibleTiles(x: 0, y: 0, z: 0, targetZ: targetZoom, radius: globe.radius, rotation: rotation, result: &result,
-                                   centerTile: Tile(x: tileX, y: tileY, z: targetZoom)
+                                   centerTile: Tile(x: tileX, y: tileY, z: targetZoom), mode: viewMode, pan: pan
         )
         
         // Удаляем все дубликаты из результата
