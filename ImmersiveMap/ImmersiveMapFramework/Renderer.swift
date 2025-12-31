@@ -101,8 +101,8 @@ class Renderer {
         camera = Camera()
         tileCulling = TileCulling(camera: camera)
         cameraControl = CameraControl()
-        cameraControl.setZoom(zoom: 6)
-        cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
+        //cameraControl.setZoom(zoom: 6)
+        //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
         let baseGrid = SphereGeometry.createGrid(stacks: 30, slices: 30)
@@ -212,23 +212,23 @@ class Renderer {
         
         if viewMode != newViewMode {
             // Необходимо переключение режима
-            switchRenderMode()
+            //switchRenderMode()
         }
         
         // Получаем текущий центральный тайл
         let zoom = Int(cameraControl.zoom)
-        let center = getGlobeMapCenter(targetZoom: zoom)
+        var center: Center = Center(tileX: 0, tileY: 0)
         
         
         // Тайлы, которые пользователь видит в полностью подгруженном состоянии
         // они там могут быть в разнобой, просто все тайлы, которые пользователь видит
         var seeTiles: Set<Tile> = Set()
         if viewMode == .spherical {
-            let center = getGlobeMapCenter(targetZoom: zoom)
+            center = getGlobeMapCenter(targetZoom: zoom)
             seeTiles = tileCulling.iSeeTilesGlobe(globe: globe, targetZoom: zoom, center: center, viewMode: viewMode,
                                                   pan: SIMD2<Float>(Float(cameraControl.globePan.x), Float(cameraControl.globePan.y)))
         } else if viewMode == .flat {
-            let center = getFlatMapCenter(targetZoom: zoom)
+            center = getFlatMapCenter(targetZoom: zoom)
             print("Center = \(center)")
             seeTiles = tileCulling.iSeeTilesFlat(targetZoom: zoom, center: center, pan: cameraControl.flatPan, radius: radius)
         }

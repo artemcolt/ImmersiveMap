@@ -35,9 +35,11 @@ class CameraControl {
         let speed = 0.5
         globePan = globePan + sens * (forward * deltaY * speed + right * deltaX * speed)
         globePan.y = min(max(-1, globePan.y), 1)
+        globePan.x = wrapMinusOneToOne(globePan.x)
         
         flatPan = flatPan + sens * (forward * deltaY * speed + right * deltaX * speed)
         flatPan.y = min(max(-1, flatPan.y), 1)
+        flatPan.x = wrapMinusOneToOne(flatPan.x)
         
         update = true
     }
@@ -77,4 +79,12 @@ class CameraControl {
         zoom = min(max(0, zoom), 20)
         update = true
     }
+    
+    private func wrapMinusOneToOne(_ x: Double) -> Double {
+        let range = 2.0            // от -1 до +1
+        var v = (x + 1.0).truncatingRemainder(dividingBy: range)
+        if v < 0 { v += range }
+        return v - 1.0
+    }
+
 }

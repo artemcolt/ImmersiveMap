@@ -20,13 +20,13 @@ class TileCulling {
         let rotation = camera.createRotationMatrix(globe: globe)
         var result: Set<Tile> = []
         camera.collectVisibleTilesGlobe(x: 0, y: 0, z: 0,
-                                   targetZ: targetZoom,
-                                   radius: globe.radius,
-                                   rotation: rotation,
-                                   result: &result,
-                                   centerTile: Tile(x: tileX, y: tileY, z: targetZoom),
-                                   mode: viewMode,
-                                   pan: pan
+                                        targetZ: targetZoom,
+                                        radius: globe.radius,
+                                        rotation: rotation,
+                                        result: &result,
+                                        centerTile: Tile(x: tileX, y: tileY, z: targetZoom),
+                                        mode: viewMode,
+                                        pan: pan
         )
         
         // Удаляем все дубликаты из результата
