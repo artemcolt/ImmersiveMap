@@ -33,7 +33,7 @@ class TileCulling {
         return result
     }
     
-    func iSeeTilesFlat(targetZoom: Int, center: Center, pan: SIMD2<Double>, radius: Double) -> Set<Tile> {
+    func iSeeTilesFlat(targetZoom: Int, center: Center, pan: SIMD2<Double>, mapSize: Double) -> Set<Tile> {
        let tileX = (Int) (center.tileX)
        let tileY = (Int) (center.tileY)
        
@@ -43,10 +43,29 @@ class TileCulling {
                                       targetZ: targetZoom,
                                       result: &result,
                                       centerTile: Tile(x: tileX, y: tileY, z: targetZoom),
-                                      pan: pan, radius: radius
-       )
+                                      pan: pan,
+                                      mapSize: mapSize,
+                                      shiftXMap: 0)
+        
+        // Собираем карту слева
+        camera.collectVisibleTilesFlat(x: 0, y: 0, z: 0,
+                                       targetZ: targetZoom,
+                                       result: &result,
+                                       centerTile: Tile(x: tileX, y: tileY, z: targetZoom),
+                                       pan: pan,
+                                       mapSize: mapSize,
+                                       shiftXMap: -1)
+        
+        // Собираем карту cправа
+        camera.collectVisibleTilesFlat(x: 0, y: 0, z: 0,
+                                       targetZ: targetZoom,
+                                       result: &result,
+                                       centerTile: Tile(x: tileX, y: tileY, z: targetZoom),
+                                       pan: pan,
+                                       mapSize: mapSize,
+                                       shiftXMap: 1)
+        
        
-       // Удаляем все дубликаты из результата
        return result
    }
 }

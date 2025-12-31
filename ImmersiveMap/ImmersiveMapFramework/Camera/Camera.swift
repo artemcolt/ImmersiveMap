@@ -71,7 +71,8 @@ class Camera {
         return points
     }
     
-    func aproximateTileFlat(tx: Int, ty: Int, tz: Int, pan: SIMD2<Double>, radius: Double) -> [SIMD4<Float>] {
+    // worldShiftX - для зацикливания плоского представления карты
+    func aproximateTileFlat(tx: Int, ty: Int, tz: Int, pan: SIMD2<Double>, mapSize: Double, worldShiftX: Float) -> [SIMD4<Float>] {
         let step = Double(1.0)
         
         let count = Int(1.0 / step)
@@ -82,8 +83,8 @@ class Camera {
                                              ty: Double(ty) + Double(y) * step,
                                              tz: tz,
                                              pan: pan,
-                                             radius: radius)
-                points[x * (count + 1) + y] = point
+                                             mapSize: mapSize)
+                points[x * (count + 1) + y] = SIMD4<Float>(point.x + worldShiftX, point.y, point.z, point.w)
             }
         }
         return points
@@ -202,12 +203,15 @@ class Camera {
                                  result: inout Set<Tile>,
                                  centerTile: Tile,
                                  pan: SIMD2<Double>,
-                                 radius: Double
+                                 mapSize: Double,
+                                 shiftXMap: Int8
     ) {
-        let points = aproximateTileFlat(tx: x, ty: y, tz: z, pan: pan, radius: radius)
+        let points = aproximateTileFlat(tx: x, ty: y, tz: z, pan: pan, mapSize: mapSize,
+                                        worldShiftX: Float(mapSize) * Float(shiftXMap)
+        )
         let boundingBox = boundingBox(for: points)
-        //testPoints.append(boundingBox.min)
-        //testPoints.append(boundingBox.max)
+        testPoints.append(boundingBox.min)
+        testPoints.append(boundingBox.max)
         let isVisibleBox = frustrum!.isBoxVisible(min: boundingBox.min, max: boundingBox.max)
         if isVisibleBox == false {
             return
@@ -219,8 +223,19 @@ class Camera {
         
         let zDiff = abs(centerTile.z - z)
         if zDiff == 0 {
-            let addTile = Tile(x: x, y: y, z: z)
-            let relX = abs(centerTile.x - x)
+            let addTile = Tile(x: x, y: y, z: z, loop: shiftXMap)
+            
+            
+            var relX = abs(centerTile.x - x)
+            if shiftXMap < 0 {
+                let tilesCount = 1 << z
+                relX = centerTile.x + (tilesCount - x - 1)
+            } else if shiftXMap > 0 {
+                let tilesCount = 1 << z
+                relX = (tilesCount - centerTile.x - 1) + x
+            }
+            
+            
             let relY = abs(centerTile.y - y)
             let maxRelative = max(relX, relY)
             
@@ -247,28 +262,32 @@ class Camera {
                                 result: &result,
                                 centerTile: centerTile,
                                 pan: pan,
-                                radius: radius
+                                mapSize: mapSize,
+                                shiftXMap: shiftXMap
         )
         collectVisibleTilesFlat(x: x * 2 + 1, y: y * 2, z: z + 1,
                                 targetZ: targetZ,
                                 result: &result,
                                 centerTile: centerTile,
                                 pan: pan,
-                                radius: radius
+                                mapSize: mapSize,
+                                shiftXMap: shiftXMap
         )
         collectVisibleTilesFlat(x: x * 2, y: y * 2 + 1, z: z + 1,
                                 targetZ: targetZ,
                                 result: &result,
                                 centerTile: centerTile,
                                 pan: pan,
-                                radius: radius
+                                mapSize: mapSize,
+                                shiftXMap: shiftXMap
         )
         collectVisibleTilesFlat(x: x * 2 + 1, y: y * 2 + 1, z: z + 1,
                                 targetZ: targetZ,
                                 result: &result,
                                 centerTile: centerTile,
                                 pan: pan,
-                                radius: radius
+                                mapSize: mapSize,
+                                shiftXMap: shiftXMap
         )
     }
     
@@ -313,9 +332,8 @@ class Camera {
         return transformedPoint
     }
 
-    private func getTileFlatPoint(tx: Double, ty: Double, tz: Int, pan: SIMD2<Double>, radius: Double) -> SIMD4<Float> {
+    private func getTileFlatPoint(tx: Double, ty: Double, tz: Int, pan: SIMD2<Double>, mapSize: Double) -> SIMD4<Float> {
         
-        let mapSize = 2.0 * Double.pi * radius
         let halfMapSize = mapSize / 2.0
         let tilesCount = 1 << tz
         let tileSize = mapSize / Double(tilesCount)

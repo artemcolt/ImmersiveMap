@@ -14,9 +14,10 @@ struct Tile: Hashable {
     let x: Int
     let y: Int
     let z: Int
+    let loop: Int8
     
     static func == (lhs: Tile, rhs: Tile) -> Bool {
-        return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z
+        return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.loop == rhs.loop
     }
     
     // Ручная реализация хэширования
@@ -24,16 +25,18 @@ struct Tile: Hashable {
         hasher.combine(x)
         hasher.combine(y)
         hasher.combine(z)
+        hasher.combine(loop)
     }
     
     func key() -> String {
         return "\(x)_\(y)_\(z)"
     }
     
-    init(x: Int, y: Int, z: Int) {
+    init(x: Int, y: Int, z: Int, loop: Int8 = 0) {
         self.x = x
         self.y = y
         self.z = z
+        self.loop = loop
     }
     
     // Проверяет, покрывает ли текущий тайл другой тайл
@@ -71,7 +74,7 @@ struct Tile: Hashable {
         let parentX = x >> zoomDifference
         let parentY = y >> zoomDifference
         
-        return Tile(x: parentX, y: parentY, z: targetZoom)
+        return Tile(x: parentX, y: parentY, z: targetZoom, loop: loop)
     }
 }
 

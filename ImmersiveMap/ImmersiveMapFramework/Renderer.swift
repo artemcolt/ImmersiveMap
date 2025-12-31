@@ -212,7 +212,7 @@ class Renderer {
         
         if viewMode != newViewMode {
             // Необходимо переключение режима
-            //switchRenderMode()
+            switchRenderMode()
         }
         
         // Получаем текущий центральный тайл
@@ -230,7 +230,8 @@ class Renderer {
         } else if viewMode == .flat {
             center = getFlatMapCenter(targetZoom: zoom)
             print("Center = \(center)")
-            seeTiles = tileCulling.iSeeTilesFlat(targetZoom: zoom, center: center, pan: cameraControl.flatPan, radius: radius)
+            let mapSize = 2.0 * Double.pi * radius
+            seeTiles = tileCulling.iSeeTilesFlat(targetZoom: zoom, center: center, pan: cameraControl.flatPan, mapSize: mapSize)
         }
         let seeTilesHash = seeTiles.hashValue
         
@@ -264,7 +265,7 @@ class Renderer {
         print("count = \(savedSeeTiles.count)")
         for i in 0..<savedSeeTiles.count {
             let sortedSeeTile = savedSeeTiles[i]
-            print("\(i+1)) x=\(sortedSeeTile.x), y=\(sortedSeeTile.y), z=\(sortedSeeTile.z)")
+            print("\(i+1)) x=\(sortedSeeTile.x), y=\(sortedSeeTile.y), z=\(sortedSeeTile.z), loop=\(sortedSeeTile.loop)")
         }
         
         
@@ -460,6 +461,7 @@ class Renderer {
                 let metalTile = placeTile.metalTile
                 let tile = metalTile.tile
                 let buffers = metalTile.tileBuffers
+                let placeIn = placeTile.placeIn
                 
                 let mapSize = 2.0 * Double.pi * radius
                 let halfMapSize = mapSize / 2.0
@@ -472,7 +474,7 @@ class Renderer {
                 let scale = tileSize / 4096.0
                 
                 var modelMatrix = Matrix.translationMatrix(
-                    x: Float(Double(tile.x) * tileSize - halfMapSize + flatPan.x * halfMapSize),
+                    x: Float(Double(tile.x) * tileSize - halfMapSize + flatPan.x * halfMapSize) + Float(placeIn.loop) * Float(mapSize),
                     y: Float(Double(tilesCount - tile.y - 1) * tileSize - halfMapSize - flatPan.y * halfMapSize),
                     z: 0
                 ) * Matrix.scaleMatrix(sx: Float(scale), sy: Float(scale), sz: 1)

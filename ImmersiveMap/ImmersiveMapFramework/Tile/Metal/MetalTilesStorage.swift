@@ -55,7 +55,6 @@ class MetalTilesStorage {
             
             // Подготавливаем массив отрисовки
             tilesInStorage.append(TileInStorage(metalTile: metalTile, tile: tile))
-            
         }
         
         
