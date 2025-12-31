@@ -51,32 +51,38 @@ class Camera {
         frustrum = Frustum(pv: cameraMatrix!)
     }
     
-    func aproximateTile(tx: Int, ty: Int, tz: Int, radius: Float, rotation: float4x4,
-                        mode: ViewMode, pan: SIMD2<Float>) -> [SIMD4<Float>] {
+    func aproximateTileGlobe(tx: Int, ty: Int, tz: Int, radius: Float,
+                             rotation: float4x4,
+                             pan: SIMD2<Float>) -> [SIMD4<Float>] {
         var step = Float(0.25)
-        if tz >= 4 {
-            step = Float(0.5)
-        }
         
         let count = Int(1.0 / step)
         var points: [SIMD4<Float>] = Array(repeating: SIMD4<Float>(), count: (count + 1) * (count + 1) )
         for x in 0...count {
             for y in 0...count {
-                let point: SIMD4<Float>
-                switch mode {
-                case .spherical:
-                    point = getTileWorldPoint(tx: Float(tx) + Float(x) * step,
+                let point = getTileWorldPoint(tx: Float(tx) + Float(x) * step,
                                               ty: Float(ty) + Float(y) * step,
                                               tz: tz,
                                               radius: radius,
                                               rotation: rotation)
-                case .flat:
-                    point = getTileFlatPoint(tx: Float(tx) + Float(x) * step,
-                                             ty: Float(ty) + Float(y) * step,
+                points[x * (count + 1) + y] = point
+            }
+        }
+        return points
+    }
+    
+    func aproximateTileFlat(tx: Int, ty: Int, tz: Int, pan: SIMD2<Double>, radius: Double) -> [SIMD4<Float>] {
+        let step = Double(1.0)
+        
+        let count = Int(1.0 / step)
+        var points: [SIMD4<Float>] = Array(repeating: SIMD4<Float>(), count: (count + 1) * (count + 1) )
+        for x in 0...count {
+            for y in 0...count {
+                let point = getTileFlatPoint(tx: Double(tx) + Double(x) * step,
+                                             ty: Double(ty) + Double(y) * step,
                                              tz: tz,
-                                             radius: radius,
-                                             pan: pan)
-                }
+                                             pan: pan,
+                                             radius: radius)
                 points[x * (count + 1) + y] = point
             }
         }
@@ -101,18 +107,18 @@ class Camera {
         return (min: minBounds, max: maxBounds)
     }
     
-    func collectVisibleTiles(x: Int, y: Int, z: Int, targetZ: Int,
-                             radius: Float,
-                             rotation: float4x4,
-                             result: inout Set<Tile>,
-                             centerTile: Tile,
-                             mode: ViewMode,
-                             pan: SIMD2<Float>
+    func collectVisibleTilesGlobe(x: Int, y: Int, z: Int, targetZ: Int,
+                                  radius: Float,
+                                  rotation: float4x4,
+                                  result: inout Set<Tile>,
+                                  centerTile: Tile,
+                                  mode: ViewMode,
+                                  pan: SIMD2<Float>
     ) {
-        let points = aproximateTile(tx: x, ty: y, tz: z, radius: radius, rotation: rotation, mode: mode, pan: pan)
+        let points = aproximateTileGlobe(tx: x, ty: y, tz: z, radius: radius, rotation: rotation, pan: pan)
         let boundingBox = boundingBox(for: points)
-        testPoints.append(boundingBox.min)
-        testPoints.append(boundingBox.max)
+        //testPoints.append(boundingBox.min)
+        //testPoints.append(boundingBox.max)
         let isVisibleBox = frustrum!.isBoxVisible(min: boundingBox.min, max: boundingBox.max)
         if isVisibleBox == false {
             return
@@ -122,22 +128,19 @@ class Camera {
 //            testPoints.append(contentsOf: points)
 //        }
         
-        // Сравнивать по направлению нормали от геометрии есть смысл только в глобусном представлении
-        if mode == .spherical {
-            var excludeByFaceDirection = false
-            for point in points {
-                let shiftPlanePoint = point.xyz + SIMD3<Float>(0, 0, radius)
-                let pointNorm = normalize(shiftPlanePoint)
-                let directionToCamera = normalize(eye)
-                let dotProduct = dot(pointNorm, directionToCamera)
-                excludeByFaceDirection = dotProduct <= 0.0
-                
-                if excludeByFaceDirection == false { break }
-            }
+        var excludeByFaceDirection = false
+        for point in points {
+            let shiftPlanePoint = point.xyz + SIMD3<Float>(0, 0, radius)
+            let pointNorm = normalize(shiftPlanePoint)
+            let directionToCamera = normalize(eye)
+            let dotProduct = dot(pointNorm, directionToCamera)
+            excludeByFaceDirection = dotProduct <= -0.3
             
-            if excludeByFaceDirection {
-                return
-            }
+            if excludeByFaceDirection == false { break }
+        }
+        
+        if excludeByFaceDirection {
+            return
         }
         
         let zDiff = abs(centerTile.z - z)
@@ -165,10 +168,108 @@ class Camera {
             return
         }
         
-        collectVisibleTiles(x: x * 2, y: y * 2, z: z + 1, targetZ: targetZ, radius: radius, rotation: rotation, result: &result, centerTile: centerTile, mode: mode, pan: pan)
-        collectVisibleTiles(x: x * 2 + 1, y: y * 2, z: z + 1, targetZ: targetZ, radius: radius, rotation: rotation, result: &result, centerTile: centerTile, mode: mode, pan: pan)
-        collectVisibleTiles(x: x * 2, y: y * 2 + 1, z: z + 1, targetZ: targetZ, radius: radius, rotation: rotation, result: &result, centerTile: centerTile, mode: mode, pan: pan)
-        collectVisibleTiles(x: x * 2 + 1, y: y * 2 + 1, z: z + 1, targetZ: targetZ, radius: radius, rotation: rotation, result: &result, centerTile: centerTile, mode: mode, pan: pan)
+        collectVisibleTilesGlobe(x: x * 2, y: y * 2, z: z + 1, targetZ: targetZ,
+                                 radius: radius,
+                                 rotation: rotation,
+                                 result: &result,
+                                 centerTile: centerTile,
+                                 mode: mode,
+                                 pan: pan)
+        collectVisibleTilesGlobe(x: x * 2 + 1, y: y * 2, z: z + 1, targetZ: targetZ,
+                                 radius: radius,
+                                 rotation: rotation,
+                                 result: &result,
+                                 centerTile: centerTile,
+                                 mode: mode,
+                                 pan: pan)
+        collectVisibleTilesGlobe(x: x * 2, y: y * 2 + 1, z: z + 1, targetZ: targetZ,
+                                 radius: radius,
+                                 rotation: rotation,
+                                 result: &result,
+                                 centerTile: centerTile,
+                                 mode: mode,
+                                 pan: pan)
+        collectVisibleTilesGlobe(x: x * 2 + 1, y: y * 2 + 1, z: z + 1, targetZ: targetZ,
+                                 radius: radius,
+                                 rotation: rotation,
+                                 result: &result,
+                                 centerTile: centerTile,
+                                 mode: mode,
+                                 pan: pan)
+    }
+    
+    func collectVisibleTilesFlat(x: Int, y: Int, z: Int, targetZ: Int,
+                                 result: inout Set<Tile>,
+                                 centerTile: Tile,
+                                 pan: SIMD2<Double>,
+                                 radius: Double
+    ) {
+        let points = aproximateTileFlat(tx: x, ty: y, tz: z, pan: pan, radius: radius)
+        let boundingBox = boundingBox(for: points)
+        //testPoints.append(boundingBox.min)
+        //testPoints.append(boundingBox.max)
+        let isVisibleBox = frustrum!.isBoxVisible(min: boundingBox.min, max: boundingBox.max)
+        if isVisibleBox == false {
+            return
+        }
+        
+//        if z == 5 {
+//            testPoints.append(contentsOf: points)
+//        }
+        
+        let zDiff = abs(centerTile.z - z)
+        if zDiff == 0 {
+            let addTile = Tile(x: x, y: y, z: z)
+            let relX = abs(centerTile.x - x)
+            let relY = abs(centerTile.y - y)
+            let maxRelative = max(relX, relY)
+            
+            if maxRelative > 15 {
+                // Тайл слишком далеко
+                return
+            }
+            
+            
+            if maxRelative > 2 {
+                // добавляем родителя, чтобы оптимизировать рендринг
+                if let parent = addTile.findParentTile(atZoom: z - 1) {
+                    result.insert(parent)
+                    return
+                }
+            }
+            
+            result.insert(addTile)
+            return
+        }
+        
+        collectVisibleTilesFlat(x: x * 2, y: y * 2, z: z + 1,
+                                targetZ: targetZ,
+                                result: &result,
+                                centerTile: centerTile,
+                                pan: pan,
+                                radius: radius
+        )
+        collectVisibleTilesFlat(x: x * 2 + 1, y: y * 2, z: z + 1,
+                                targetZ: targetZ,
+                                result: &result,
+                                centerTile: centerTile,
+                                pan: pan,
+                                radius: radius
+        )
+        collectVisibleTilesFlat(x: x * 2, y: y * 2 + 1, z: z + 1,
+                                targetZ: targetZ,
+                                result: &result,
+                                centerTile: centerTile,
+                                pan: pan,
+                                radius: radius
+        )
+        collectVisibleTilesFlat(x: x * 2 + 1, y: y * 2 + 1, z: z + 1,
+                                targetZ: targetZ,
+                                result: &result,
+                                centerTile: centerTile,
+                                pan: pan,
+                                radius: radius
+        )
     }
     
     func createRotationMatrix(globe: Globe) -> float4x4 {
@@ -212,24 +313,17 @@ class Camera {
         return transformedPoint
     }
 
-    private func getTileFlatPoint(tx: Float, ty: Float, tz: Int, radius: Float, pan: SIMD2<Float>) -> SIMD4<Float> {
-        let latLon = getLatLon(tx: tx, ty: ty, tz: tz)
-        let longitude = latLon.longitude
-        let latitude = latLon.latitude
+    private func getTileFlatPoint(tx: Double, ty: Double, tz: Int, pan: SIMD2<Double>, radius: Double) -> SIMD4<Float> {
         
-        let mapSize = 2.0 * Float.pi * radius
+        let mapSize = 2.0 * Double.pi * radius
         let halfMapSize = mapSize / 2.0
+        let tilesCount = 1 << tz
+        let tileSize = mapSize / Double(tilesCount)
         
-        let u = (longitude + Float.pi) / (2.0 * Float.pi)
-        let x = wrap(u * mapSize - halfMapSize + pan.x * halfMapSize, size: mapSize)
+        let x = tx * tileSize - halfMapSize + pan.x * halfMapSize
+        let y = (Double(tilesCount) - ty) * tileSize - halfMapSize - pan.y * halfMapSize
         
-        let vMercNorm = getYMercNorm(latitude: latitude)
-        let maxLatitude = 2.0 * atan(exp(Float.pi)) - Float.pi / 2.0
-        let panLat = pan.y * maxLatitude
-        let panMercNorm = getYMercNorm(latitude: panLat)
-        let y = (vMercNorm - panMercNorm) * halfMapSize
-        
-        return SIMD4<Float>(x, y, 0, 1)
+        return SIMD4<Float>(Float(x), Float(y), 0, 1)
     }
     
     private func getLatLon(tx: Float, ty: Float, tz: Int) -> (latitude: Float, longitude: Float) {

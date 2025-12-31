@@ -10,10 +10,11 @@ import simd
 class CameraControl {
     var update: Bool = false
     
-    var pan: SIMD2<Double> = SIMD2<Double>(0, 0)
+    var globePan: SIMD2<Double> = SIMD2<Double>(0, 0)
+    var flatPan: SIMD2<Double> = SIMD2<Double>(0, 0)
     var yaw: Float = 0
     var pitch: Float = 0
-    var zoom: Float = 0
+    var zoom: Double = 0
     private let maxLatitude = (2.0 * atan(exp(Double.pi)) - Double.pi / 2.0)
     
     func pan(deltaX: Double, deltaY: Double) {
@@ -31,22 +32,33 @@ class CameraControl {
             -forward.y, forward.x
         )
         
-        pan = pan + sens * (forward * deltaY + right * deltaX * 0.5)
-        pan.y = min(max(-1, pan.y), 1)
+        let speed = 0.5
+        globePan = globePan + sens * (forward * deltaY * speed + right * deltaX * speed)
+        globePan.y = min(max(-1, globePan.y), 1)
+        
+        flatPan = flatPan + sens * (forward * deltaY * speed + right * deltaX * speed)
+        flatPan.y = min(max(-1, flatPan.y), 1)
         
         update = true
     }
     
-    func setZoom(zoom: Float) {
+    func setZoom(zoom: Double) {
         self.zoom = min(max(0, zoom), 20)
         update = true
     }
     
     func setLatLonDeg(latDeg: Double, lonDeg: Double) {
-        pan.x = -(lonDeg / 180)
+        globePan.x = -(lonDeg / 180)
         
         let maxLatitudeDeg = maxLatitude * (180.0 / .pi)
-        pan.y = (latDeg / maxLatitudeDeg)
+        globePan.y = (latDeg / maxLatitudeDeg)
+        
+        flatPan.x = globePan.x
+        
+        let globeLat = (latDeg / 180.0) * Double.pi
+        let yMerc = log(tan(Double.pi / 4.0 + globeLat / 2.0))
+        let yNormalized = yMerc / Double.pi
+        flatPan.y = yNormalized
     }
     
     func rotateYaw(delta: Float) {
@@ -59,8 +71,8 @@ class CameraControl {
         update = true
     }
     
-    func zoom(scale: Float) {
-        let factor = Float(0.4)
+    func zoom(scale: Double) {
+        let factor = Double(0.4)
         zoom += (scale - 1.0) * factor
         zoom = min(max(0, zoom), 20)
         update = true

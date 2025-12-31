@@ -107,7 +107,7 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
     
     @objc private func handleDoubleTap(_ gestrue: UITapGestureRecognizer) {
         let location = gestrue.location(in: self)
-        renderer!.transition = Float(1.0) - renderer!.transition
+        renderer?.switchRenderMode()
     }
     
     @objc private func handleRotation(_ gesture: UIRotationGestureRecognizer) {
@@ -143,7 +143,7 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
         
         let scale = gesture.scale
         // Применяем зум к рендереру (предполагается, что в Renderer есть метод zoom(scale:))
-        renderer.cameraControl.zoom(scale: Float(scale))
+        renderer.cameraControl.zoom(scale: scale)
         // Сбрасываем scale для накопления изменений
         gesture.scale = 1.0
         // Перерисовываем вид после зума

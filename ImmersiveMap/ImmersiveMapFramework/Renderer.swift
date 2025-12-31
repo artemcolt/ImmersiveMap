@@ -22,6 +22,7 @@ class Renderer {
     let globePipeline: GlobePipeline
     let camera: Camera
     let cameraControl: CameraControl
+    let tileCulling: TileCulling
     var transition: Float = 0
     private var metalTilesStorage: MetalTilesStorage?
     private let tilesTexture: TilesTexture
@@ -50,6 +51,8 @@ class Renderer {
     private let tile: Tile = Tile(x: 0, y: 0, z: 0)
     private var screenMatrix: matrix_float4x4?
     private var screenMatrixSize: CGSize = CGSize.zero
+    private var viewMode: ViewMode = ViewMode.spherical
+    private var radius: Double = 0.0
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -96,9 +99,10 @@ class Renderer {
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
         camera = Camera()
+        tileCulling = TileCulling(camera: camera)
         cameraControl = CameraControl()
-        cameraControl.setZoom(zoom: 0)
-        //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
+        cameraControl.setZoom(zoom: 6)
+        cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
         let baseGrid = SphereGeometry.createGrid(stacks: 30, slices: 30)
@@ -166,7 +170,7 @@ class Renderer {
             
             let zRemains = cameraControl.zoom.truncatingRemainder(dividingBy: 1.0)
             let camUp = SIMD3<Float>(0, 1, 0)
-            let camPosition = SIMD3<Float>(0, 0, (1.0 - zRemains * 0.5))
+            let camPosition = SIMD3<Float>(0, 0, (1.0 - Float(zRemains) * 0.5))
             let camRight = SIMD3<Float>(1, 0, 0)
             
             let pitchQuat = simd_quatf(angle: pitch, axis: camRight)
@@ -194,31 +198,40 @@ class Renderer {
         // При увеличении зума, мы масштабируем глобус, возвращая камеру в исходное нулевое положение
         let worldScale = pow(2.0, floor(cameraControl.zoom))
         let z = cameraControl.zoom
-        let from = Float(4.0)
+        let from = Float(5.0)
         let span = Float(1.0)
         let to = from + span
-        transition = max(0.0, min(1.0, (z - from) / (to - from)))
-        // Sinusoidal transition driven by time (0..1). Uses time since startDate for stability.
-        let t = Float(Date().timeIntervalSince(startDate))
-        let speed: Float = 1.0 // cycles per ~2π seconds; increase for faster oscillation
-        //transition = (sinf(t * speed) + 1.0) * 0.5
-        var globe = Globe(panX: Float(cameraControl.pan.x),
-                          panY: Float(cameraControl.pan.y),
-                          radius: 0.14 * worldScale,
-                          transition: Float(transition))
-//        print("xRotation: \(xRotation), yRotation: \(yRotation)")
-        let viewMode = transition >= 1.0 ? ViewMode.flat : ViewMode.spherical
+        transition = max(0.0, min(1.0, (Float(z) - from) / (to - from)))
+        radius = 0.14 * worldScale
         
+        var globe = Globe(panX: Float(cameraControl.globePan.x),
+                          panY: Float(cameraControl.globePan.y),
+                          radius: Float(radius),
+                          transition: Float(transition))
+        let newViewMode = transition >= 1.0 ? ViewMode.flat : ViewMode.spherical
+        
+        if viewMode != newViewMode {
+            // Необходимо переключение режима
+            switchRenderMode()
+        }
         
         // Получаем текущий центральный тайл
         let zoom = Int(cameraControl.zoom)
-        let center = getCenter(targetZoom: zoom)
+        let center = getGlobeMapCenter(targetZoom: zoom)
         
         
         // Тайлы, которые пользователь видит в полностью подгруженном состоянии
         // они там могут быть в разнобой, просто все тайлы, которые пользователь видит
-        let seeTiles = iSeeTiles(globe: globe, targetZoom: zoom, center: center, viewMode: viewMode,
-                                 pan: SIMD2<Float>(Float(cameraControl.pan.x), Float(cameraControl.pan.y)))
+        var seeTiles: Set<Tile> = Set()
+        if viewMode == .spherical {
+            let center = getGlobeMapCenter(targetZoom: zoom)
+            seeTiles = tileCulling.iSeeTilesGlobe(globe: globe, targetZoom: zoom, center: center, viewMode: viewMode,
+                                                  pan: SIMD2<Float>(Float(cameraControl.globePan.x), Float(cameraControl.globePan.y)))
+        } else if viewMode == .flat {
+            let center = getFlatMapCenter(targetZoom: zoom)
+            print("Center = \(center)")
+            seeTiles = tileCulling.iSeeTilesFlat(targetZoom: zoom, center: center, pan: cameraControl.flatPan, radius: radius)
+        }
         let seeTilesHash = seeTiles.hashValue
         
         // Если мы видим такие же тайлы, что и на предыдущем кадре, то тогда нету смысла обрабатывать их опять
@@ -356,44 +369,47 @@ class Renderer {
             previousZoom = zoom
             previousStorageHash = storageHash
             
-            // Рисуем готовые тайлы в текстуре.
-            // Размещаем их так, чтобы контролировать детализацию
-            tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
-            tilesTexture.selectTilePipeline()
-            for i in savedTiles.indices {
-                let placeTile = savedTiles[i]
-                let depth = placeTile.depth
-                let placed = tilesTexture.draw(placeTile: placeTile, depth: depth, maxDepth: 4)
-                if placed == false {
-                    print("[ERROR] No place for tile in texture!")
-                    break
-                }
-            }
             
-            // Рисуем координаты тайлов на самих тайлах для тестирование
-            if false {
-                let texts = tilesTexture.texts
-                if texts.isEmpty == false {
-                    let tilesTextVertices = textRenderer.collectMultiTextVertices(for: texts)
-                    tileTextVerticesBuffer.contents().copyMemory(from: tilesTextVertices, byteCount: MemoryLayout<TextVertex>.stride * tilesTextVertices.count)
-                    previousTilesTextKey = "\(texts.count)"
-                    tileTextVerticesCount = tilesTextVertices.count
-                    
-                    var tilesTextColor = SIMD3<Float>(1, 0, 0)
-                    var tilesProjection = Matrix.orthographicMatrix(left: 0, right: Float(4096), bottom: 0, top: Float(4096), near: -1, far: 1)
-                    let tilesRenderEncoder = tilesTexture.renderEncoder!
-                    tilesRenderEncoder.setScissorRect(MTLScissorRect(x: 0, y: 0, width: tilesTexture.size, height: tilesTexture.size))
-                    tilesRenderEncoder.setRenderPipelineState(textRenderer.pipelineState)
-                    tilesRenderEncoder.setVertexBuffer(tileTextVerticesBuffer, offset: 0, index: 0)
-                    tilesRenderEncoder.setVertexBytes(&tilesProjection, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
-                    tilesRenderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
-                    tilesRenderEncoder.setFragmentBytes(&tilesTextColor, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
-                    tilesRenderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tileTextVerticesCount)
+            if viewMode == .spherical {
+                // Рисуем готовые тайлы в текстуре.
+                // Размещаем их так, чтобы контролировать детализацию
+                tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
+                tilesTexture.selectTilePipeline()
+                for i in savedTiles.indices {
+                    let placeTile = savedTiles[i]
+                    let depth = placeTile.depth
+                    let placed = tilesTexture.draw(placeTile: placeTile, depth: depth, maxDepth: 4)
+                    if placed == false {
+                        print("[ERROR] No place for tile in texture!")
+                        break
+                    }
                 }
+                
+                // Рисуем координаты тайлов на самих тайлах для тестирование
+                if false {
+                    let texts = tilesTexture.texts
+                    if texts.isEmpty == false {
+                        let tilesTextVertices = textRenderer.collectMultiTextVertices(for: texts)
+                        tileTextVerticesBuffer.contents().copyMemory(from: tilesTextVertices, byteCount: MemoryLayout<TextVertex>.stride * tilesTextVertices.count)
+                        previousTilesTextKey = "\(texts.count)"
+                        tileTextVerticesCount = tilesTextVertices.count
+                        
+                        var tilesTextColor = SIMD3<Float>(1, 0, 0)
+                        var tilesProjection = Matrix.orthographicMatrix(left: 0, right: Float(4096), bottom: 0, top: Float(4096), near: -1, far: 1)
+                        let tilesRenderEncoder = tilesTexture.renderEncoder!
+                        tilesRenderEncoder.setScissorRect(MTLScissorRect(x: 0, y: 0, width: tilesTexture.size, height: tilesTexture.size))
+                        tilesRenderEncoder.setRenderPipelineState(textRenderer.pipelineState)
+                        tilesRenderEncoder.setVertexBuffer(tileTextVerticesBuffer, offset: 0, index: 0)
+                        tilesRenderEncoder.setVertexBytes(&tilesProjection, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+                        tilesRenderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+                        tilesRenderEncoder.setFragmentBytes(&tilesTextColor, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
+                        tilesRenderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tileTextVerticesCount)
+                    }
+                }
+                
+                // Завершаем рисование в текстуре с тайлами
+                tilesTexture.endEncoding()
             }
-            
-            // Завершаем рисование в текстуре с тайлами
-            tilesTexture.endEncoding()
         }
         
         
@@ -410,30 +426,65 @@ class Renderer {
         renderPassDescriptor.colorAttachments[0].storeAction = .store
         
         let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
-        globePipeline.selectPipeline(renderEncoder: renderEncoder)
-        
-        renderEncoder.setCullMode(.front)
-        //renderEncoder.setTriangleFillMode(.lines)
-        
-        renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
-        renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
-        renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
-        renderEncoder.setVertexBuffer(baseGridBuffers.verticesBuffer, offset: 0, index: 0)
-        
-        let tileMappings = tilesTexture.tileData
-        if tileMappings.isEmpty == false {
-            for mapping in tileMappings {
-                var toMapping = mapping
-                renderEncoder.setVertexBytes(&toMapping, length: MemoryLayout<TilesTexture.TileData>.stride, index: 3)
+        if viewMode == .spherical {
+            globePipeline.selectPipeline(renderEncoder: renderEncoder)
+            
+            renderEncoder.setCullMode(.front)
+            
+            renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
+            renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
+            renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
+            renderEncoder.setVertexBuffer(baseGridBuffers.verticesBuffer, offset: 0, index: 0)
+            
+            let tileMappings = tilesTexture.tileData
+            if tileMappings.isEmpty == false {
+                for mapping in tileMappings {
+                    var toMapping = mapping
+                    renderEncoder.setVertexBytes(&toMapping, length: MemoryLayout<TilesTexture.TileData>.stride, index: 3)
+                    
+                    renderEncoder.drawIndexedPrimitives(type: .triangle,
+                                                        indexCount: baseGridBuffers.indicesCount,
+                                                        indexType: .uint32,
+                                                        indexBuffer: baseGridBuffers.indicesBuffer,
+                                                        indexBufferOffset: 0)
+                }
+            }
+        } else if viewMode == .flat {
+            tilePipeline.selectPipeline(renderEncoder: renderEncoder)
+            renderEncoder.setCullMode(.front)
+            
+            renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
+            
+            let flatPan = cameraControl.flatPan
+            for placeTile in savedTiles {
+                let metalTile = placeTile.metalTile
+                let tile = metalTile.tile
+                let buffers = metalTile.tileBuffers
+                
+                let mapSize = 2.0 * Double.pi * radius
+                let halfMapSize = mapSize / 2.0
+                
+                renderEncoder.setVertexBuffer(buffers.verticesBuffer, offset: 0, index: 0)
+                renderEncoder.setVertexBuffer(buffers.stylesBuffer, offset: 0, index: 2)
+                
+                let tilesCount = 1 << tile.z
+                let tileSize = mapSize / Double(tilesCount)
+                let scale = tileSize / 4096.0
+                
+                var modelMatrix = Matrix.translationMatrix(
+                    x: Float(Double(tile.x) * tileSize - halfMapSize + flatPan.x * halfMapSize),
+                    y: Float(Double(tilesCount - tile.y - 1) * tileSize - halfMapSize - flatPan.y * halfMapSize),
+                    z: 0
+                ) * Matrix.scaleMatrix(sx: Float(scale), sy: Float(scale), sz: 1)
+                renderEncoder.setVertexBytes(&modelMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 3)
                 
                 renderEncoder.drawIndexedPrimitives(type: .triangle,
-                                                    indexCount: baseGridBuffers.indicesCount,
+                                                    indexCount: buffers.indicesCount,
                                                     indexType: .uint32,
-                                                    indexBuffer: baseGridBuffers.indicesBuffer,
+                                                    indexBuffer: buffers.indicesBuffer,
                                                     indexBufferOffset: 0)
             }
         }
-        // renderEncoder.setTriangleFillMode(.fill)
         
         // Axes
         polygonPipeline.setPipelineState(renderEncoder: renderEncoder)
@@ -477,13 +528,8 @@ class Renderer {
         let tileY: Int
     }
     
-    private struct Center {
-        let tileX: Double
-        let tileY: Double
-    }
-    
-    private func getCenter(targetZoom: Int) -> Center {
-        let pan = cameraControl.pan
+    private func getGlobeMapCenter(targetZoom: Int) -> Center {
+        let pan = cameraControl.globePan
         let tileX = -(pan.x - 1.0) / 2.0 * Double(1 << targetZoom)
         
         let latitude = pan.y * maxLatitude
@@ -494,18 +540,31 @@ class Renderer {
         return Center(tileX: tileX, tileY: tileY)
     }
     
-    private func iSeeTiles(globe: Globe, targetZoom: Int, center: Center, viewMode: ViewMode, pan: SIMD2<Float>) -> Set<Tile> {
-        let tileX = (Int) (center.tileX)
-        let tileY = (Int) (center.tileY)
+    private func getFlatMapCenter(targetZoom: Int) -> Center {
+        let pan = cameraControl.flatPan
         
-        print("[CENTER] \(tileX), \(tileY), \(targetZoom)")
-        let rotation = camera.createRotationMatrix(globe: globe)
-        var result: Set<Tile> = []
-        camera.collectVisibleTiles(x: 0, y: 0, z: 0, targetZ: targetZoom, radius: globe.radius, rotation: rotation, result: &result,
-                                   centerTile: Tile(x: tileX, y: tileY, z: targetZoom), mode: viewMode, pan: pan
-        )
+        let tilesCount = 1 << targetZoom
+        let tileX = ((-pan.x + 1.0) / 2.0) * Double(tilesCount)
+        let tileY = ((-pan.y + 1.0) / 2.0) * Double(tilesCount)
+        return Center(tileX: tileX, tileY: tileY)
+    }
+    
+    func switchRenderMode() {
+        let globePan = cameraControl.globePan
+        let flatPan = cameraControl.flatPan
         
-        // Удаляем все дубликаты из результата
-        return result
+        if viewMode == .flat {
+            let globeLat = 2.0 * atan(exp(flatPan.y * Double.pi)) - (Double.pi * 0.5)
+            let yNormalaized = globeLat / maxLatitude
+            cameraControl.globePan = SIMD2<Double>(flatPan.x,  yNormalaized)
+            viewMode = .spherical
+        } else if viewMode == .spherical {
+            let globeLat = globePan.y * maxLatitude
+            let yMerc = log(tan(Double.pi / 4.0 + globeLat / 2.0))
+            let yNormalized = yMerc / Double.pi
+            
+            cameraControl.flatPan = SIMD2<Double>(globePan.x,  yNormalized)
+            viewMode = .flat
+        }
     }
 }
