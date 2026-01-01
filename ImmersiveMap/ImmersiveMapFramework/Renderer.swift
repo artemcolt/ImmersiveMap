@@ -101,7 +101,7 @@ class Renderer {
         camera = Camera()
         tileCulling = TileCulling(camera: camera)
         cameraControl = CameraControl()
-        cameraControl.setZoom(zoom: 10)
+        cameraControl.setZoom(zoom: 6)
         cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
@@ -198,7 +198,7 @@ class Renderer {
         // При увеличении зума, мы масштабируем глобус, возвращая камеру в исходное нулевое положение
         let worldScale = pow(2.0, floor(cameraControl.zoom))
         let z = cameraControl.zoom
-        let from = Float(5.0)
+        let from = Float(3.0)
         let span = Float(1.0)
         let to = from + span
         transition = max(0.0, min(1.0, (Float(z) - from) / (to - from)))
@@ -452,8 +452,6 @@ class Renderer {
             }
         } else if viewMode == .flat {
             tilePipeline.selectPipeline(renderEncoder: renderEncoder)
-            renderEncoder.setCullMode(.front)
-            
             renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
             
             let flatPan = cameraControl.flatPan

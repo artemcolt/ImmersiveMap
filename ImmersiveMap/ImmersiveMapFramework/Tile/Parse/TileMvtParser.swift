@@ -14,6 +14,8 @@ class TileMvtParser {
     private let determineFeatureStyle       : DetermineFeatureStyle
     private let parsePolygon                : ParsePolygon = ParsePolygon()
     private let decodePolygon               : DecodePolygon = DecodePolygon()
+    private let parseLine                   : ParseLine = ParseLine()
+    private let decodeLine                  : DecodeLine = DecodeLine()
     let tileExtent = Double(4096)
     
     
@@ -234,12 +236,26 @@ class TileMvtParser {
                         guard let parsedPolygon = parsePolygon.parse(polygon: polygon, tileExtent: Float(tileExtent)) else { continue }
                         polygonByStyle[styleKey, default: []].append(parsedPolygon)
                     }
+                } else if feature.type == .linestring {
+                    let geometry: [UInt32] = feature.geometry
+                    let width = style.parseGeometryStyleData.lineWidth
+                    if width <= 0 {
+                        continue
+                    }
+                    
+                    let lines = decodeLine.decode(geometry: geometry)
+                    for line in lines {
+                        let linePolygons = parseLine.parse(line: line, width: width, tileExtent: Float(tileExtent))
+                        if linePolygons.isEmpty == false {
+                            polygonByStyle[styleKey, default: []].append(contentsOf: linePolygons)
+                        }
+                    }
                 }
             }
         }
         
         addBackground(polygonByStyle: &polygonByStyle, styles: &styles)
-        if (MapParameters.addTestBorders) { addBorder(polygonByStyle: &polygonByStyle, styles: &styles, borderWidth: 10) }
+        if (MapParameters.addTestBorders) { addBorder(polygonByStyle: &polygonByStyle, styles: &styles, borderWidth: 1) }
         
         return ReadingStageResult(
             polygonByStyle: polygonByStyle.filter { $0.value.isEmpty == false },
