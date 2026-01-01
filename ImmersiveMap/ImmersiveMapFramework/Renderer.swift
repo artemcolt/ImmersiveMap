@@ -101,8 +101,8 @@ class Renderer {
         camera = Camera()
         tileCulling = TileCulling(camera: camera)
         cameraControl = CameraControl()
-        //cameraControl.setZoom(zoom: 6)
-        //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
+        cameraControl.setZoom(zoom: 10)
+        cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
         let baseGrid = SphereGeometry.createGrid(stacks: 30, slices: 30)

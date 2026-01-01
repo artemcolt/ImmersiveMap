@@ -146,8 +146,12 @@ class Camera {
         
         let zDiff = abs(centerTile.z - z)
         if zDiff == 0 {
+            let tilesCount = 1 << z
             let addTile = Tile(x: x, y: y, z: z)
-            let relX = abs(centerTile.x - x)
+            let relX1 = abs(centerTile.x - x)
+            let relX2 = abs( (tilesCount - centerTile.x - 1) - x)
+            let relX = min(relX1, relX2)
+            
             let relY = abs(centerTile.y - y)
             let maxRelative = max(relX, relY)
             
@@ -210,8 +214,8 @@ class Camera {
                                         worldShiftX: Float(mapSize) * Float(shiftXMap)
         )
         let boundingBox = boundingBox(for: points)
-        testPoints.append(boundingBox.min)
-        testPoints.append(boundingBox.max)
+        //testPoints.append(boundingBox.min)
+        //testPoints.append(boundingBox.max)
         let isVisibleBox = frustrum!.isBoxVisible(min: boundingBox.min, max: boundingBox.max)
         if isVisibleBox == false {
             return
@@ -225,7 +229,6 @@ class Camera {
         if zDiff == 0 {
             let addTile = Tile(x: x, y: y, z: z, loop: shiftXMap)
             
-            
             var relX = abs(centerTile.x - x)
             if shiftXMap < 0 {
                 let tilesCount = 1 << z
@@ -234,7 +237,6 @@ class Camera {
                 let tilesCount = 1 << z
                 relX = (tilesCount - centerTile.x - 1) + x
             }
-            
             
             let relY = abs(centerTile.y - y)
             let maxRelative = max(relX, relY)
