@@ -23,6 +23,7 @@ class TileMvtParser {
         let polygonByStyle: [UInt8: [ParsedPolygon]]
         let rawLineByStyle: [UInt8: [ParsedLineRawVertices]]
         let styles: [UInt8: FeatureStyle]
+        let textLabels: [TextLabel]
     }
     
     struct ParseGeometryStyleData {
@@ -48,20 +49,28 @@ class TileMvtParser {
         var vertices: [TilePipeline.VertexIn]
         var indices: [UInt32]
     }
+
+    struct TextLabel {
+        let text: String
+        let position: SIMD2<Int16>
+    }
     
     class ParsedTile {
         let drawingPolygon: DrawingPolygonBytes
         let styles: [TilePolygonStyle]
         let tile: Tile
+        let textLabels: [TextLabel]
         
         init(
             drawingPolygon: DrawingPolygonBytes,
             styles: [TilePolygonStyle],
             tile: Tile,
+            textLabels: [TextLabel]
         ) {
             self.drawingPolygon = drawingPolygon
             self.styles = styles
             self.tile = tile
+            self.textLabels = textLabels
         }
     }
     
@@ -82,7 +91,44 @@ class TileMvtParser {
             drawingPolygon: unificationResult.drawingPolygon,
             styles: unificationResult.styles,
             tile: tile,
+            textLabels: readingStageResult.textLabels
         )
+    }
+
+    private func decodeZigZag(_ value: UInt32) -> Int32 {
+        return Int32(value >> 1) ^ -Int32(value & 1)
+    }
+
+    private func decodePoints(geometry: [UInt32]) -> [SIMD2<Int16>] {
+        var points: [SIMD2<Int16>] = []
+        var cursorX: Int32 = 0
+        var cursorY: Int32 = 0
+        var index = 0
+        
+        while index < geometry.count {
+            let cmdInteger = geometry[index]
+            index += 1
+            let cmd = cmdInteger & 0x7
+            let count = Int(cmdInteger >> 3)
+            
+            if cmd == 1 || cmd == 2 {
+                for _ in 0..<count {
+                    if index + 1 >= geometry.count { break }
+                    let dx = decodeZigZag(geometry[index])
+                    let dy = decodeZigZag(geometry[index + 1])
+                    index += 2
+                    cursorX += dx
+                    cursorY += dy
+                    points.append(SIMD2(Int16(cursorX), Int16(cursorY)))
+                }
+            } else if cmd == 7 {
+                continue
+            } else {
+                break
+            }
+        }
+        
+        return points
     }
     
     private func addBorder(polygonByStyle: inout [UInt8: [ParsedPolygon]], styles: inout [UInt8: FeatureStyle], borderWidth: Int16) {
@@ -192,6 +238,16 @@ class TileMvtParser {
         var polygonByStyle: [UInt8: [ParsedPolygon]] = [:]
         var rawLineByStyle: [UInt8: [ParsedLineRawVertices]] = [:]
         var styles: [UInt8: FeatureStyle] = [:]
+        var textLabels: [TextLabel] = []
+        var textLabelSet: Set<String> = []
+        let labelLayers: Set<String> = [
+            "place_label",
+            "water_label",
+            "natural_label",
+            "poi_label",
+            "road_label",
+            "transit_stop_label"
+        ]
         
         for layer in vectorTile.layers {
             let layerName = layer.name
@@ -250,6 +306,22 @@ class TileMvtParser {
                             polygonByStyle[styleKey, default: []].append(contentsOf: linePolygons)
                         }
                     }
+                } else if feature.type == .point {
+                    let isLabelLayer = labelLayers.contains(layerName) || layerName.hasSuffix("_label")
+                    if !isLabelLayer {
+                        continue
+                    }
+                    
+                    guard let nameEn = attributes["name_en"]?.stringValue else { continue }
+                    let points = decodePoints(geometry: feature.geometry)
+                    for point in points {
+                        let key = "\(nameEn)|\(point.x)|\(point.y)"
+                        if textLabelSet.contains(key) {
+                            continue
+                        }
+                        textLabelSet.insert(key)
+                        textLabels.append(TextLabel(text: nameEn, position: point))
+                    }
                 }
             }
         }
@@ -261,6 +333,7 @@ class TileMvtParser {
             polygonByStyle: polygonByStyle.filter { $0.value.isEmpty == false },
             rawLineByStyle: rawLineByStyle.filter { $0.value.isEmpty == false },
             styles: styles,
+            textLabels: textLabels
         )
     }
     
@@ -293,24 +366,6 @@ class TileMvtParser {
                     currentVertexOffset += UInt32(polygon.vertices.count)
                 }
             }
-            
-//            if let rawLines = rawLineByStyle[styleKey] {
-//                for rawLine in rawLines {
-//                    // Append vertices to unified array
-//                    unifiedVertices.append(contentsOf: rawLine.vertices.map {
-//                        position in TilePipeline.VertexIn(position: position, styleIndex: styleBufferIndex)
-//                    })
-//                    
-//                    // Adjust indices for the current polygon and append
-//                    let adjustedIndices = rawLine.indices.map { index in
-//                        return index + currentVertexOffset
-//                    }
-//                    unifiedIndices.append(contentsOf: adjustedIndices)
-//                    
-//                    // Update vertex offset for the next polygon
-//                    currentVertexOffset += UInt32(rawLine.vertices.count)
-//                }
-//            }
             
             let style = readingStageResult.styles[styleKey]!
             styles.append(TilePolygonStyle(color: style.color))

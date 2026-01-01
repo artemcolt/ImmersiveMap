@@ -7,12 +7,6 @@
 
 import MetalKit
 
-struct FilterTextLabelsResult {
-    let text: String
-    let scale: Float
-    let sortRank: ushort
-}
-
 class DetermineFeatureStyle {
     private let fallbackKey: UInt8 = 0
     private var fallbackStyle: FeatureStyle
@@ -26,10 +20,6 @@ class DetermineFeatureStyle {
         )
         
         self.mapStyle = mapStyle
-    }
-    
-    func filterTextLabels(properties: [String: Sendable], tile: Tile) -> FilterTextLabelsResult? {
-        return mapStyle.filterTextLabels(properties: properties, tile: tile)
     }
     
     func makeStyle(data: DetFeatureStyleData) -> FeatureStyle {

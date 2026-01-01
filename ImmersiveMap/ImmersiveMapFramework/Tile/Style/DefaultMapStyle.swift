@@ -13,9 +13,6 @@ class DefaultMapStyle: MapStyle {
     private let fallbackStyle: FeatureStyle
     private let mapBaseColors: MapBaseColors = MapBaseColors()
     
-    private var getOnlySpecificMapLabels: [String] = []
-    
-    
     init() {
         fallbackStyle = FeatureStyle(
             key: fallbackKey,
@@ -26,53 +23,6 @@ class DefaultMapStyle: MapStyle {
     
     func getMapBaseColors() -> MapBaseColors {
         return mapBaseColors
-    }
-    
-    func filterTextLabels(properties: [String: Sendable], tile: Tile) -> FilterTextLabelsResult? {
-        guard let nameEn = properties["name_en"] as? String else {return nil}
-        if getOnlySpecificMapLabels.isEmpty == false {
-            if getOnlySpecificMapLabels.contains(nameEn) == false {
-                return nil
-            }
-        }
-        
-        let filterRank = ushort(properties["filterrank"] as? UInt64 ?? 100)
-        _ = ushort(properties["sizerank"] as? UInt64 ?? 15)
-        let symbolRank = ushort(properties["symbolrank"] as? UInt64 ?? 20)
-        guard let _class = properties["class"] as? String else { return nil }
-        let type = properties["type"] as? String ?? ""
-        let capital = properties["capital"] as? UInt64 ?? 0
-        
-        //print("type = \(type), class = \(_class), filterRank = \(filterRank), sizeRank = \(sizeRank), symbolRank = \(symbolRank), \(nameEn), ")
-        //print("props = \(properties), \(nameEn)")
-        
-        var scale: Float = 50;
-        if capital == 2 {
-            scale = 70
-        } else  if capital == 1 {
-            scale = 60
-        }
-        if _class == "continent" {
-            scale = 70
-        }
-        
-        if(tile.z <= 2) {
-            if (["country", "continent"].contains(_class)) {
-                return FilterTextLabelsResult(text: nameEn, scale: scale, sortRank: symbolRank)
-            }
-        } else if (tile.z <= 3) {
-            if (["city"].contains(type) && filterRank <= 5) {
-                return FilterTextLabelsResult(text: nameEn, scale: scale, sortRank: symbolRank)
-            }
-        } else if (tile.z <= 12) {
-            return FilterTextLabelsResult(text: nameEn, scale: scale, sortRank: symbolRank)
-        } else if (tile.z <= 15) {
-            if (["suburb", "town", "hamlet", "neighbourhood"].contains(type) && filterRank <= 5) {
-                return FilterTextLabelsResult(text: nameEn, scale: scale, sortRank: symbolRank)
-            }
-        }
-        
-        return nil
     }
     
     func makeStyle(data: DetFeatureStyleData) -> FeatureStyle {

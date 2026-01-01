@@ -7,6 +7,5 @@
 
 protocol MapStyle {
     func getMapBaseColors() -> MapBaseColors
-    func filterTextLabels(properties: [String: Sendable], tile: Tile) -> FilterTextLabelsResult?
     func makeStyle(data: DetFeatureStyleData) -> FeatureStyle
 }
