@@ -7,10 +7,12 @@
 
 import MetalKit
 
+
 struct TileBuffers {
     let verticesBuffer: MTLBuffer
     let indicesBuffer: MTLBuffer
     let stylesBuffer: MTLBuffer
     let indicesCount: Int
     let verticesCount: Int
+    
 }

@@ -24,6 +24,8 @@ class Renderer {
     let cameraControl: CameraControl
     let tileCulling: TileCulling
     var transition: Float = 0
+    var screenPoints = ScreenPoints()
+    
     private var metalTilesStorage: MetalTilesStorage?
     private let tilesTexture: TilesTexture
     private let textRenderer: TextRenderer
@@ -52,6 +54,7 @@ class Renderer {
     private var viewMode: ViewMode = ViewMode.spherical
     private var radius: Double = 0.0
     private let screenMatrix: ScreenMatrix = ScreenMatrix()
+    private let computeGlobeToScreen: ComputeGlobeToScreen
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -94,6 +97,8 @@ class Renderer {
         polygonPipeline = PolygonsPipeline(metalDevice: metalDevice, layer: layer, library: library)
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
+        let globeComputePipeline = GlobeComputePipeline(metalDevice: metalDevice, library: library)
+        computeGlobeToScreen = ComputeGlobeToScreen(globeComputePipeline, metalDevice: metalDevice)
         
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
@@ -119,6 +124,7 @@ class Renderer {
         
         let len = MemoryLayout<TextVertex>.stride * 4000
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
+        
         
         metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(), metalDevice: metalDevice, renderer: self)
     }
@@ -411,6 +417,11 @@ class Renderer {
         // Camera uniform
         var cameraUniform = CameraUniform(matrix: cameraMatrix)
         
+
+        if let computeEncoder = commandBuffer.makeComputeCommandEncoder() {
+            
+        }
+        
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture
         renderPassDescriptor.colorAttachments[0].loadAction = .clear
@@ -445,18 +456,22 @@ class Renderer {
                 }
             }
             
-            // Draw labels
-            renderEncoder.setRenderPipelineState(textRenderer.pipelineState)
-            let text = textRenderer.collectTextVertices(for: "Hello World!",
-                                                        at: SIMD2<Float>(Float(drawSize.width) / 2.0, Float(drawSize.height) / 2.0),
-                                                        scale: 100)
+            for placeTile in savedTiles {
+                
+            }
             
-            var color = SIMD4<Float>(1.0, 0.0, 0.0, 1.0)
-            renderEncoder.setVertexBytes(text, length: MemoryLayout<TextVertex>.stride * text.count, index: 0)
-            renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
-            renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
-            renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
-            renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: text.count)
+            // Draw labels
+//            renderEncoder.setRenderPipelineState(textRenderer.pipelineState)
+//            let text = textRenderer.collectTextVertices(for: "Hello World!",
+//                                                        at: SIMD2<Float>(Float(drawSize.width) / 2.0, Float(drawSize.height) / 2.0),
+//                                                        scale: 100)
+//            
+//            var color = SIMD4<Float>(1.0, 0.0, 0.0, 1.0)
+//            renderEncoder.setVertexBytes(text, length: MemoryLayout<TextVertex>.stride * text.count, index: 0)
+//            renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+//            renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+//            renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+//            renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: text.count)
             
         } else if viewMode == .flat {
             tilePipeline.selectPipeline(renderEncoder: renderEncoder)
@@ -502,10 +517,21 @@ class Renderer {
         
         for point in camera.testPoints {
             let verticesTest = [PolygonsPipeline.Vertex(position: point, color: SIMD4<Float>(1, 0, 0, 1))]
-            renderEncoder.setVertexBytes(verticesTest, length: MemoryLayout<PolygonsPipeline.Vertex>.stride * verticesTest.count, index: 0)
+            renderEncoder.setVertexBytes(verticesTest,
+                                         length: MemoryLayout<PolygonsPipeline.Vertex>.stride * verticesTest.count,
+                                         index: 0)
             renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesTest.count)
         }
         camera.testPoints = []
+        
+        renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+        for screenPoint in screenPoints.get() {
+            let simd4 = SIMD4<Float>(screenPoint.x, screenPoint.y, 0, 1)
+            let verticesTest = [PolygonsPipeline.Vertex(position: simd4, color: SIMD4<Float>(1, 0, 0, 1))]
+            let len = MemoryLayout<PolygonsPipeline.Vertex>.stride * verticesTest.count
+            renderEncoder.setVertexBytes(verticesTest, length: len, index: 0)
+            renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesTest.count)
+        }
         
         let zoomText = TextEntry(text: "z: " + cameraControl.zoom.formatted(.number.precision(.fractionLength(2))),
                                  position: SIMD2<Float>(100, Float(drawSize.height) - 300),

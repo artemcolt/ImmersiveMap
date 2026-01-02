@@ -16,14 +16,17 @@ class MetalTilesStorage {
     private let metalDevice         : MTLDevice
     private let debugAssemblingMap  = MapParameters.debugAssemblingMap
     private let renderer            : Renderer
+    private let textRenderer        : TextRenderer
     
     init(
         mapStyle: MapStyle,
         metalDevice: MTLDevice,
-        renderer: Renderer
+        renderer: Renderer,
+        textRenderer: TextRenderer
     ) {
         self.metalDevice = metalDevice
         self.renderer = renderer
+        self.textRenderer = textRenderer
         let maxCachedTilesMemory = MapParameters.maxCachedTilesMemInBytes
         memoryMetalTile = MemoryMetalTileCache(maxCacheSizeInBytes: maxCachedTilesMemory)
         let determineFeatureStyle = DetermineFeatureStyle(mapStyle: mapStyle)
@@ -70,6 +73,18 @@ class MetalTilesStorage {
             tile: tile,
             mvtData: data
         )
+        
+        // Parse Text labels
+        let textLabels = parsedTile.textLabels
+        for label in textLabels {
+            var vertices = textRenderer.collectLabelVertices(for: label.text)
+            for i in vertices.indices {
+                vertices[i].position.x = vertices[i].position.x / 4096.0
+                vertices[i].position.y = vertices[i].position.y / 4096.0
+            }
+            let buffer = metalDevice.makeBuffer(bytes: vertices, length: MemoryLayout<LabelVertex>.stride * vertices.count)
+            
+        }
         
         let tileBuffers = TileBuffers(
             verticesBuffer: metalDevice.makeBuffer(

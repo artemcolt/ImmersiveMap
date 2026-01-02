@@ -25,13 +25,6 @@ struct VertexOut {
     float halfTexel;  // For inset clamping and discard relaxation
 };
 
-struct Globe {
-    float panX;
-    float panY;
-    float radius;
-    float transition;
-};
-
 struct Tile {
     int position;
     int textureSize;
@@ -39,27 +32,6 @@ struct Tile {
     int3 tile;
 };
 
-float wrap(float x, float size) {
-    return x - size * floor((x + size * 0.5) / size);
-}
-
-float4x4 translationMatrix(float3 t) {
-    return float4x4(
-        float4(1, 0, 0, t.x),
-        float4(0, 1, 0, t.y),
-        float4(0, 0, 1, t.z),
-        float4(0, 0, 0, 1)
-    );
-}
-
-float getYMercNorm(float latitude) {
-    float sin_pan = sin(latitude);
-    float max_sin_pan = tanh(M_PI_F); // == sin(maxLatitude)
-    float clamped_sin_pan = max(-max_sin_pan, min(max_sin_pan, sin_pan));
-    float y_pan_merc = 0.5 * log((1.0 + clamped_sin_pan) / (1.0 - clamped_sin_pan));
-    float panY_merc_norm = y_pan_merc / M_PI_F; // normalized to [-1, 1]
-    return panY_merc_norm;
-}
 
 vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
                                    constant Camera& camera [[buffer(1)]],

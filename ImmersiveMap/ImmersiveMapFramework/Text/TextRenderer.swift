@@ -56,6 +56,11 @@ struct TextVertex {
     var uv: SIMD2<Float>
 }
 
+struct LabelVertex {
+    var position: SIMD2<Float>
+    var uv: SIMD2<Float>
+}
+
 struct TextEntry {
     let text: String
     let position: SIMD2<Float>
@@ -99,6 +104,61 @@ class TextRenderer {
         }
         
         return allVertices
+    }
+    
+    func collectLabelVertices(for text: String) -> [LabelVertex] {
+        var scale: Float = 1.0
+        var vertices: [LabelVertex] = []
+        var currentX: Float = 0.0
+        let y: Float = 0.0  // Базовая линия на position.y
+        let glyphs = atlasData.glyphs
+        
+        for char in text.unicodeScalars {
+            guard let glyph = glyphs.first(where: { $0.unicode == char.value }) else {
+                currentX += Float(atlasData.metrics.emSize) * scale * 0.25
+                continue
+            }
+            
+            guard let atlasBounds = glyph.atlasBounds else {
+                currentX += Float(glyph.advance) * scale
+                continue
+            }
+            
+            // Всегда используем planeBounds для позиционирования и размера, если доступно
+            let planeLeft = Float(glyph.planeBounds?.left ?? 0)
+            let planeBottom = Float(glyph.planeBounds?.bottom ?? 0)
+            let planeRight = Float(glyph.planeBounds?.right ?? CGFloat(planeLeft))  // Избегаем нулевой ширины
+            let planeTop = Float(glyph.planeBounds?.top ?? CGFloat(planeBottom))
+            
+            let glyphWidth = planeRight - planeLeft
+            let glyphHeight = planeTop - planeBottom
+            
+            let left = currentX + planeLeft * scale
+            let bottom = y + planeBottom * scale
+            let right = left + glyphWidth * scale
+            let top = bottom + glyphHeight * scale
+            
+            let atlasLeft = Float(atlasBounds.left) / Float(atlasData.atlas.width)
+            let atlasBottom = 1.0 - Float(atlasBounds.bottom) / Float(atlasData.atlas.height)
+            let atlasRight = Float(atlasBounds.right) / Float(atlasData.atlas.width)
+            let atlasTop = 1.0 - Float(atlasBounds.top) / Float(atlasData.atlas.height)
+            
+            // Добавляем 6 вертексов для двух треугольников (BL-BR-TL и BR-TR-TL)
+            let quadVertices = [
+                LabelVertex(position: SIMD2<Float>(left, bottom), uv: SIMD2<Float>(atlasLeft, atlasBottom)),  // BL
+                LabelVertex(position: SIMD2<Float>(right, bottom), uv: SIMD2<Float>(atlasRight, atlasBottom)), // BR
+                LabelVertex(position: SIMD2<Float>(left, top), uv: SIMD2<Float>(atlasLeft, atlasTop)),         // TL
+                
+                LabelVertex(position: SIMD2<Float>(right, bottom), uv: SIMD2<Float>(atlasRight, atlasBottom)), // BR (дубликат)
+                LabelVertex(position: SIMD2<Float>(right, top), uv: SIMD2<Float>(atlasRight, atlasTop)),        // TR
+                LabelVertex(position: SIMD2<Float>(left, top), uv: SIMD2<Float>(atlasLeft, atlasTop))           // TL (дубликат)
+            ]
+            
+            vertices.append(contentsOf: quadVertices)
+            currentX += Float(glyph.advance) * scale
+        }
+        
+        return vertices
     }
     
     func collectTextVertices(for text: String, at position: SIMD2<Float>, scale: Float = 1.0) -> [TextVertex] {
