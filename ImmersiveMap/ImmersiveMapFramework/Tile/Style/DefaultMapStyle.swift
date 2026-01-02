@@ -53,7 +53,8 @@ class DefaultMapStyle: MapStyle {
             "aeroway": SIMD4<Float>(0.88, 0.88, 0.9, 0.9)          // Pale concrete
         ]
         
-        if data.layerName.hasSuffix("label") {
+        let name_en = properties["name_en"]?.stringValue
+        if data.layerName.hasSuffix("label") && name_en == "Europe" {
             return FeatureStyle(
                 key: 2,
                 color: SIMD4<Float>(1.0, 0.0, 0.0, 1.0),

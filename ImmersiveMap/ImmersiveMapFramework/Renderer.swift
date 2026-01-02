@@ -430,8 +430,8 @@ class Renderer {
                 continue
             }
             
-            let tile = metalTile.tile
-            labelInputs.append(contentsOf: tileBuffers.labelsPositions)
+            var positions = tileBuffers.labelsPositions
+            labelInputs.append(contentsOf: positions)
         }
         
         computeGlobeToScreen.run(inputs: labelInputs,
