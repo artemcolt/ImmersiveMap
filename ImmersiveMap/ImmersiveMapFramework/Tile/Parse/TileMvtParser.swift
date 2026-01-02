@@ -239,15 +239,6 @@ class TileMvtParser {
         var rawLineByStyle: [UInt8: [ParsedLineRawVertices]] = [:]
         var styles: [UInt8: FeatureStyle] = [:]
         var textLabels: [TextLabel] = []
-        var textLabelSet: Set<String> = []
-        let labelLayers: Set<String> = [
-            "place_label",
-            "water_label",
-            "natural_label",
-            "poi_label",
-            "road_label",
-            "transit_stop_label"
-        ]
         
         for layer in vectorTile.layers {
             let layerName = layer.name
@@ -292,6 +283,7 @@ class TileMvtParser {
                         guard let parsedPolygon = parsePolygon.parse(polygon: polygon, tileExtent: Float(tileExtent)) else { continue }
                         polygonByStyle[styleKey, default: []].append(parsedPolygon)
                     }
+                    
                 } else if feature.type == .linestring {
                     let geometry: [UInt32] = feature.geometry
                     let width = style.parseGeometryStyleData.lineWidth
@@ -307,19 +299,9 @@ class TileMvtParser {
                         }
                     }
                 } else if feature.type == .point {
-                    let isLabelLayer = labelLayers.contains(layerName) || layerName.hasSuffix("_label")
-                    if !isLabelLayer {
-                        continue
-                    }
-                    
                     guard let nameEn = attributes["name_en"]?.stringValue else { continue }
                     let points = decodePoints(geometry: feature.geometry)
                     for point in points {
-                        let key = "\(nameEn)|\(point.x)|\(point.y)"
-                        if textLabelSet.contains(key) {
-                            continue
-                        }
-                        textLabelSet.insert(key)
                         textLabels.append(TextLabel(text: nameEn, position: point))
                     }
                 }

@@ -49,10 +49,9 @@ class Renderer {
     private var previousZoom: Int
     private var previousStorageHash: Int = 0
     private let tile: Tile = Tile(x: 0, y: 0, z: 0)
-    private var screenMatrix: matrix_float4x4?
-    private var screenMatrixSize: CGSize = CGSize.zero
     private var viewMode: ViewMode = ViewMode.spherical
     private var radius: Double = 0.0
+    private let screenMatrix: ScreenMatrix = ScreenMatrix()
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -101,8 +100,8 @@ class Renderer {
         camera = Camera()
         tileCulling = TileCulling(camera: camera)
         cameraControl = CameraControl()
-        cameraControl.setZoom(zoom: 6)
-        cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
+        //cameraControl.setZoom(zoom: 6)
+        //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
         let baseGrid = SphereGeometry.createGrid(stacks: 30, slices: 30)
@@ -131,28 +130,23 @@ class Renderer {
     func render(to layer: CAMetalLayer) {
         semaphore.wait()
         
-        let currentDrawableSize = layer.drawableSize
-        if currentDrawableSize.width == 0 || currentDrawableSize.height == 0 {
+        let drawSize = layer.drawableSize
+        if drawSize.width == 0 || drawSize.height == 0 {
             return
         }
         
         // При изменении размера экрана пересчитываем матрицы вида.
-        if currentDrawableSize != lastDrawableSize {
-            let aspect = Float(currentDrawableSize.width) / Float(currentDrawableSize.height)
+        if drawSize != lastDrawableSize {
+            let aspect = Float(drawSize.width) / Float(drawSize.height)
             camera.recalculateProjection(aspect: aspect)
-            lastDrawableSize = currentDrawableSize
+            lastDrawableSize = drawSize
         }
         
         // Экранная матрица для размещения 2д элементов на экране
-        if screenMatrixSize != currentDrawableSize {
-            screenMatrixSize = currentDrawableSize
-            screenMatrix = Matrix.orthographicMatrix(left: 0, right: Float(screenMatrixSize.width),
-                                                     bottom: 0, top: Float(screenMatrixSize.height),
-                                                     near: -1, far: 1)
-        }
+        screenMatrix.update(drawSize)
         
         // Без экранной матрицы не можем продолжить рендринг
-        guard var screenMatrix = screenMatrix else {
+        guard var screenMatrix = screenMatrix.get() else {
             return
         }
 
@@ -450,6 +444,20 @@ class Renderer {
                                                         indexBufferOffset: 0)
                 }
             }
+            
+            // Draw labels
+            renderEncoder.setRenderPipelineState(textRenderer.pipelineState)
+            let text = textRenderer.collectTextVertices(for: "Hello World!",
+                                                        at: SIMD2<Float>(Float(drawSize.width) / 2.0, Float(drawSize.height) / 2.0),
+                                                        scale: 100)
+            
+            var color = SIMD4<Float>(1.0, 0.0, 0.0, 1.0)
+            renderEncoder.setVertexBytes(text, length: MemoryLayout<TextVertex>.stride * text.count, index: 0)
+            renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+            renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+            renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+            renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: text.count)
+            
         } else if viewMode == .flat {
             tilePipeline.selectPipeline(renderEncoder: renderEncoder)
             renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
@@ -500,7 +508,7 @@ class Renderer {
         camera.testPoints = []
         
         let zoomText = TextEntry(text: "z: " + cameraControl.zoom.formatted(.number.precision(.fractionLength(2))),
-                                 position: SIMD2<Float>(100, Float(screenMatrixSize.height) - 300),
+                                 position: SIMD2<Float>(100, Float(drawSize.height) - 300),
                                  scale: 100)
         let textVertices = textRenderer.collectMultiTextVertices(for: [
             zoomText
