@@ -46,3 +46,4 @@ fragment float4 textFragment(VertexOut in [[stage_in]],
     
     return float4(alpha * textColor, alpha);
 }
+

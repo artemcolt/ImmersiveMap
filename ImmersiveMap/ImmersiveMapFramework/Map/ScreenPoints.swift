@@ -23,4 +23,8 @@ class ScreenPoints {
         }
         screenPoints[0] = point
     }
+    
+    func set(_ points: [SIMD2<Float>]) {
+        screenPoints = points
+    }
 }

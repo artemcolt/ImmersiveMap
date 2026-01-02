@@ -98,7 +98,8 @@ class Renderer {
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
         let globeComputePipeline = GlobeComputePipeline(metalDevice: metalDevice, library: library)
-        computeGlobeToScreen = ComputeGlobeToScreen(globeComputePipeline, metalDevice: metalDevice)
+        let globeCollisionPipeline = GlobeCollisionPipeline(metalDevice: metalDevice, library: library)
+        computeGlobeToScreen = ComputeGlobeToScreen(globeComputePipeline, globeCollisionPipeline, metalDevice: metalDevice)
         
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
@@ -417,7 +418,30 @@ class Renderer {
         // Camera uniform
         var cameraUniform = CameraUniform(matrix: cameraMatrix)
         
-
+        
+        
+        var labelInputs: [GlobeTilePointInput] = []
+        labelInputs.reserveCapacity(savedTiles.count * 8)
+        for placeTile in savedTiles {
+            let metalTile = placeTile.metalTile
+            let tileBuffers = metalTile.tileBuffers
+            let labelsCount = tileBuffers.labelsCount
+            if labelsCount == 0 {
+                continue
+            }
+            
+            let tile = metalTile.tile
+            labelInputs.append(contentsOf: tileBuffers.labelsPositions)
+        }
+        
+        computeGlobeToScreen.run(inputs: labelInputs,
+                                 drawSize: drawSize,
+                                 cameraUniform: cameraUniform,
+                                 globe: globe,
+                                 commandBuffer: commandBuffer,
+                                 screenPoints: screenPoints)
+        
+        
         
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture
@@ -454,29 +478,40 @@ class Renderer {
             }
             
             
-            let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
-            for placeTile in savedTiles {
-                let tileBuffers = placeTile.metalTile.tileBuffers
-                let positionsBuffer = tileBuffers.labelsPositionsBuffer
-                
-                computeGlobeToScreen.run(computeEncoder: computeEncoder, drawSize: drawSize, cameraUniform: cameraUniform, globe: globe, commandBuffer: commandBuffer, screenPoints: screenPoints)
-                
-            }
             
             
             
             // Draw labels
-//            renderEncoder.setRenderPipelineState(textRenderer.pipelineState)
-//            let text = textRenderer.collectTextVertices(for: "Hello World!",
-//                                                        at: SIMD2<Float>(Float(drawSize.width) / 2.0, Float(drawSize.height) / 2.0),
-//                                                        scale: 100)
-//            
-//            var color = SIMD4<Float>(1.0, 0.0, 0.0, 1.0)
-//            renderEncoder.setVertexBytes(text, length: MemoryLayout<TextVertex>.stride * text.count, index: 0)
-//            renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
-//            renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
-//            renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
-//            renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: text.count)
+            renderEncoder.setRenderPipelineState(textRenderer.pipelineState)
+            let text = textRenderer.collectTextVertices(for: "Hello World!",
+                                                        at: SIMD2<Float>(Float(drawSize.width) / 2.0, Float(drawSize.height) / 2.0),
+                                                        scale: 100)
+            
+            var color = SIMD4<Float>(1.0, 0.0, 0.0, 1.0)
+            renderEncoder.setVertexBytes(text, length: MemoryLayout<TextVertex>.stride * text.count, index: 0)
+            renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+            renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+            renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+            renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: text.count)
+            
+            var globalTextShift: simd_int1 = 0
+            for savedTile in savedTiles {
+                let buffers = savedTile.metalTile.tileBuffers
+                let textVerticesBuffer = buffers.labelsVerticesBuffer
+                let labelsCount = buffers.labelsCount
+                let textVerticesCount = buffers.labelsVerticesCount
+                let screenPositions = computeGlobeToScreen.globeComputeOutputBuffer
+                
+                renderEncoder.setVertexBuffer(textVerticesBuffer, offset: 0, index: 0)
+                renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+                renderEncoder.setVertexBuffer(screenPositions, offset: 0, index: 2)
+                renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
+                renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+                renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+                renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVerticesCount)
+                
+                globalTextShift += simd_int1(labelsCount)
+            }
             
         } else if viewMode == .flat {
             tilePipeline.selectPipeline(renderEncoder: renderEncoder)

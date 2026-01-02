@@ -25,6 +25,12 @@ struct ScreenPointOutput {
     uint visible;    // 0 = clipped/behind, 1 = visible
 };
 
+struct CollisionParams {
+    float2 halfSize; // Half-size in pixels
+    uint count;
+    uint padding;
+};
+
 float4 globeClipFromTileUV(float2 localUv,
                            int3 tile,
                            constant Camera& camera,
@@ -129,4 +135,38 @@ kernel void globeTileToScreenKernel(const device TilePointInput* inputs [[buffer
     result.depth = depth;
     result.visible = 1;
     outputs[gid] = result;
+}
+
+kernel void globeLabelCollisionKernel(const device ScreenPointOutput* points [[buffer(0)]],
+                                      device uint* visibility [[buffer(1)]],
+                                      constant CollisionParams& params [[buffer(2)]],
+                                      uint gid [[thread_position_in_grid]]) {
+    if (gid >= params.count) {
+        return;
+    }
+    
+    ScreenPointOutput point = points[gid];
+    if (point.visible == 0) {
+        visibility[gid] = 0;
+        return;
+    }
+    
+    float2 pos = point.position;
+    float sizeX = params.halfSize.x * 2.0;
+    float sizeY = params.halfSize.y * 2.0;
+    
+    for (uint i = 0; i < gid; i++) {
+        ScreenPointOutput other = points[i];
+        if (other.visible == 0) {
+            continue;
+        }
+        
+        float2 d = abs(pos - other.position);
+        if (d.x < sizeX && d.y < sizeY) {
+            visibility[gid] = 0;
+            return;
+        }
+    }
+    
+    visibility[gid] = 1;
 }
