@@ -479,21 +479,9 @@ class Renderer {
             
             
             
-            
-            
             // Draw labels
-            renderEncoder.setRenderPipelineState(textRenderer.pipelineState)
-            let text = textRenderer.collectTextVertices(for: "Hello World!",
-                                                        at: SIMD2<Float>(Float(drawSize.width) / 2.0, Float(drawSize.height) / 2.0),
-                                                        scale: 100)
-            
-            var color = SIMD4<Float>(1.0, 0.0, 0.0, 1.0)
-            renderEncoder.setVertexBytes(text, length: MemoryLayout<TextVertex>.stride * text.count, index: 0)
-            renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
-            renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
-            renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
-            renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: text.count)
-            
+            renderEncoder.setRenderPipelineState(textRenderer.labelPipelineState)
+            var color = SIMD3<Float>(1.0, 0.0, 0.0)
             var globalTextShift: simd_int1 = 0
             for savedTile in savedTiles {
                 let buffers = savedTile.metalTile.tileBuffers
@@ -507,7 +495,7 @@ class Renderer {
                 renderEncoder.setVertexBuffer(screenPositions, offset: 0, index: 2)
                 renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
                 renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
-                renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+                renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
                 renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVerticesCount)
                 
                 globalTextShift += simd_int1(labelsCount)

@@ -87,7 +87,7 @@ class MetalTilesStorage {
             let tile = SIMD3<Int32>(Int32(tile.x), Int32(tile.y), Int32(tile.z))
             labelsPositions.append(GlobeTilePointInput(uv: uv, tile: tile))
             
-            let vertices = textRenderer.collectLabelVertices(for: label.text, labelIndex: simd_int1(i))
+            let vertices = textRenderer.collectLabelVertices(for: label.text, labelIndex: simd_int1(i), scale: 60.0)
             labelsVertices.append(contentsOf: vertices)
         }
         

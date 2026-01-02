@@ -13,6 +13,18 @@ struct VertexIn {
     float2 uv [[attribute(1)]];
 };
 
+struct LabelVertexIn {
+    float2 position [[attribute(0)]];
+    float2 uv [[attribute(1)]];
+    int labelIndex [[attribute(2)]];
+};
+
+struct ScreenPointOutput {
+    float2 position;
+    float depth;
+    uint visible;
+};
+
 struct VertexOut {
     float4 position [[position]];
     float2 uv;
@@ -23,6 +35,20 @@ vertex VertexOut textVertex(VertexIn in [[stage_in]],
                             ) {
     VertexOut out;
     out.position = matrix * in.position;
+    out.uv = in.uv;
+    return out;
+}
+
+vertex VertexOut labelTextVertex(LabelVertexIn in [[stage_in]],
+                                 constant float4x4& matrix [[buffer(1)]],
+                                 const device ScreenPointOutput* screenPositions [[buffer(2)]],
+                                 constant int& globalTextShift [[buffer(3)]]) {
+    VertexOut out;
+    int screenIndex = in.labelIndex + globalTextShift;
+    ScreenPointOutput screenPoint = screenPositions[screenIndex];
+    
+    float2 pixelPosition = screenPoint.position + in.position;
+    out.position = matrix * float4(pixelPosition, 0.0, 1.0);
     out.uv = in.uv;
     return out;
 }
@@ -46,4 +72,3 @@ fragment float4 textFragment(VertexOut in [[stage_in]],
     
     return float4(alpha * textColor, alpha);
 }
-

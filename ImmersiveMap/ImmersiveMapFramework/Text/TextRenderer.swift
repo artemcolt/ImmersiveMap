@@ -81,6 +81,7 @@ class TextRenderer {
     private var bundle: Bundle!
     var atlasData: AtlasData!
     var pipelineState: MTLRenderPipelineState!
+    var labelPipelineState: MTLRenderPipelineState!
     private var library: MTLLibrary
     
     init(device: MTLDevice, library: MTLLibrary) {
@@ -91,7 +92,7 @@ class TextRenderer {
         
         loadAtlasTexture()
         loadAtlasJSON()
-        createPipeline()
+        createPipelines()
     }
     
     func collectMultiTextVertices(for entries: [TextEntry]) -> [TextVertex] {
@@ -107,8 +108,7 @@ class TextRenderer {
         return allVertices
     }
     
-    func collectLabelVertices(for text: String, labelIndex: simd_int1) -> [LabelVertex] {
-        var scale: Float = 1.0
+    func collectLabelVertices(for text: String, labelIndex: simd_int1, scale: Float) -> [LabelVertex] {
         var vertices: [LabelVertex] = []
         var currentX: Float = 0.0
         let y: Float = 0.0  // Базовая линия на position.y
@@ -243,23 +243,51 @@ class TextRenderer {
         }
     }
     
-    private func createPipeline() {
-        guard let vertexFn = library.makeFunction(name: "textVertex"),
+    private func createPipelines() {
+        guard let textVertexFn = library.makeFunction(name: "textVertex"),
+              let labelVertexFn = library.makeFunction(name: "labelTextVertex"),
               let fragmentFn = library.makeFunction(name: "textFragment") else { fatalError("Functions not found") }
         
-        let vertexDescriptor = MTLVertexDescriptor()
-        vertexDescriptor.attributes[0].format = .float4
-        vertexDescriptor.attributes[0].offset = 0
-        vertexDescriptor.attributes[0].bufferIndex = 0
-        vertexDescriptor.attributes[1].format = .float2
-        vertexDescriptor.attributes[1].offset = MemoryLayout<SIMD4<Float>>.stride
-        vertexDescriptor.attributes[1].bufferIndex = 0
-        vertexDescriptor.layouts[0].stride = MemoryLayout<TextVertex>.stride
+        let textVertexDescriptor = MTLVertexDescriptor()
+        textVertexDescriptor.attributes[0].format = .float4
+        textVertexDescriptor.attributes[0].offset = 0
+        textVertexDescriptor.attributes[0].bufferIndex = 0
+        textVertexDescriptor.attributes[1].format = .float2
+        textVertexDescriptor.attributes[1].offset = MemoryLayout<SIMD4<Float>>.stride
+        textVertexDescriptor.attributes[1].bufferIndex = 0
+        textVertexDescriptor.layouts[0].stride = MemoryLayout<TextVertex>.stride
         
+        let labelVertexDescriptor = MTLVertexDescriptor()
+        labelVertexDescriptor.attributes[0].format = .float2
+        labelVertexDescriptor.attributes[0].offset = 0
+        labelVertexDescriptor.attributes[0].bufferIndex = 0
+        labelVertexDescriptor.attributes[1].format = .float2
+        labelVertexDescriptor.attributes[1].offset = MemoryLayout<SIMD2<Float>>.stride
+        labelVertexDescriptor.attributes[1].bufferIndex = 0
+        labelVertexDescriptor.attributes[2].format = .int
+        labelVertexDescriptor.attributes[2].offset = MemoryLayout<SIMD2<Float>>.stride * 2
+        labelVertexDescriptor.attributes[2].bufferIndex = 0
+        labelVertexDescriptor.layouts[0].stride = MemoryLayout<LabelVertex>.stride
+        
+        do {
+            pipelineState = try makePipelineState(vertexFunction: textVertexFn,
+                                                  vertexDescriptor: textVertexDescriptor,
+                                                  fragmentFunction: fragmentFn)
+            labelPipelineState = try makePipelineState(vertexFunction: labelVertexFn,
+                                                       vertexDescriptor: labelVertexDescriptor,
+                                                       fragmentFunction: fragmentFn)
+        } catch {
+            fatalError("Pipeline creation failed: \(error)")
+        }
+    }
+    
+    private func makePipelineState(vertexFunction: MTLFunction,
+                                   vertexDescriptor: MTLVertexDescriptor,
+                                   fragmentFunction: MTLFunction) throws -> MTLRenderPipelineState {
         let descriptor = MTLRenderPipelineDescriptor()
         descriptor.vertexDescriptor = vertexDescriptor
-        descriptor.vertexFunction = vertexFn
-        descriptor.fragmentFunction = fragmentFn
+        descriptor.vertexFunction = vertexFunction
+        descriptor.fragmentFunction = fragmentFunction
         descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
         descriptor.colorAttachments[0].isBlendingEnabled = true
         descriptor.colorAttachments[0].rgbBlendOperation = .add
@@ -268,11 +296,6 @@ class TextRenderer {
         descriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
         descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
         descriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
-        
-        do {
-            pipelineState = try device.makeRenderPipelineState(descriptor: descriptor)
-        } catch {
-            fatalError("Pipeline creation failed: \(error)")
-        }
+        return try device.makeRenderPipelineState(descriptor: descriptor)
     }
 }
