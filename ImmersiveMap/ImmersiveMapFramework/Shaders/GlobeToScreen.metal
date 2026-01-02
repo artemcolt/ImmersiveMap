@@ -47,12 +47,9 @@ float4 globeClipFromTileUV(float2 localUv,
 
     vertexUvX = vertexUvX / zPow + size * tileX;
 
-    float latNorth = atan(sinh(M_PI_F * (1.0 - 2.0 * tileY / zPow)));
-    float latSouth = atan(sinh(M_PI_F * (1.0 - 2.0 * (tileY + 1) / zPow)));
-    float vNorth = 1.0 - (latNorth + M_PI_2_F) / M_PI_F;
-    float vSouth = 1.0 - (latSouth + M_PI_2_F) / M_PI_F;
-    float vSize = abs(vSouth - vNorth);
-    vertexUvY = vNorth + vertexUvY * vSize;
+    float mercatorV = (float(tileY) + vertexUvY) / zPow;
+    float latitudeAtUv = atan(sinh(M_PI_F * (1.0 - 2.0 * mercatorV)));
+    vertexUvY = 1.0 - (latitudeAtUv + M_PI_2_F) / M_PI_F;
 
     float globePanX = globe.panX;
     float globePanY = globe.panY;
@@ -68,7 +65,7 @@ float4 globeClipFromTileUV(float2 localUv,
     float globeRadius = globe.radius;
     float mapSize = 2 * M_PI_F * globeRadius * mapSizeScale;
 
-    float phi = -M_PI_F * vertexUvY;
+    float phi = latitudeAtUv - M_PI_2_F;
     float theta = 2 * M_PI_F * vertexUvX;
 
     float x = globeRadius * sin(phi) * sin(theta);
@@ -93,7 +90,7 @@ float4 globeClipFromTileUV(float2 localUv,
     float halfMapSize = mapSize / 2.0;
     float posUvX = wrap(vertexUvX * mapSize - halfMapSize + globePanX * halfMapSize, mapSize);
 
-    float lat_v = M_PI_F * vertexUvY - M_PI_2_F;      // [-pi/2..pi/2]
+    float lat_v = latitudeAtUv;                       // [-pi/2..pi/2]
     float v_merc_norm = -getYMercNorm(lat_v);         // [-1..1]
     float posUvY = (v_merc_norm - panY_merc_norm) * halfMapSize;
 
