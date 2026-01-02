@@ -15,4 +15,9 @@ struct TileBuffers {
     let indicesCount: Int
     let verticesCount: Int
     
+    // labels
+    let labelsPositionsBuffer: MTLBuffer
+    let labelsVerticesBuffer: MTLBuffer
+    let labelsCount: Int
+    let labelsVerticesCount: Int
 }

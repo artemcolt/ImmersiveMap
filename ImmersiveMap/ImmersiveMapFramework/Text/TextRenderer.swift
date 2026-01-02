@@ -59,6 +59,7 @@ struct TextVertex {
 struct LabelVertex {
     var position: SIMD2<Float>
     var uv: SIMD2<Float>
+    var labelIndex: simd_int1
 }
 
 struct TextEntry {
@@ -106,7 +107,7 @@ class TextRenderer {
         return allVertices
     }
     
-    func collectLabelVertices(for text: String) -> [LabelVertex] {
+    func collectLabelVertices(for text: String, labelIndex: simd_int1) -> [LabelVertex] {
         var scale: Float = 1.0
         var vertices: [LabelVertex] = []
         var currentX: Float = 0.0
@@ -145,13 +146,13 @@ class TextRenderer {
             
             // Добавляем 6 вертексов для двух треугольников (BL-BR-TL и BR-TR-TL)
             let quadVertices = [
-                LabelVertex(position: SIMD2<Float>(left, bottom), uv: SIMD2<Float>(atlasLeft, atlasBottom)),  // BL
-                LabelVertex(position: SIMD2<Float>(right, bottom), uv: SIMD2<Float>(atlasRight, atlasBottom)), // BR
-                LabelVertex(position: SIMD2<Float>(left, top), uv: SIMD2<Float>(atlasLeft, atlasTop)),         // TL
+                LabelVertex(position: SIMD2<Float>(left, bottom), uv: SIMD2<Float>(atlasLeft, atlasBottom), labelIndex: labelIndex),  // BL
+                LabelVertex(position: SIMD2<Float>(right, bottom), uv: SIMD2<Float>(atlasRight, atlasBottom), labelIndex: labelIndex), // BR
+                LabelVertex(position: SIMD2<Float>(left, top), uv: SIMD2<Float>(atlasLeft, atlasTop), labelIndex: labelIndex),         // TL
                 
-                LabelVertex(position: SIMD2<Float>(right, bottom), uv: SIMD2<Float>(atlasRight, atlasBottom)), // BR (дубликат)
-                LabelVertex(position: SIMD2<Float>(right, top), uv: SIMD2<Float>(atlasRight, atlasTop)),        // TR
-                LabelVertex(position: SIMD2<Float>(left, top), uv: SIMD2<Float>(atlasLeft, atlasTop))           // TL (дубликат)
+                LabelVertex(position: SIMD2<Float>(right, bottom), uv: SIMD2<Float>(atlasRight, atlasBottom), labelIndex: labelIndex), // BR (дубликат)
+                LabelVertex(position: SIMD2<Float>(right, top), uv: SIMD2<Float>(atlasRight, atlasTop), labelIndex: labelIndex),        // TR
+                LabelVertex(position: SIMD2<Float>(left, top), uv: SIMD2<Float>(atlasLeft, atlasTop), labelIndex: labelIndex)           // TL (дубликат)
             ]
             
             vertices.append(contentsOf: quadVertices)

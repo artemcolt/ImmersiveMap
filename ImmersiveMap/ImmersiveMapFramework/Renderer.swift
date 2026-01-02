@@ -126,7 +126,7 @@ class Renderer {
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
         
         
-        metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(), metalDevice: metalDevice, renderer: self)
+        metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(), metalDevice: metalDevice, renderer: self, textRenderer: textRenderer)
     }
         
     func newTileAvailable(tile: Tile) {
@@ -418,9 +418,6 @@ class Renderer {
         var cameraUniform = CameraUniform(matrix: cameraMatrix)
         
 
-        if let computeEncoder = commandBuffer.makeComputeCommandEncoder() {
-            
-        }
         
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture
@@ -456,9 +453,17 @@ class Renderer {
                 }
             }
             
+            
+            let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
             for placeTile in savedTiles {
+                let tileBuffers = placeTile.metalTile.tileBuffers
+                let positionsBuffer = tileBuffers.labelsPositionsBuffer
+                
+                computeGlobeToScreen.run(computeEncoder: computeEncoder, drawSize: drawSize, cameraUniform: cameraUniform, globe: globe, commandBuffer: commandBuffer, screenPoints: screenPoints)
                 
             }
+            
+            
             
             // Draw labels
 //            renderEncoder.setRenderPipelineState(textRenderer.pipelineState)

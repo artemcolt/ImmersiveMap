@@ -76,15 +76,21 @@ class MetalTilesStorage {
         
         // Parse Text labels
         let textLabels = parsedTile.textLabels
-        for label in textLabels {
-            var vertices = textRenderer.collectLabelVertices(for: label.text)
-            for i in vertices.indices {
-                vertices[i].position.x = vertices[i].position.x / 4096.0
-                vertices[i].position.y = vertices[i].position.y / 4096.0
-            }
-            let buffer = metalDevice.makeBuffer(bytes: vertices, length: MemoryLayout<LabelVertex>.stride * vertices.count)
+        var labelsVertices: [LabelVertex] = []
+        var positions: [SIMD2<Float>] = []
+        for i in textLabels.indices {
+            let label = textLabels[i]
+            let pos = label.position
+            var uvX = Double(pos.x) / 4096.0
+            var uvY = Double(pos.y) / 4096.0
+            positions.append(SIMD2<Float>(Float(uvX), Float(uvY)))
             
+            var vertices = textRenderer.collectLabelVertices(for: label.text, labelIndex: simd_int1(i))
+            labelsVertices.append(contentsOf: vertices)
         }
+        
+        let labelsBuffer = metalDevice.makeBuffer(bytes: labelsVertices, length: MemoryLayout<LabelVertex>.stride * labelsVertices.count)!
+        let labelsPositionsBuffer = metalDevice.makeBuffer(bytes: positions, length: MemoryLayout<SIMD2<Float>>.stride * positions.count)!
         
         let tileBuffers = TileBuffers(
             verticesBuffer: metalDevice.makeBuffer(
@@ -100,7 +106,12 @@ class MetalTilesStorage {
                 length: parsedTile.styles.count * MemoryLayout<TilePolygonStyle>.stride
             )!,
             indicesCount: parsedTile.drawingPolygon.indices.count,
-            verticesCount: parsedTile.drawingPolygon.vertices.count
+            verticesCount: parsedTile.drawingPolygon.vertices.count,
+            
+            labelsPositionsBuffer: labelsPositionsBuffer,
+            labelsVerticesBuffer: labelsBuffer,
+            labelsCount: textLabels.count,
+            labelsVerticesCount: labelsVertices.count
         )
         
         let metalTile = MetalTile(tile: tile, tileBuffers: tileBuffers)
