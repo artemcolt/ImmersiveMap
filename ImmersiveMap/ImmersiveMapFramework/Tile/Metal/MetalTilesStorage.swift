@@ -78,6 +78,7 @@ class MetalTilesStorage {
         let textLabels = parsedTile.textLabels
         var labelsVertices: [LabelVertex] = []
         var labelsInputs: [GlobeLabelInput] = []
+        var labelsMeta: [GlobeLabelMeta] = []
         for i in textLabels.indices {
             let label = textLabels[i]
             let pos = label.position
@@ -87,11 +88,17 @@ class MetalTilesStorage {
             let tile = SIMD3<Int32>(Int32(tile.x), Int32(tile.y), Int32(tile.z))
             
             let textMetrics = textRenderer.collectLabelVertices(for: label.text, labelIndex: simd_int1(i), scale: 60.0)
+            
+            // Это для отрисовки визуально текста
             let vertices = textMetrics.vertices
             labelsVertices.append(contentsOf: vertices)
             
+            // Это для GPU шейдера массив
+            // Тут данные на каждый label
             let size = SIMD2<Float>(textMetrics.size.width, textMetrics.size.height)
             labelsInputs.append(GlobeLabelInput(uv: uv, tile: tile, size: size))
+            
+            labelsMeta.append(GlobeLabelMeta(key: label.key))
         }
         
         let labelsBuffer: MTLBuffer?
@@ -117,10 +124,12 @@ class MetalTilesStorage {
             )!,
             indicesCount: parsedTile.drawingPolygon.indices.count,
             verticesCount: parsedTile.drawingPolygon.vertices.count,
+            // текстовые метки
             labelsInputs: labelsInputs,
             labelsVerticesBuffer: labelsBuffer,
             labelsCount: textLabels.count,
-            labelsVerticesCount: labelsVertices.count
+            labelsVerticesCount: labelsVertices.count,
+            labelsMeta: labelsMeta
         )
         
         let metalTile = MetalTile(tile: tile, tileBuffers: tileBuffers)

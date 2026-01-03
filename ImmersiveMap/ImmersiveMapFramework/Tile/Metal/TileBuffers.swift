@@ -20,4 +20,5 @@ struct TileBuffers {
     let labelsVerticesBuffer: MTLBuffer?
     let labelsCount: Int
     let labelsVerticesCount: Int
+    let labelsMeta: [GlobeLabelMeta]
 }

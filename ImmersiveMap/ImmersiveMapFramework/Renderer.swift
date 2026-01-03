@@ -50,6 +50,7 @@ class Renderer {
     private let screenMatrix: ScreenMatrix = ScreenMatrix()
     private let computeGlobeToScreen: ComputeGlobeToScreen
     private var labelInputs: [GlobeLabelInput] = []
+    private var drawLabels: [DrawLabels] = []
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -122,7 +123,10 @@ class Renderer {
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
         
         
-        metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(), metalDevice: metalDevice, renderer: self, textRenderer: textRenderer)
+        metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(),
+                                              metalDevice: metalDevice,
+                                              renderer: self,
+                                              textRenderer: textRenderer)
     }
         
     func newTileAvailable(tile: Tile) {
@@ -298,6 +302,7 @@ class Renderer {
             
             // Пересобираем текстовые метки
             labelInputs.removeAll()
+            drawLabels.removeAll()
             labelInputs.reserveCapacity(savedTiles.count * 8)
             for placeTile in savedTiles {
                 let metalTile = placeTile.metalTile
@@ -307,8 +312,19 @@ class Renderer {
                     continue
                 }
                 
+                // Входные данные для каждой тектовой метки
                 let inputs = tileBuffers.labelsInputs
                 labelInputs.append(contentsOf: inputs)
+                
+                let meta = tileBuffers.labelsMeta
+                
+                let labelsVerticesBuffer = tileBuffers.labelsVerticesBuffer
+                let labelsVerticesCount = tileBuffers.labelsVerticesCount
+                drawLabels.append(DrawLabels(
+                    labelsVerticesBuffer: labelsVerticesBuffer,
+                    labelsCount: labelsCount,
+                    labelsVerticesCount: labelsVerticesCount
+                ))
             }
             
             // закидываем в буффера compute шейдера
@@ -362,34 +378,6 @@ class Renderer {
                 }
             }
             
-            // Draw labels
-            renderEncoder.setRenderPipelineState(textRenderer.labelPipelineState)
-            var color = SIMD3<Float>(1.0, 0.0, 0.0)
-            var globalTextShift: simd_int1 = 0
-            for savedTile in savedTiles {
-                let buffers = savedTile.metalTile.tileBuffers
-                let textVerticesBuffer = buffers.labelsVerticesBuffer
-                let labelsCount = buffers.labelsCount
-                let textVerticesCount = buffers.labelsVerticesCount
-                let screenPositions = computeGlobeToScreen.globeComputeOutputBuffer
-                let labelInputsBuffer = computeGlobeToScreen.globeComputeInputBuffer
-                let collisionOutput = computeGlobeToScreen.globeCollisionOutputBuffer
-                
-                if labelsCount > 0 {
-                    renderEncoder.setVertexBuffer(textVerticesBuffer, offset: 0, index: 0)
-                    renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
-                    renderEncoder.setVertexBuffer(screenPositions, offset: 0, index: 2)
-                    renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
-                    renderEncoder.setVertexBuffer(labelInputsBuffer, offset: 0, index: 4)
-                    renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
-                    renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
-                    renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
-                    renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVerticesCount)
-                }
-                
-                globalTextShift += simd_int1(labelsCount)
-            }
-            
         } else if viewMode == .flat {
             tilePipeline.selectPipeline(renderEncoder: renderEncoder)
             renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
@@ -425,6 +413,36 @@ class Renderer {
                                                     indexBufferOffset: 0)
             }
         }
+        
+        
+        // Draw labels
+        renderEncoder.setRenderPipelineState(textRenderer.labelPipelineState)
+        var color = SIMD3<Float>(1.0, 0.0, 0.0)
+        var globalTextShift: simd_int1 = 0
+        for drawLabel in drawLabels {
+            let textVerticesBuffer = drawLabel.labelsVerticesBuffer
+            let labelsCount = drawLabel.labelsCount
+            let textVerticesCount = drawLabel.labelsVerticesCount
+            let screenPositions = computeGlobeToScreen.globeComputeOutputBuffer
+            let labelInputsBuffer = computeGlobeToScreen.globeComputeInputBuffer
+            let collisionOutput = computeGlobeToScreen.globeCollisionOutputBuffer
+            
+            if labelsCount > 0 {
+                renderEncoder.setVertexBuffer(textVerticesBuffer, offset: 0, index: 0)
+                renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+                renderEncoder.setVertexBuffer(screenPositions, offset: 0, index: 2)
+                renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
+                renderEncoder.setVertexBuffer(labelInputsBuffer, offset: 0, index: 4)
+                renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
+                renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+                renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
+                renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVerticesCount)
+            }
+            
+            globalTextShift += simd_int1(labelsCount)
+        }
+
+        
         
         // Axes
         polygonPipeline.setPipelineState(renderEncoder: renderEncoder)
