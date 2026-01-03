@@ -24,6 +24,12 @@ struct Globe {
     float transition;
 };
 
+struct GlobeLabelInput {
+    float2 uv;
+    int3 tile;
+    float2 size;
+};
+
 float wrap(float x, float size);
 
 float4x4 rotationMatrix(float3 axis, float angle);

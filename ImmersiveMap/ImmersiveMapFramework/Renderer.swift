@@ -49,8 +49,7 @@ class Renderer {
     private var radius: Double = 0.0
     private let screenMatrix: ScreenMatrix = ScreenMatrix()
     private let computeGlobeToScreen: ComputeGlobeToScreen
-    private var labelInputs: [GlobeTilePointInput] = []
-    private var labelsSize: [TextSize] = []
+    private var labelInputs: [GlobeLabelInput] = []
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -299,9 +298,7 @@ class Renderer {
             
             // Пересобираем текстовые метки
             labelInputs.removeAll()
-            labelsSize.removeAll()
             labelInputs.reserveCapacity(savedTiles.count * 8)
-            labelsSize.reserveCapacity(savedTiles.count * 8)
             for placeTile in savedTiles {
                 let metalTile = placeTile.metalTile
                 let tileBuffers = metalTile.tileBuffers
@@ -310,14 +307,12 @@ class Renderer {
                     continue
                 }
                 
-                let positions = tileBuffers.labelsPositions
-                let size = tileBuffers.labelsSize
-                labelInputs.append(contentsOf: positions)
-                labelsSize.append(contentsOf: size)
+                let inputs = tileBuffers.labelsInputs
+                labelInputs.append(contentsOf: inputs)
             }
             
             // закидываем в буффера compute шейдера
-            computeGlobeToScreen.copyDataToBuffer(inputs: labelInputs, labelsSize: labelsSize)
+            computeGlobeToScreen.copyDataToBuffer(inputs: labelInputs)
         }
         
         
@@ -367,8 +362,6 @@ class Renderer {
                 }
             }
             
-            
-            
             // Draw labels
             renderEncoder.setRenderPipelineState(textRenderer.labelPipelineState)
             var color = SIMD3<Float>(1.0, 0.0, 0.0)
@@ -379,7 +372,7 @@ class Renderer {
                 let labelsCount = buffers.labelsCount
                 let textVerticesCount = buffers.labelsVerticesCount
                 let screenPositions = computeGlobeToScreen.globeComputeOutputBuffer
-                let labelSize = computeGlobeToScreen.labelSizeBuffer
+                let labelInputsBuffer = computeGlobeToScreen.globeComputeInputBuffer
                 let collisionOutput = computeGlobeToScreen.globeCollisionOutputBuffer
                 
                 if labelsCount > 0 {
@@ -387,7 +380,7 @@ class Renderer {
                     renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
                     renderEncoder.setVertexBuffer(screenPositions, offset: 0, index: 2)
                     renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
-                    renderEncoder.setVertexBuffer(labelSize, offset: 0, index: 4)
+                    renderEncoder.setVertexBuffer(labelInputsBuffer, offset: 0, index: 4)
                     renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
                     renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
                     renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)

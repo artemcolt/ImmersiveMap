@@ -7,6 +7,7 @@
 
 #include <metal_stdlib>
 using namespace metal;
+#include "Common.h"
 
 struct VertexIn {
     float4 position [[attribute(0)]];
@@ -44,13 +45,13 @@ vertex VertexOut labelTextVertex(LabelVertexIn in [[stage_in]],
                                  constant float4x4& matrix [[buffer(1)]],
                                  const device ScreenPointOutput* screenPositions [[buffer(2)]],
                                  constant int& globalTextShift [[buffer(3)]],
-                                 const device float2* labelSizes [[buffer(4)]],
+                                 const device GlobeLabelInput* labelInputs [[buffer(4)]],
                                  const device uint* collisionVisibility [[buffer(5)]]) {
     VertexOut out;
     int screenIndex = in.labelIndex + globalTextShift;
     ScreenPointOutput screenPoint = screenPositions[screenIndex];
     
-    float2 halfSize = labelSizes[screenIndex] * 0.5;
+    float2 halfSize = labelInputs[screenIndex].size * 0.5;
     float2 pixelPosition = screenPoint.position + in.position - halfSize;
     out.position = matrix * float4(pixelPosition, 0.0, 1.0);
     out.uv = in.uv;

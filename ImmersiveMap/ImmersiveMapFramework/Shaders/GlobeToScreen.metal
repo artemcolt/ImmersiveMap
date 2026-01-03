@@ -9,11 +9,6 @@
 using namespace metal;
 #include "Common.h"
 
-struct TilePointInput {
-    float2 uv;    // Local UV inside the tile [0..1]
-    int3 tile;    // Tile coordinate (x, y, z)
-};
-
 struct ScreenParams {
     float2 viewportSize; // In pixels; used only when outputPixels != 0
     uint outputPixels;   // 0 = NDC, 1 = pixels
@@ -104,13 +99,13 @@ float4 globeClipFromTileUV(float2 localUv,
     return camera.matrix * position;
 }
 
-kernel void globeTileToScreenKernel(const device TilePointInput* inputs [[buffer(0)]],
+kernel void globeTileToScreenKernel(const device GlobeLabelInput* inputs [[buffer(0)]],
                                     device ScreenPointOutput* outputs [[buffer(1)]],
                                     constant Camera& camera [[buffer(2)]],
                                     constant Globe& globe [[buffer(3)]],
                                     constant ScreenParams& screenParams [[buffer(4)]],
                                     uint gid [[thread_position_in_grid]]) {
-    TilePointInput input = inputs[gid];
+    GlobeLabelInput input = inputs[gid];
     float3 spherePositionWorld = float3(0.0);
     float4 clip = globeClipFromTileUV(input.uv, input.tile, camera, globe, spherePositionWorld);
 
@@ -155,7 +150,7 @@ kernel void globeTileToScreenKernel(const device TilePointInput* inputs [[buffer
 
 kernel void globeLabelCollisionKernel(const device ScreenPointOutput* points [[buffer(0)]],
                                       device uint* visibility [[buffer(1)]],
-                                      const device float2* sizes [[buffer(2)]],
+                                      const device GlobeLabelInput* inputs [[buffer(2)]],
                                       constant CollisionParams& params [[buffer(3)]],
                                       uint gid [[thread_position_in_grid]]) {
     if (gid >= params.count) {
@@ -169,7 +164,7 @@ kernel void globeLabelCollisionKernel(const device ScreenPointOutput* points [[b
     }
     
     float2 pos = point.position;
-    float2 halfSize = sizes[gid] * 0.5;
+    float2 halfSize = inputs[gid].size * 0.5;
     
     for (uint i = 0; i < gid; i++) {
         ScreenPointOutput other = points[i];
@@ -178,7 +173,7 @@ kernel void globeLabelCollisionKernel(const device ScreenPointOutput* points [[b
         }
         
         float2 d = abs(pos - other.position);
-        float2 otherHalfSize = sizes[i] * 0.5;
+        float2 otherHalfSize = inputs[i].size * 0.5;
         float2 overlap = halfSize + otherHalfSize;
         if (d.x < overlap.x && d.y < overlap.y) {
             visibility[gid] = 0;

@@ -77,8 +77,7 @@ class MetalTilesStorage {
         // Parse Text labels
         let textLabels = parsedTile.textLabels
         var labelsVertices: [LabelVertex] = []
-        var labelsPositions: [GlobeTilePointInput] = []
-        var textSize: [TextSize] = []
+        var labelsInputs: [GlobeLabelInput] = []
         for i in textLabels.indices {
             let label = textLabels[i]
             let pos = label.position
@@ -86,12 +85,13 @@ class MetalTilesStorage {
             let uvY = Double(pos.y) / 4096.0
             let uv = SIMD2<Float>(Float(uvX), Float(uvY))
             let tile = SIMD3<Int32>(Int32(tile.x), Int32(tile.y), Int32(tile.z))
-            labelsPositions.append(GlobeTilePointInput(uv: uv, tile: tile))
             
             let textMetrics = textRenderer.collectLabelVertices(for: label.text, labelIndex: simd_int1(i), scale: 60.0)
             let vertices = textMetrics.vertices
-            textSize.append(textMetrics.size)
             labelsVertices.append(contentsOf: vertices)
+            
+            let size = SIMD2<Float>(textMetrics.size.width, textMetrics.size.height)
+            labelsInputs.append(GlobeLabelInput(uv: uv, tile: tile, size: size))
         }
         
         let labelsBuffer: MTLBuffer?
@@ -117,11 +117,10 @@ class MetalTilesStorage {
             )!,
             indicesCount: parsedTile.drawingPolygon.indices.count,
             verticesCount: parsedTile.drawingPolygon.vertices.count,
-            labelsPositions: labelsPositions,
+            labelsInputs: labelsInputs,
             labelsVerticesBuffer: labelsBuffer,
             labelsCount: textLabels.count,
-            labelsVerticesCount: labelsVertices.count,
-            labelsSize: textSize
+            labelsVerticesCount: labelsVertices.count
         )
         
         let metalTile = MetalTile(tile: tile, tileBuffers: tileBuffers)

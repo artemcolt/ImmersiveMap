@@ -16,9 +16,8 @@ struct TileBuffers {
     let verticesCount: Int
     
     // labels
-    let labelsPositions: [GlobeTilePointInput]
+    let labelsInputs: [GlobeLabelInput]
     let labelsVerticesBuffer: MTLBuffer?
     let labelsCount: Int
     let labelsVerticesCount: Int
-    let labelsSize: [TextSize]
 }
