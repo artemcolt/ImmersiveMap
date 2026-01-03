@@ -490,12 +490,14 @@ class Renderer {
                 let textVerticesCount = buffers.labelsVerticesCount
                 let screenPositions = computeGlobeToScreen.globeComputeOutputBuffer
                 let labelSize = computeGlobeToScreen.labelSizeBuffer
+                let collisionOutput = computeGlobeToScreen.globeCollisionOutputBuffer
                 
                 renderEncoder.setVertexBuffer(textVerticesBuffer, offset: 0, index: 0)
                 renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
                 renderEncoder.setVertexBuffer(screenPositions, offset: 0, index: 2)
                 renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
                 renderEncoder.setVertexBuffer(labelSize, offset: 0, index: 4)
+                renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
                 renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
                 renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
                 renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVerticesCount)

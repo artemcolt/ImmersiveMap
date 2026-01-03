@@ -28,6 +28,7 @@ struct ScreenPointOutput {
 struct VertexOut {
     float4 position [[position]];
     float2 uv;
+    float alpha;
 };
 
 vertex VertexOut textVertex(VertexIn in [[stage_in]],
@@ -43,7 +44,8 @@ vertex VertexOut labelTextVertex(LabelVertexIn in [[stage_in]],
                                  constant float4x4& matrix [[buffer(1)]],
                                  const device ScreenPointOutput* screenPositions [[buffer(2)]],
                                  constant int& globalTextShift [[buffer(3)]],
-                                 const device float2* labelSizes [[buffer(4)]]) {
+                                 const device float2* labelSizes [[buffer(4)]],
+                                 const device uint* collisionVisibility [[buffer(5)]]) {
     VertexOut out;
     int screenIndex = in.labelIndex + globalTextShift;
     ScreenPointOutput screenPoint = screenPositions[screenIndex];
@@ -52,6 +54,7 @@ vertex VertexOut labelTextVertex(LabelVertexIn in [[stage_in]],
     float2 pixelPosition = screenPoint.position + in.position - halfSize;
     out.position = matrix * float4(pixelPosition, 0.0, 1.0);
     out.uv = in.uv;
+    out.alpha = (screenPoint.visible == 0 || collisionVisibility[screenIndex] == 0) ? 0.0 : 1.0;
     return out;
 }
 
@@ -72,5 +75,6 @@ fragment float4 textFragment(VertexOut in [[stage_in]],
     //return float4(float3(sd), 1.0);
     float alpha = smoothstep(0.2, 0.6, sd);
     
-    return float4(alpha * textColor, alpha);
+    float finalAlpha = alpha * in.alpha;
+    return float4(finalAlpha * textColor, finalAlpha);
 }
