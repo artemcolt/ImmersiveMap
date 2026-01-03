@@ -13,6 +13,8 @@ using namespace metal;
 
 struct Camera {
     float4x4 matrix;
+    float3 eye;
+    float _padding;
 };
 
 struct Globe {

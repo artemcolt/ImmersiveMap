@@ -322,7 +322,9 @@ class Renderer {
         
         
         // Camera uniform
-        var cameraUniform = CameraUniform(matrix: cameraMatrix)
+        var cameraUniform = CameraUniform(matrix: cameraMatrix,
+                                          eye: camera.eye,
+                                          padding: 0)
         
         // Высчитываем положения и коллизии текстовых меток
         computeGlobeToScreen.run(drawSize: drawSize,

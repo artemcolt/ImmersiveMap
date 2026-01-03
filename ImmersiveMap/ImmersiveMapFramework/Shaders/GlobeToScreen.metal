@@ -33,7 +33,8 @@ struct CollisionParams {
 float4 globeClipFromTileUV(float2 localUv,
                            int3 tile,
                            constant Camera& camera,
-                           constant Globe& globe) {
+                           constant Globe& globe,
+                           thread float3& rotatedSpherePosition) {
     float vertexUvX = localUv.x; // 0..1 inside the tile
     float vertexUvY = localUv.y; // 0..1 inside the tile
 
@@ -93,8 +94,11 @@ float4 globeClipFromTileUV(float2 localUv,
     float v_merc_norm = -getYMercNorm(lat_v);         // [-1..1]
     float posUvY = (v_merc_norm - panY_merc_norm) * halfMapSize;
 
+    float4 rotatedPosition = float4(spherePosition, 1.0) * rotation;
+    rotatedSpherePosition = rotatedPosition.xyz;
+
     float4x4 translationM = translationMatrix(float3(0, 0, -globeRadius));
-    float4 spherePositionTranslated = float4(spherePosition, 1.0) * rotation * translationM;
+    float4 spherePositionTranslated = rotatedPosition * translationM;
     float4 flatPosition = float4(posUvX, posUvY, 0, 1.0);
     float4 position = mix(spherePositionTranslated, flatPosition, transition);
     return camera.matrix * position;
@@ -107,7 +111,8 @@ kernel void globeTileToScreenKernel(const device TilePointInput* inputs [[buffer
                                     constant ScreenParams& screenParams [[buffer(4)]],
                                     uint gid [[thread_position_in_grid]]) {
     TilePointInput input = inputs[gid];
-    float4 clip = globeClipFromTileUV(input.uv, input.tile, camera, globe);
+    float3 rotatedSpherePosition = float3(0.0);
+    float4 clip = globeClipFromTileUV(input.uv, input.tile, camera, globe, rotatedSpherePosition);
 
     ScreenPointOutput result;
     if (clip.w <= 0.0) {
@@ -116,6 +121,20 @@ kernel void globeTileToScreenKernel(const device TilePointInput* inputs [[buffer
         result.visible = 0;
         outputs[gid] = result;
         return;
+    }
+
+    float eyeLen = length(camera.eye);
+    if (eyeLen > 0.0) {
+        float3 cameraDir = camera.eye / eyeLen;
+        float3 sphereDir = normalize(rotatedSpherePosition);
+        float facingThreshold = mix(-0.3, -1.0, globe.transition);
+        if (dot(sphereDir, cameraDir) <= facingThreshold) {
+            result.position = float2(0.0);
+            result.depth = 0.0;
+            result.visible = 0;
+            outputs[gid] = result;
+            return;
+        }
     }
 
     float2 ndc = clip.xy / clip.w; // [-1..1]

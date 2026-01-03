@@ -101,7 +101,9 @@ class TilesTexture {
         let x = Int(placedPos.x)
         let y = Int(placedPos.y)
         let shiftMatrix = Matrix.translationMatrix(x: Float(x) * 4096, y: Float(y) * 4096, z: 0)
-        var cameraUniform = CameraUniform(matrix: projection * shiftMatrix)
+        var cameraUniform = CameraUniform(matrix: projection * shiftMatrix,
+                                          eye: SIMD3<Float>(0, 0, 1),
+                                          padding: 0)
         let scaleParam = Float( 1 << (UInt8(maxDepth) - depth))
         let shift = scaleParam * 10
         texts.append(TextEntry(
