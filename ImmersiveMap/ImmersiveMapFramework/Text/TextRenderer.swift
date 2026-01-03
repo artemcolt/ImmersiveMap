@@ -8,6 +8,16 @@
 import MetalKit
 import Foundation
 
+struct TextSize {
+    let width: simd_float1
+    let height: simd_float1
+}
+
+struct TextMetrics {
+    let size: TextSize
+    let vertices: [LabelVertex]
+}
+
 struct AtlasData: Codable {
     let atlas: AtlasInfo
     let metrics: Metrics
@@ -108,11 +118,13 @@ class TextRenderer {
         return allVertices
     }
     
-    func collectLabelVertices(for text: String, labelIndex: simd_int1, scale: Float) -> [LabelVertex] {
+    func collectLabelVertices(for text: String, labelIndex: simd_int1, scale: Float) -> TextMetrics {
         var vertices: [LabelVertex] = []
         var currentX: Float = 0.0
         let y: Float = 0.0  // Базовая линия на position.y
         let glyphs = atlasData.glyphs
+        var width: Float = 0.0
+        var height: Float = 0.0
         
         for char in text.unicodeScalars {
             guard let glyph = glyphs.first(where: { $0.unicode == char.value }) else {
@@ -157,9 +169,17 @@ class TextRenderer {
             
             vertices.append(contentsOf: quadVertices)
             currentX += Float(glyph.advance) * scale
+            
+            if right > width {
+                width = right
+            }
+            
+            if top > height {
+                height = top
+            }
         }
         
-        return vertices
+        return TextMetrics(size: TextSize(width: width, height: height), vertices: vertices)
     }
     
     func collectTextVertices(for text: String, at position: SIMD2<Float>, scale: Float = 1.0) -> [TextVertex] {

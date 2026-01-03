@@ -59,6 +59,7 @@ class ComputeGlobeToScreen {
     }
     
     func run(inputs: [GlobeTilePointInput],
+             labelsSize: [TextSize],
              drawSize: CGSize,
              cameraUniform: CameraUniform,
              globe: Globe,

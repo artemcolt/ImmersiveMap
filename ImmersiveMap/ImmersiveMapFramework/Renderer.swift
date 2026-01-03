@@ -418,9 +418,8 @@ class Renderer {
         // Camera uniform
         var cameraUniform = CameraUniform(matrix: cameraMatrix)
         
-        
-        
         var labelInputs: [GlobeTilePointInput] = []
+        var labelsSize: [TextSize] = []
         labelInputs.reserveCapacity(savedTiles.count * 8)
         for placeTile in savedTiles {
             let metalTile = placeTile.metalTile
@@ -430,18 +429,19 @@ class Renderer {
                 continue
             }
             
-            var positions = tileBuffers.labelsPositions
+            let positions = tileBuffers.labelsPositions
+            let size = tileBuffers.labelsSize
             labelInputs.append(contentsOf: positions)
+            labelsSize.append(contentsOf: size)
         }
         
         computeGlobeToScreen.run(inputs: labelInputs,
+                                 labelsSize: labelsSize,
                                  drawSize: drawSize,
                                  cameraUniform: cameraUniform,
                                  globe: globe,
                                  commandBuffer: commandBuffer,
                                  screenPoints: screenPoints)
-        
-        
         
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture

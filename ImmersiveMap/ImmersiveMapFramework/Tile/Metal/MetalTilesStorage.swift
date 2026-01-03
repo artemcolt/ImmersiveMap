@@ -78,6 +78,7 @@ class MetalTilesStorage {
         let textLabels = parsedTile.textLabels
         var labelsVertices: [LabelVertex] = []
         var labelsPositions: [GlobeTilePointInput] = []
+        var textSize: [TextSize] = []
         for i in textLabels.indices {
             let label = textLabels[i]
             let pos = label.position
@@ -87,7 +88,9 @@ class MetalTilesStorage {
             let tile = SIMD3<Int32>(Int32(tile.x), Int32(tile.y), Int32(tile.z))
             labelsPositions.append(GlobeTilePointInput(uv: uv, tile: tile))
             
-            let vertices = textRenderer.collectLabelVertices(for: label.text, labelIndex: simd_int1(i), scale: 60.0)
+            let textMetrics = textRenderer.collectLabelVertices(for: label.text, labelIndex: simd_int1(i), scale: 60.0)
+            let vertices = textMetrics.vertices
+            textSize.append(textMetrics.size)
             labelsVertices.append(contentsOf: vertices)
         }
         
@@ -111,7 +114,8 @@ class MetalTilesStorage {
             labelsPositions: labelsPositions,
             labelsVerticesBuffer: labelsBuffer,
             labelsCount: textLabels.count,
-            labelsVerticesCount: labelsVertices.count
+            labelsVerticesCount: labelsVertices.count,
+            labelsSize: textSize
         )
         
         let metalTile = MetalTile(tile: tile, tileBuffers: tileBuffers)
