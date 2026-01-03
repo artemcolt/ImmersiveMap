@@ -38,6 +38,7 @@ vertex VertexOut textVertex(VertexIn in [[stage_in]],
     VertexOut out;
     out.position = matrix * in.position;
     out.uv = in.uv;
+    out.alpha = 1.0;
     return out;
 }
 
