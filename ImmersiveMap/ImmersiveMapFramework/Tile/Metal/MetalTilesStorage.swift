@@ -94,7 +94,13 @@ class MetalTilesStorage {
             labelsVertices.append(contentsOf: vertices)
         }
         
-        let labelsBuffer = metalDevice.makeBuffer(bytes: labelsVertices, length: MemoryLayout<LabelVertex>.stride * labelsVertices.count)!
+        let labelsBuffer: MTLBuffer?
+        if labelsVertices.count > 0 {
+            labelsBuffer = metalDevice.makeBuffer(bytes: labelsVertices, length: MemoryLayout<LabelVertex>.stride * labelsVertices.count)
+        } else {
+            labelsBuffer = nil
+        }
+        
         
         let tileBuffers = TileBuffers(
             verticesBuffer: metalDevice.makeBuffer(

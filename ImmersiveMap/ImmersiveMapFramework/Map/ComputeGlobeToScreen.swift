@@ -144,24 +144,5 @@ class ComputeGlobeToScreen {
             depth: 1)
         collisionEncoder.dispatchThreadgroups(collisionThreadgroupsPerGrid, threadsPerThreadgroup: collisionThreadsPerThreadgroup)
         collisionEncoder.endEncoding()
-        
-        commandBuffer.addCompletedHandler { [weak self] _ in
-            guard let self else { return }
-            let pointsPointer = self.globeComputeOutputBuffer.contents().bindMemory(to: GlobeScreenPointOutput.self,
-                                                                                    capacity: inputs.count)
-            let visibilityPointer = self.globeCollisionOutputBuffer.contents().bindMemory(to: UInt32.self,
-                                                                                           capacity: inputs.count)
-            
-            var visiblePoints: [SIMD2<Float>] = []
-            visiblePoints.reserveCapacity(inputs.count)
-            for i in 0..<inputs.count {
-                if visibilityPointer[i] == 0 || pointsPointer[i].visible == 0 {
-                    continue
-                }
-                visiblePoints.append(pointsPointer[i].position)
-            }
-            
-            screenPoints.set(visiblePoints)
-        }
     }
 }
