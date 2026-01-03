@@ -290,7 +290,7 @@ class Renderer {
                 tilesTexture.activateEncoder(commandBuffer: commandBuffer, index: currentIndex)
                 drawGlobeTexture()
                 
-                // Рисуем координаты тайлов на самих тайлах для тестирование
+                // Рисуем координаты тайлов как текст на самих тайлах для тестирование
                 drawTileCoordText()
                 
                 // Завершаем рисование в текстуре с тайлами
