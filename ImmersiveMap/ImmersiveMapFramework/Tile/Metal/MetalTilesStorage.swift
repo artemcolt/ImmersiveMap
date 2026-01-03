@@ -79,6 +79,7 @@ class MetalTilesStorage {
         var labelsVertices: [LabelVertex] = []
         var labelsInputs: [GlobeLabelInput] = []
         var labelsMeta: [GlobeLabelMeta] = []
+        var labelsVerticesRanges: [LabelVerticesRange] = []
         for i in textLabels.indices {
             let label = textLabels[i]
             let pos = label.position
@@ -91,7 +92,9 @@ class MetalTilesStorage {
             
             // Это для отрисовки визуально текста
             let vertices = textMetrics.vertices
+            let rangeStart = labelsVertices.count
             labelsVertices.append(contentsOf: vertices)
+            labelsVerticesRanges.append(LabelVerticesRange(start: rangeStart, count: vertices.count))
             
             // Это для GPU шейдера массив
             // Тут данные на каждый label
@@ -126,6 +129,8 @@ class MetalTilesStorage {
             verticesCount: parsedTile.drawingPolygon.vertices.count,
             // текстовые метки
             labelsInputs: labelsInputs,
+            labelsVertices: labelsVertices,
+            labelsVerticesRanges: labelsVerticesRanges,
             labelsVerticesBuffer: labelsBuffer,
             labelsCount: textLabels.count,
             labelsVerticesCount: labelsVertices.count,

@@ -51,6 +51,9 @@ class Renderer {
     private let computeGlobeToScreen: ComputeGlobeToScreen
     private var labelInputs: [GlobeLabelInput] = []
     private var drawLabels: [DrawLabels] = []
+    private let labelHoldSeconds: TimeInterval = 3.0
+    private var labelTiles: [String: CachedTileLabels] = [:]
+    private var labelKeyOwners: [UInt64: String] = [:]
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -299,36 +302,13 @@ class Renderer {
                 // Завершаем рисование в текстуре с тайлами
                 tilesTexture.endEncoding()
             }
-            
-            // Пересобираем текстовые метки
-            labelInputs.removeAll()
-            drawLabels.removeAll()
-            labelInputs.reserveCapacity(savedTiles.count * 8)
-            for placeTile in savedTiles {
-                let metalTile = placeTile.metalTile
-                let tileBuffers = metalTile.tileBuffers
-                let labelsCount = tileBuffers.labelsCount
-                if labelsCount == 0 {
-                    continue
-                }
-                
-                // Входные данные для каждой тектовой метки
-                let inputs = tileBuffers.labelsInputs
-                labelInputs.append(contentsOf: inputs)
-                
-                let meta = tileBuffers.labelsMeta
-                
-                let labelsVerticesBuffer = tileBuffers.labelsVerticesBuffer
-                let labelsVerticesCount = tileBuffers.labelsVerticesCount
-                drawLabels.append(DrawLabels(
-                    labelsVerticesBuffer: labelsVerticesBuffer,
-                    labelsCount: labelsCount,
-                    labelsVerticesCount: labelsVerticesCount
-                ))
-            }
-            
-            // закидываем в буффера compute шейдера
-            computeGlobeToScreen.copyDataToBuffer(inputs: labelInputs)
+        }
+        
+        let nowTime = Date().timeIntervalSince(startDate)
+        var labelsDirty = updateLabelCache(visibleTiles: savedTiles, now: nowTime)
+        labelsDirty = expireLabelCache(now: nowTime) || labelsDirty
+        if labelsDirty {
+            rebuildLabelBuffers(visibleTiles: savedTiles)
         }
         
         
@@ -490,6 +470,197 @@ class Renderer {
         }
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+    
+    private func updateLabelCache(visibleTiles: [PlaceTile], now: TimeInterval) -> Bool {
+        var changed = false
+        for placeTile in visibleTiles {
+            let tile = placeTile.metalTile.tile
+            let tileKey = tile.key()
+            let tileBuffers = placeTile.metalTile.tileBuffers
+            if var cached = labelTiles[tileKey] {
+                cached.lastSeen = now
+                labelTiles[tileKey] = cached
+                
+                var needsRefresh = false
+                for item in tileBuffers.labelsMeta {
+                    if labelKeyOwners[item.key] == nil {
+                        needsRefresh = true
+                        break
+                    }
+                }
+                
+                if needsRefresh == false {
+                    continue
+                }
+                
+                for meta in cached.labelsMeta {
+                    if labelKeyOwners[meta.key] == tileKey {
+                        labelKeyOwners.removeValue(forKey: meta.key)
+                    }
+                }
+                labelTiles.removeValue(forKey: tileKey)
+                changed = true
+            }
+            
+            let labelsCount = tileBuffers.labelsCount
+            if labelsCount == 0 {
+                continue
+            }
+            
+            let meta = tileBuffers.labelsMeta
+            var hasDuplicate = false
+            for item in meta {
+                if labelKeyOwners[item.key] != nil {
+                    hasDuplicate = true
+                    break
+                }
+            }
+            
+            if hasDuplicate == false {
+                for item in meta {
+                    labelKeyOwners[item.key] = tileKey
+                }
+                
+                labelTiles[tileKey] = CachedTileLabels(
+                    tileKey: tileKey,
+                    lastSeen: now,
+                    labelsInputs: tileBuffers.labelsInputs,
+                    labelsMeta: meta,
+                    labelsVerticesBuffer: tileBuffers.labelsVerticesBuffer,
+                    labelsCount: labelsCount,
+                    labelsVerticesCount: tileBuffers.labelsVerticesCount
+                )
+                changed = true
+                continue
+            }
+            
+            let inputs = tileBuffers.labelsInputs
+            let ranges = tileBuffers.labelsVerticesRanges
+            let vertices = tileBuffers.labelsVertices
+            var filteredInputs: [GlobeLabelInput] = []
+            var filteredMeta: [GlobeLabelMeta] = []
+            var filteredVertices: [LabelVertex] = []
+            filteredInputs.reserveCapacity(labelsCount)
+            filteredMeta.reserveCapacity(labelsCount)
+            filteredVertices.reserveCapacity(tileBuffers.labelsVerticesCount)
+            
+            var newLabelIndex = 0
+            for i in 0..<labelsCount {
+                let key = meta[i].key
+                if labelKeyOwners[key] != nil {
+                    continue
+                }
+                
+                let newIndex = simd_int1(newLabelIndex)
+                filteredInputs.append(inputs[i])
+                filteredMeta.append(meta[i])
+                
+                let range = ranges[i]
+                let end = range.start + range.count
+                var vertexIndex = range.start
+                while vertexIndex < end {
+                    var vertex = vertices[vertexIndex]
+                    vertex.labelIndex = newIndex
+                    filteredVertices.append(vertex)
+                    vertexIndex += 1
+                }
+                
+                labelKeyOwners[key] = tileKey
+                newLabelIndex += 1
+            }
+            
+            if newLabelIndex == 0 {
+                continue
+            }
+            
+            let verticesBuffer = metalDevice.makeBuffer(
+                bytes: filteredVertices,
+                length: MemoryLayout<LabelVertex>.stride * filteredVertices.count
+            )
+            
+            labelTiles[tileKey] = CachedTileLabels(
+                tileKey: tileKey,
+                lastSeen: now,
+                labelsInputs: filteredInputs,
+                labelsMeta: filteredMeta,
+                labelsVerticesBuffer: verticesBuffer,
+                labelsCount: newLabelIndex,
+                labelsVerticesCount: filteredVertices.count
+            )
+            changed = true
+        }
+        
+        return changed
+    }
+    
+    private func expireLabelCache(now: TimeInterval) -> Bool {
+        var expired: [String] = []
+        for (tileKey, cached) in labelTiles {
+            if now - cached.lastSeen > labelHoldSeconds {
+                expired.append(tileKey)
+            }
+        }
+        
+        if expired.isEmpty {
+            return false
+        }
+        
+        for tileKey in expired {
+            guard let cached = labelTiles.removeValue(forKey: tileKey) else {
+                continue
+            }
+            for meta in cached.labelsMeta {
+                if labelKeyOwners[meta.key] == tileKey {
+                    labelKeyOwners.removeValue(forKey: meta.key)
+                }
+            }
+        }
+        
+        return true
+    }
+    
+    private func rebuildLabelBuffers(visibleTiles: [PlaceTile]) {
+        labelInputs.removeAll(keepingCapacity: true)
+        drawLabels.removeAll(keepingCapacity: true)
+        labelInputs.reserveCapacity(labelTiles.count * 8)
+        
+        var visibleKeys: [String] = []
+        visibleKeys.reserveCapacity(visibleTiles.count)
+        for placeTile in visibleTiles {
+            visibleKeys.append(placeTile.metalTile.tile.key())
+        }
+        
+        let visibleSet = Set(visibleKeys)
+        var seenKeys: Set<String> = []
+        for tileKey in visibleKeys {
+            if seenKeys.contains(tileKey) {
+                continue
+            }
+            seenKeys.insert(tileKey)
+            guard let cached = labelTiles[tileKey] else {
+                continue
+            }
+            labelInputs.append(contentsOf: cached.labelsInputs)
+            drawLabels.append(DrawLabels(
+                labelsVerticesBuffer: cached.labelsVerticesBuffer,
+                labelsCount: cached.labelsCount,
+                labelsVerticesCount: cached.labelsVerticesCount
+            ))
+        }
+        
+        let retainedTiles = labelTiles.values.filter { visibleSet.contains($0.tileKey) == false }
+        let sortedRetained = retainedTiles.sorted { $0.lastSeen > $1.lastSeen }
+        for cached in sortedRetained {
+            labelInputs.append(contentsOf: cached.labelsInputs)
+            drawLabels.append(DrawLabels(
+                labelsVerticesBuffer: cached.labelsVerticesBuffer,
+                labelsCount: cached.labelsCount,
+                labelsVerticesCount: cached.labelsVerticesCount
+            ))
+        }
+        
+        computeGlobeToScreen.copyDataToBuffer(inputs: labelInputs)
     }
     
     private struct TileXY {
@@ -663,4 +834,14 @@ class Renderer {
             }
         }
     }
+}
+
+private struct CachedTileLabels {
+    let tileKey: String
+    var lastSeen: TimeInterval
+    let labelsInputs: [GlobeLabelInput]
+    let labelsMeta: [GlobeLabelMeta]
+    let labelsVerticesBuffer: MTLBuffer?
+    let labelsCount: Int
+    let labelsVerticesCount: Int
 }
