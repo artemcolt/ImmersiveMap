@@ -17,6 +17,7 @@ class ComputeGlobeToScreen {
     var globeComputeOutputBuffer: MTLBuffer
     var globeCollisionOutputBuffer: MTLBuffer
     var labelSizeBuffer: MTLBuffer
+    private var inputsCount: Int = 0
 
     struct CollisionParams {
         var count: UInt32
@@ -66,24 +67,37 @@ class ComputeGlobeToScreen {
         }
     }
     
-    func run(inputs: [GlobeTilePointInput],
-             labelsSize: [TextSize],
-             drawSize: CGSize,
-             cameraUniform: CameraUniform,
-             globe: Globe,
-             commandBuffer: MTLCommandBuffer,
-             screenPoints: ScreenPoints) {
-        guard inputs.isEmpty == false else {
-            screenPoints.set([])
-            return
-        }
-        
+    // копируем в буффер информацию только когда необходимо для оптимизации
+    func copyDataToBuffer(inputs: [GlobeTilePointInput], labelsSize: [TextSize]) {
         ensureBuffersCapacity(count: inputs.count)
         let inputBytes = inputs.count * MemoryLayout<GlobeTilePointInput>.stride
         inputs.withUnsafeBytes { bytes in
             globeComputeInputBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: inputBytes)
         }
+        inputsCount = inputs.count
         
+        var sizeData = Array(repeating: SIMD2<Float>(0, 0), count: inputs.count)
+        let labelCount = min(labelsSize.count, inputs.count)
+        if labelCount > 0 {
+            for i in 0..<labelCount {
+                let size = labelsSize[i]
+                sizeData[i] = SIMD2<Float>(size.width, size.height)
+            }
+        }
+        let sizeBytes = sizeData.count * MemoryLayout<SIMD2<Float>>.stride
+        sizeData.withUnsafeBytes { bytes in
+            labelSizeBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: sizeBytes)
+        }
+    }
+    
+    func run(drawSize: CGSize,
+             cameraUniform: CameraUniform,
+             globe: Globe,
+             commandBuffer: MTLCommandBuffer,
+             screenPoints: ScreenPoints) {
+        guard inputsCount > 0 else {
+            return
+        }
         guard let computeEncoder = commandBuffer.makeComputeCommandEncoder() else {
             return
         }
@@ -104,7 +118,7 @@ class ComputeGlobeToScreen {
         let computeThreadsPerThreadgroup = MTLSize(width: max(1, globeComputePipeline.pipelineState.threadExecutionWidth),
                                                    height: 1,
                                                    depth: 1)
-        let computeThreadgroupsPerGrid = MTLSize(width: (inputs.count + computeThreadsPerThreadgroup.width - 1) / computeThreadsPerThreadgroup.width,
+        let computeThreadgroupsPerGrid = MTLSize(width: (inputsCount + computeThreadsPerThreadgroup.width - 1) / computeThreadsPerThreadgroup.width,
                                                  height: 1,
                                                  depth: 1)
         computeEncoder.dispatchThreadgroups(computeThreadgroupsPerGrid, threadsPerThreadgroup: computeThreadsPerThreadgroup)
@@ -115,20 +129,8 @@ class ComputeGlobeToScreen {
         }
         
         globeCollisionPipeline.encode(encoder: collisionEncoder)
-        var params = CollisionParams(count: UInt32(inputs.count))
+        var params = CollisionParams(count: UInt32(inputsCount))
 
-        var sizeData = Array(repeating: SIMD2<Float>(0, 0), count: inputs.count)
-        let labelCount = min(labelsSize.count, inputs.count)
-        if labelCount > 0 {
-            for i in 0..<labelCount {
-                let size = labelsSize[i]
-                sizeData[i] = SIMD2<Float>(size.width, size.height)
-            }
-        }
-        let sizeBytes = sizeData.count * MemoryLayout<SIMD2<Float>>.stride
-        sizeData.withUnsafeBytes { bytes in
-            labelSizeBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: sizeBytes)
-        }
         
         collisionEncoder.setBuffer(globeComputeOutputBuffer, offset: 0, index: 0)
         collisionEncoder.setBuffer(globeCollisionOutputBuffer, offset: 0, index: 1)
@@ -139,7 +141,7 @@ class ComputeGlobeToScreen {
                                                      height: 1,
                                                      depth: 1)
         let collisionThreadgroupsPerGrid = MTLSize(
-            width: (inputs.count + collisionThreadsPerThreadgroup.width - 1) / collisionThreadsPerThreadgroup.width,
+            width: (inputsCount + collisionThreadsPerThreadgroup.width - 1) / collisionThreadsPerThreadgroup.width,
             height: 1,
             depth: 1)
         collisionEncoder.dispatchThreadgroups(collisionThreadgroupsPerGrid, threadsPerThreadgroup: collisionThreadsPerThreadgroup)

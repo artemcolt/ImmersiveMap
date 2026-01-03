@@ -8,6 +8,7 @@
 class MapParameters {
     static var maxPitch: Float = Float.pi / 2.3
     
+    static var continueRendering: Bool = true
     static var debugAssemblingMap: Bool = false
     static var clearDownloadedOnDiskTiles: Bool = false
     static var addTestBorders: Bool = false
