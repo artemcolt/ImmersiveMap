@@ -16,11 +16,11 @@ class ComputeGlobeToScreen {
     var globeComputeInputBuffer: MTLBuffer
     var globeComputeOutputBuffer: MTLBuffer
     var globeCollisionOutputBuffer: MTLBuffer
+    var labelSizeBuffer: MTLBuffer
 
     struct CollisionParams {
-        var halfSize: SIMD2<Float>
         var count: UInt32
-        var _padding: UInt32 = 0
+        var _padding: SIMD3<UInt32> = SIMD3<UInt32>(0, 0, 0)
     }
     
     init(_ globeComputePipeline: GlobeComputePipeline,
@@ -39,6 +39,9 @@ class ComputeGlobeToScreen {
         globeCollisionOutputBuffer = metalDevice.makeBuffer(
             length: MemoryLayout<UInt32>.stride, options: [.storageModeShared]
         )!
+        labelSizeBuffer = metalDevice.makeBuffer(
+            length: MemoryLayout<SIMD2<Float>>.stride, options: [.storageModeShared]
+        )!
     }
     
     private func ensureBuffersCapacity(count: Int) {
@@ -55,6 +58,11 @@ class ComputeGlobeToScreen {
         let collisionNeeded = count * MemoryLayout<UInt32>.stride
         if globeCollisionOutputBuffer.length < collisionNeeded {
             globeCollisionOutputBuffer = metalDevice.makeBuffer(length: collisionNeeded, options: [.storageModeShared])!
+        }
+
+        let labelSizeNeeded = count * MemoryLayout<SIMD2<Float>>.stride
+        if labelSizeBuffer.length < labelSizeNeeded {
+            labelSizeBuffer = metalDevice.makeBuffer(length: labelSizeNeeded, options: [.storageModeShared])!
         }
     }
     
@@ -107,12 +115,25 @@ class ComputeGlobeToScreen {
         }
         
         globeCollisionPipeline.encode(encoder: collisionEncoder)
-        var params = CollisionParams(halfSize: SIMD2<Float>(25.0, 25.0),
-                                     count: UInt32(inputs.count))
+        var params = CollisionParams(count: UInt32(inputs.count))
+
+        var sizeData = Array(repeating: SIMD2<Float>(0, 0), count: inputs.count)
+        let labelCount = min(labelsSize.count, inputs.count)
+        if labelCount > 0 {
+            for i in 0..<labelCount {
+                let size = labelsSize[i]
+                sizeData[i] = SIMD2<Float>(size.width, size.height)
+            }
+        }
+        let sizeBytes = sizeData.count * MemoryLayout<SIMD2<Float>>.stride
+        sizeData.withUnsafeBytes { bytes in
+            labelSizeBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: sizeBytes)
+        }
         
         collisionEncoder.setBuffer(globeComputeOutputBuffer, offset: 0, index: 0)
         collisionEncoder.setBuffer(globeCollisionOutputBuffer, offset: 0, index: 1)
-        collisionEncoder.setBytes(&params, length: MemoryLayout<CollisionParams>.stride, index: 2)
+        collisionEncoder.setBuffer(labelSizeBuffer, offset: 0, index: 2)
+        collisionEncoder.setBytes(&params, length: MemoryLayout<CollisionParams>.stride, index: 3)
         
         let collisionThreadsPerThreadgroup = MTLSize(width: max(1, globeCollisionPipeline.pipelineState.threadExecutionWidth),
                                                      height: 1,
