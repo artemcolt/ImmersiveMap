@@ -89,7 +89,7 @@ float4 globeClipFromTileUV(float2 localUv,
     float halfMapSize = mapSize / 2.0;
     float posUvX = wrap(vertexUvX * mapSize - halfMapSize + globePanX * halfMapSize, mapSize);
 
-    float lat_v = latitudeAtUv;                       // [-pi/2..pi/2]
+    float lat_v = M_PI_F * vertexUvY - M_PI_2_F;      // [-pi/2..pi/2]
     float v_merc_norm = -getYMercNorm(lat_v);         // [-1..1]
     float posUvY = (v_merc_norm - panY_merc_norm) * halfMapSize;
 
