@@ -10,24 +10,22 @@ import simd
 
 class ComputeGlobeToScreen {
     let globeComputePipeline: GlobeComputePipeline
-    let globeCollisionPipeline: GlobeCollisionPipeline
+    let labelCollisionCalculator: LabelCollisionCalculator
     
     private let metalDevice: MTLDevice
     var globeComputeInputBuffer: MTLBuffer
     var globeComputeOutputBuffer: MTLBuffer
-    var globeCollisionOutputBuffer: MTLBuffer
     private var inputsCount: Int = 0
-
-    struct CollisionParams {
-        var count: UInt32
-        var _padding: SIMD3<UInt32> = SIMD3<UInt32>(0, 0, 0)
+    
+    var labelCollisionOutputBuffer: MTLBuffer {
+        labelCollisionCalculator.outputBuffer
     }
     
     init(_ globeComputePipeline: GlobeComputePipeline,
-         _ globeCollisionPipeline: GlobeCollisionPipeline,
+         _ labelCollisionCalculator: LabelCollisionCalculator,
          metalDevice: MTLDevice) {
         self.globeComputePipeline = globeComputePipeline
-        self.globeCollisionPipeline = globeCollisionPipeline
+        self.labelCollisionCalculator = labelCollisionCalculator
         self.metalDevice = metalDevice
         
         globeComputeInputBuffer = metalDevice.makeBuffer(
@@ -35,9 +33,6 @@ class ComputeGlobeToScreen {
         )!
         globeComputeOutputBuffer = metalDevice.makeBuffer(
             length: MemoryLayout<GlobeScreenPointOutput>.stride, options: [.storageModeShared]
-        )!
-        globeCollisionOutputBuffer = metalDevice.makeBuffer(
-            length: MemoryLayout<UInt32>.stride, options: [.storageModeShared]
         )!
     }
     
@@ -52,10 +47,7 @@ class ComputeGlobeToScreen {
             globeComputeOutputBuffer = metalDevice.makeBuffer(length: outputNeeded, options: [.storageModeShared])!
         }
         
-        let collisionNeeded = count * MemoryLayout<UInt32>.stride
-        if globeCollisionOutputBuffer.length < collisionNeeded {
-            globeCollisionOutputBuffer = metalDevice.makeBuffer(length: collisionNeeded, options: [.storageModeShared])!
-        }
+        labelCollisionCalculator.ensureOutputCapacity(count: count)
     }
     
     // копируем в буффер информацию только когда необходимо для оптимизации
@@ -102,27 +94,11 @@ class ComputeGlobeToScreen {
         computeEncoder.dispatchThreadgroups(computeThreadgroupsPerGrid, threadsPerThreadgroup: computeThreadsPerThreadgroup)
         computeEncoder.endEncoding()
         
-        guard let collisionEncoder = commandBuffer.makeComputeCommandEncoder() else {
-            return
-        }
-        
-        globeCollisionPipeline.encode(encoder: collisionEncoder)
-        var params = CollisionParams(count: UInt32(inputsCount))
-
-        
-        collisionEncoder.setBuffer(globeComputeOutputBuffer, offset: 0, index: 0)
-        collisionEncoder.setBuffer(globeCollisionOutputBuffer, offset: 0, index: 1)
-        collisionEncoder.setBuffer(globeComputeInputBuffer, offset: 0, index: 2)
-        collisionEncoder.setBytes(&params, length: MemoryLayout<CollisionParams>.stride, index: 3)
-        
-        let collisionThreadsPerThreadgroup = MTLSize(width: max(1, globeCollisionPipeline.pipelineState.threadExecutionWidth),
-                                                     height: 1,
-                                                     depth: 1)
-        let collisionThreadgroupsPerGrid = MTLSize(
-            width: (inputsCount + collisionThreadsPerThreadgroup.width - 1) / collisionThreadsPerThreadgroup.width,
-            height: 1,
-            depth: 1)
-        collisionEncoder.dispatchThreadgroups(collisionThreadgroupsPerGrid, threadsPerThreadgroup: collisionThreadsPerThreadgroup)
-        collisionEncoder.endEncoding()
+        labelCollisionCalculator.run(
+            commandBuffer: commandBuffer,
+            inputsCount: inputsCount,
+            screenPointsBuffer: globeComputeOutputBuffer,
+            inputsBuffer: globeComputeInputBuffer
+        )
     }
 }

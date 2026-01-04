@@ -52,8 +52,8 @@ class Renderer {
     private var labelInputs: [GlobeLabelInput] = []
     private var drawLabels: [DrawLabels] = []
     private let labelHoldSeconds: TimeInterval = 3.0
-    private var labelTiles: [String: CachedTileLabels] = [:]
-    private var labelKeyOwners: [UInt64: String] = [:]
+    private var labelTiles: [Tile: CachedTileLabels] = [:]
+    private var labelKeyOwners: [UInt64: Tile] = [:]
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -97,8 +97,9 @@ class Renderer {
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
         let globeComputePipeline = GlobeComputePipeline(metalDevice: metalDevice, library: library)
-        let globeCollisionPipeline = GlobeCollisionPipeline(metalDevice: metalDevice, library: library)
-        computeGlobeToScreen = ComputeGlobeToScreen(globeComputePipeline, globeCollisionPipeline, metalDevice: metalDevice)
+        let labelCollisionPipeline = LabelCollisionPipeline(metalDevice: metalDevice, library: library)
+        let labelCollisionCalculator = LabelCollisionCalculator(pipeline: labelCollisionPipeline, metalDevice: metalDevice)
+        computeGlobeToScreen = ComputeGlobeToScreen(globeComputePipeline, labelCollisionCalculator, metalDevice: metalDevice)
         
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
@@ -405,7 +406,7 @@ class Renderer {
             let textVerticesCount = drawLabel.labelsVerticesCount
             let screenPositions = computeGlobeToScreen.globeComputeOutputBuffer
             let labelInputsBuffer = computeGlobeToScreen.globeComputeInputBuffer
-            let collisionOutput = computeGlobeToScreen.globeCollisionOutputBuffer
+            let collisionOutput = computeGlobeToScreen.labelCollisionOutputBuffer
             
             if labelsCount > 0 {
                 renderEncoder.setVertexBuffer(textVerticesBuffer, offset: 0, index: 0)
@@ -476,7 +477,7 @@ class Renderer {
         var changed = false
         for placeTile in visibleTiles {
             let tile = placeTile.metalTile.tile
-            let tileKey = tile.key()
+            let tileKey = tile
             let tileBuffers = placeTile.metalTile.tileBuffers
             if var cached = labelTiles[tileKey] {
                 cached.lastSeen = now
@@ -595,7 +596,7 @@ class Renderer {
     }
     
     private func expireLabelCache(now: TimeInterval) -> Bool {
-        var expired: [String] = []
+        var expired: [Tile] = []
         for (tileKey, cached) in labelTiles {
             if now - cached.lastSeen > labelHoldSeconds {
                 expired.append(tileKey)
@@ -625,14 +626,14 @@ class Renderer {
         drawLabels.removeAll(keepingCapacity: true)
         labelInputs.reserveCapacity(labelTiles.count * 8)
         
-        var visibleKeys: [String] = []
+        var visibleKeys: [Tile] = []
         visibleKeys.reserveCapacity(visibleTiles.count)
         for placeTile in visibleTiles {
-            visibleKeys.append(placeTile.metalTile.tile.key())
+            visibleKeys.append(placeTile.metalTile.tile)
         }
         
         let visibleSet = Set(visibleKeys)
-        var seenKeys: Set<String> = []
+        var seenKeys: Set<Tile> = []
         for tileKey in visibleKeys {
             if seenKeys.contains(tileKey) {
                 continue
@@ -837,7 +838,7 @@ class Renderer {
 }
 
 private struct CachedTileLabels {
-    let tileKey: String
+    let tileKey: Tile
     var lastSeen: TimeInterval
     let labelsInputs: [GlobeLabelInput]
     let labelsMeta: [GlobeLabelMeta]

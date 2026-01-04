@@ -28,10 +28,6 @@ struct Tile: Hashable {
         hasher.combine(loop)
     }
     
-    func key() -> String {
-        return "\(x)_\(y)_\(z)"
-    }
-    
     init(x: Int, y: Int, z: Int, loop: Int8 = 0) {
         self.x = x
         self.y = y
@@ -77,4 +73,3 @@ struct Tile: Hashable {
         return Tile(x: parentX, y: parentY, z: targetZoom, loop: loop)
     }
 }
-

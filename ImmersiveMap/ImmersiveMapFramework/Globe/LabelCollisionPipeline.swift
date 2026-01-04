@@ -1,5 +1,5 @@
 //
-//  GlobeCollisionPipeline.swift
+//  LabelCollisionPipeline.swift
 //  ImmersiveMap
 //
 //  Created by Artem on 1/3/26.
@@ -7,7 +7,7 @@
 
 import Metal
 
-class GlobeCollisionPipeline {
+class LabelCollisionPipeline {
     let pipelineState: MTLComputePipelineState
     
     init(metalDevice: MTLDevice, library: MTLLibrary) {

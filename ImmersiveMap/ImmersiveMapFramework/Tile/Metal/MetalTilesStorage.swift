@@ -36,7 +36,7 @@ class MetalTilesStorage {
     }
     
     func getMetalTile(tile: Tile) -> MetalTile? {
-        return memoryMetalTile.getTile(forKey: tile.key())
+        return memoryMetalTile.getTile(forKey: tile)
     }
     
     func request(tiles: [Tile], hash: inout Int) -> [TileInStorage] {
@@ -140,10 +140,9 @@ class MetalTilesStorage {
         let metalTile = MetalTile(tile: tile, tileBuffers: tileBuffers)
         
         await MainActor.run {
-            let key = tile.key()
             self.memoryMetalTile.setTileData(
                 tile: metalTile,
-                forKey: key
+                forKey: tile
             )
             
             renderer.newTileAvailable(tile: tile)

@@ -22,10 +22,9 @@ class TileDownloader {
         let zoom = tile.z
         let x = tile.x
         let y = tile.y
-        let tileKey = tile.key()
         let debugAssemblingMap = MapParameters.debugAssemblingMap
         
-        if debugAssemblingMap { print("Download tile \(tileKey)") }
+        if debugAssemblingMap { print("Download tile \(tile)") }
         
         // Create new download task
         let tileURL = mapTileDownloader.get(tileX: x, tileY: y, tileZ: zoom)

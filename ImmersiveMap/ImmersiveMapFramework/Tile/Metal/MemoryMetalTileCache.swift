@@ -1,20 +1,39 @@
 import Foundation
 
+private final class TileCacheKey: NSObject {
+    let tile: Tile
+    
+    init(_ tile: Tile) {
+        self.tile = tile
+    }
+    
+    override var hash: Int {
+        tile.hashValue
+    }
+    
+    override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? TileCacheKey else {
+            return false
+        }
+        return tile == other.tile
+    }
+}
+
 class MemoryMetalTileCache {
-    private let cache: NSCache<NSString, MetalTile>
+    private let cache: NSCache<TileCacheKey, MetalTile>
     
     init(maxCacheSizeInBytes: Int) {
-        self.cache = NSCache<NSString, MetalTile>()
+        self.cache = NSCache<TileCacheKey, MetalTile>()
         self.cache.totalCostLimit = maxCacheSizeInBytes
     }
     
-    func setTileData(tile: MetalTile, forKey key: String) {
+    func setTileData(tile: MetalTile, forKey key: Tile) {
         let estimatedCost = estimateTileByteSize(tile)
-        cache.setObject(tile, forKey: key as NSString, cost: estimatedCost)
+        cache.setObject(tile, forKey: TileCacheKey(key), cost: estimatedCost)
     }
     
-    func getTile(forKey key: String) -> MetalTile? {
-        return cache.object(forKey: key as NSString)
+    func getTile(forKey key: Tile) -> MetalTile? {
+        return cache.object(forKey: TileCacheKey(key))
     }
     
     private func estimateTileByteSize(_ tile: MetalTile) -> Int {

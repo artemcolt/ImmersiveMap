@@ -10,7 +10,7 @@ import MetalKit
 class MapNeedsTile {
     private var tileDownloader: TileDownloader!
     private var tileDiskCaching: TileDiskCaching!
-    private var ongoingTasks: [String: Task<Void, Never>] = [:]
+    private var ongoingTasks: [Tile: Task<Void, Never>] = [:]
     private let maxConcurrentFetchs: Int
     private let fifo: FIFOStack<Tile>
     private let metalTilesStorage: MetalTilesStorage
@@ -45,7 +45,7 @@ class MapNeedsTile {
     }
     
     private func requestSingleTile(tile: Tile) {
-        if ongoingTasks[tile.key()] != nil {
+        if ongoingTasks[tile] != nil {
             return
         }
         
@@ -58,12 +58,12 @@ class MapNeedsTile {
     }
     
     private func createLoadTileTask(tile: Tile) {
-        print("[TILE] " + tile.key() + " load task created.")
+        print("[TILE] \(tile) load task created.")
         let task = Task {
             // Взять с диска, если нету то пойти в интернет
             await loadTile(tile: tile)
         }
-        ongoingTasks[tile.key()] = task
+        ongoingTasks[tile] = task
     }
     
     private func loadTile(tile: Tile) async {
@@ -82,11 +82,11 @@ class MapNeedsTile {
     private func parseTile(data: Data?, tile: Tile) async {
         if let data = data {
             await metalTilesStorage.parseTile(tile: tile, data: data)
-            print("[TILE] " + tile.key() + " ready.")
+            print("[TILE] \(tile) ready.")
         }
         
         await MainActor.run {
-            ongoingTasks.removeValue(forKey: tile.key())
+            ongoingTasks.removeValue(forKey: tile)
             if let deqeueTile = fifo.pop() {
                 requestSingleTile(tile: deqeueTile)
             }
