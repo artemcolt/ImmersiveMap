@@ -29,7 +29,7 @@ float4 globeClipFromTileUV(float2 localUv,
                            int3 tile,
                            constant Camera& camera,
                            constant Globe& globe,
-                           thread float3& spherePositionWorld) {
+                           thread float3& horizonPositionWorld) {
     float vertexUvX = localUv.x; // 0..1 inside the tile
     float vertexUvY = localUv.y; // 0..1 inside the tile
 
@@ -93,9 +93,9 @@ float4 globeClipFromTileUV(float2 localUv,
 
     float4x4 translationM = translationMatrix(float3(0, 0, -globeRadius));
     float4 spherePositionTranslated = rotatedPosition * translationM;
-    spherePositionWorld = spherePositionTranslated.xyz;
     float4 flatPosition = float4(posUvX, posUvY, 0, 1.0);
     float4 position = mix(spherePositionTranslated, flatPosition, transition);
+    horizonPositionWorld = position.xyz;
     return camera.matrix * position;
 }
 
@@ -106,8 +106,8 @@ kernel void globeTileToScreenKernel(const device GlobeLabelInput* inputs [[buffe
                                     constant ScreenParams& screenParams [[buffer(4)]],
                                     uint gid [[thread_position_in_grid]]) {
     GlobeLabelInput input = inputs[gid];
-    float3 spherePositionWorld = float3(0.0);
-    float4 clip = globeClipFromTileUV(input.uv, input.tile, camera, globe, spherePositionWorld);
+    float3 horizonPositionWorld = float3(0.0);
+    float4 clip = globeClipFromTileUV(input.uv, input.tile, camera, globe, horizonPositionWorld);
 
     ScreenPointOutput result;
     if (clip.w <= 0.0) {
@@ -122,14 +122,17 @@ kernel void globeTileToScreenKernel(const device GlobeLabelInput* inputs [[buffe
     float3 toCamera = camera.eye - globeCenter;
     float toCameraLen = length(toCamera);
     if (toCameraLen > 0.0) {
-        float dotToCamera = dot(spherePositionWorld - globeCenter, toCamera);
-        float horizonThreshold = (globe.transition >= 1.0) ? -1e6 : (globe.radius * globe.radius);
-        if (dotToCamera < horizonThreshold) {
-            result.position = float2(0.0);
-            result.depth = 0.0;
-            result.visible = 0;
-            outputs[gid] = result;
-            return;
+        if (globe.transition < 0.95) {
+            float dotToCamera = dot(horizonPositionWorld - globeCenter, toCamera);
+            float horizonFade = smoothstep(0.8, 0.95, globe.transition);
+            float horizonThreshold = mix(globe.radius * globe.radius, -1e6, horizonFade);
+            if (dotToCamera < horizonThreshold) {
+                result.position = float2(0.0);
+                result.depth = 0.0;
+                result.visible = 0;
+                outputs[gid] = result;
+                return;
+            }
         }
     }
 
@@ -148,7 +151,7 @@ kernel void globeTileToScreenKernel(const device GlobeLabelInput* inputs [[buffe
     outputs[gid] = result;
 }
 
-kernel void     (const device GlobeLabelInput* inputs [[buffer(0)]],
+kernel void flatTileToScreenKernel(const device GlobeLabelInput* inputs [[buffer(0)]],
                                    device ScreenPointOutput* outputs [[buffer(1)]],
                                    constant Camera& camera [[buffer(2)]],
                                    constant ScreenParams& screenParams [[buffer(3)]],
