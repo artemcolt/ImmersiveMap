@@ -482,26 +482,8 @@ class Renderer {
             if var cached = labelTiles[tileKey] {
                 cached.lastSeen = now
                 labelTiles[tileKey] = cached
-                
-                var needsRefresh = false
-                for item in tileBuffers.labelsMeta {
-                    if labelKeyOwners[item.key] == nil {
-                        needsRefresh = true
-                        break
-                    }
-                }
-                
-                if needsRefresh == false {
-                    continue
-                }
-                
-                for meta in cached.labelsMeta {
-                    if labelKeyOwners[meta.key] == tileKey {
-                        labelKeyOwners.removeValue(forKey: meta.key)
-                    }
-                }
-                labelTiles.removeValue(forKey: tileKey)
-                changed = true
+
+                continue
             }
             
             let labelsCount = tileBuffers.labelsCount
