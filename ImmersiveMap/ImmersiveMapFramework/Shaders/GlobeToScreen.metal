@@ -123,7 +123,7 @@ kernel void globeTileToScreenKernel(const device GlobeLabelInput* inputs [[buffe
     float toCameraLen = length(toCamera);
     if (toCameraLen > 0.0) {
         float dotToCamera = dot(spherePositionWorld - globeCenter, toCamera);
-        float horizonThreshold = mix(globe.radius * globe.radius, -1e6, globe.transition);
+        float horizonThreshold = (globe.transition >= 1.0) ? -1e6 : (globe.radius * globe.radius);
         if (dotToCamera < horizonThreshold) {
             result.position = float2(0.0);
             result.depth = 0.0;
@@ -148,7 +148,7 @@ kernel void globeTileToScreenKernel(const device GlobeLabelInput* inputs [[buffe
     outputs[gid] = result;
 }
 
-kernel void flatTileToScreenKernel(const device GlobeLabelInput* inputs [[buffer(0)]],
+kernel void     (const device GlobeLabelInput* inputs [[buffer(0)]],
                                    device ScreenPointOutput* outputs [[buffer(1)]],
                                    constant Camera& camera [[buffer(2)]],
                                    constant ScreenParams& screenParams [[buffer(3)]],
