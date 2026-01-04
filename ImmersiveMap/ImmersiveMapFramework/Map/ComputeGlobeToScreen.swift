@@ -94,6 +94,7 @@ class ComputeGlobeToScreen {
         computeEncoder.dispatchThreadgroups(computeThreadgroupsPerGrid, threadsPerThreadgroup: computeThreadsPerThreadgroup)
         computeEncoder.endEncoding()
         
+        // Рассчитываем коллизии текстовых меток на экране
         labelCollisionCalculator.run(
             commandBuffer: commandBuffer,
             inputsCount: inputsCount,

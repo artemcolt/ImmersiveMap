@@ -53,7 +53,7 @@ class Renderer {
     private var drawLabels: [DrawLabels] = []
     private let labelHoldSeconds: TimeInterval = 3.0
     private var labelTiles: [Tile: CachedTileLabels] = [:]
-    private var labelKeyOwners: [UInt64: Tile] = [:]
+    private var labelDuplicateBuffer: MTLBuffer
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -123,6 +123,10 @@ class Renderer {
             indicesCount: baseGrid.indices.count
         )
         
+        labelDuplicateBuffer = metalDevice.makeBuffer(
+            length: MemoryLayout<UInt8>.stride,
+            options: [.storageModeShared]
+        )!
         let len = MemoryLayout<TextVertex>.stride * 4000
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
         
@@ -306,9 +310,9 @@ class Renderer {
         }
         
         let nowTime = Date().timeIntervalSince(startDate)
-        var labelsDirty = updateLabelCache(visibleTiles: savedTiles, now: nowTime)
-        labelsDirty = expireLabelCache(now: nowTime) || labelsDirty
-        if labelsDirty {
+        var labelsNeedsRebuild = updateLabelCache(visibleTiles: savedTiles, now: nowTime)
+        labelsNeedsRebuild = expireLabelCache(now: nowTime) || labelsNeedsRebuild
+        if labelsNeedsRebuild {
             rebuildLabelBuffers(visibleTiles: savedTiles)
         }
         
@@ -407,6 +411,7 @@ class Renderer {
             let screenPositions = computeGlobeToScreen.globeComputeOutputBuffer
             let labelInputsBuffer = computeGlobeToScreen.globeComputeInputBuffer
             let collisionOutput = computeGlobeToScreen.labelCollisionOutputBuffer
+            let duplicateFlagsBuffer = labelDuplicateBuffer
             
             if labelsCount > 0 {
                 renderEncoder.setVertexBuffer(textVerticesBuffer, offset: 0, index: 0)
@@ -415,6 +420,7 @@ class Renderer {
                 renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
                 renderEncoder.setVertexBuffer(labelInputsBuffer, offset: 0, index: 4)
                 renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
+                renderEncoder.setVertexBuffer(duplicateFlagsBuffer, offset: 0, index: 6)
                 renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
                 renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
                 renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVerticesCount)
@@ -479,6 +485,8 @@ class Renderer {
             let tile = placeTile.metalTile.tile
             let tileKey = tile
             let tileBuffers = placeTile.metalTile.tileBuffers
+            
+            // тайл уже в кэше
             if var cached = labelTiles[tileKey] {
                 cached.lastSeen = now
                 labelTiles[tileKey] = cached
@@ -486,90 +494,22 @@ class Renderer {
                 continue
             }
             
+            // в тайле нету лэйблов
             let labelsCount = tileBuffers.labelsCount
             if labelsCount == 0 {
                 continue
             }
-            
+
+            // cохраняем лейблы в кэш
             let meta = tileBuffers.labelsMeta
-            var hasDuplicate = false
-            for item in meta {
-                if labelKeyOwners[item.key] != nil {
-                    hasDuplicate = true
-                    break
-                }
-            }
-            
-            if hasDuplicate == false {
-                for item in meta {
-                    labelKeyOwners[item.key] = tileKey
-                }
-                
-                labelTiles[tileKey] = CachedTileLabels(
-                    tileKey: tileKey,
-                    lastSeen: now,
-                    labelsInputs: tileBuffers.labelsInputs,
-                    labelsMeta: meta,
-                    labelsVerticesBuffer: tileBuffers.labelsVerticesBuffer,
-                    labelsCount: labelsCount,
-                    labelsVerticesCount: tileBuffers.labelsVerticesCount
-                )
-                changed = true
-                continue
-            }
-            
-            let inputs = tileBuffers.labelsInputs
-            let ranges = tileBuffers.labelsVerticesRanges
-            let vertices = tileBuffers.labelsVertices
-            var filteredInputs: [GlobeLabelInput] = []
-            var filteredMeta: [GlobeLabelMeta] = []
-            var filteredVertices: [LabelVertex] = []
-            filteredInputs.reserveCapacity(labelsCount)
-            filteredMeta.reserveCapacity(labelsCount)
-            filteredVertices.reserveCapacity(tileBuffers.labelsVerticesCount)
-            
-            var newLabelIndex = 0
-            for i in 0..<labelsCount {
-                let key = meta[i].key
-                if labelKeyOwners[key] != nil {
-                    continue
-                }
-                
-                let newIndex = simd_int1(newLabelIndex)
-                filteredInputs.append(inputs[i])
-                filteredMeta.append(meta[i])
-                
-                let range = ranges[i]
-                let end = range.start + range.count
-                var vertexIndex = range.start
-                while vertexIndex < end {
-                    var vertex = vertices[vertexIndex]
-                    vertex.labelIndex = newIndex
-                    filteredVertices.append(vertex)
-                    vertexIndex += 1
-                }
-                
-                labelKeyOwners[key] = tileKey
-                newLabelIndex += 1
-            }
-            
-            if newLabelIndex == 0 {
-                continue
-            }
-            
-            let verticesBuffer = metalDevice.makeBuffer(
-                bytes: filteredVertices,
-                length: MemoryLayout<LabelVertex>.stride * filteredVertices.count
-            )
-            
             labelTiles[tileKey] = CachedTileLabels(
                 tileKey: tileKey,
                 lastSeen: now,
-                labelsInputs: filteredInputs,
-                labelsMeta: filteredMeta,
-                labelsVerticesBuffer: verticesBuffer,
-                labelsCount: newLabelIndex,
-                labelsVerticesCount: filteredVertices.count
+                labelsInputs: tileBuffers.labelsInputs,
+                labelsMeta: meta,
+                labelsVerticesBuffer: tileBuffers.labelsVerticesBuffer,
+                labelsCount: labelsCount,
+                labelsVerticesCount: tileBuffers.labelsVerticesCount
             )
             changed = true
         }
@@ -590,14 +530,7 @@ class Renderer {
         }
         
         for tileKey in expired {
-            guard let cached = labelTiles.removeValue(forKey: tileKey) else {
-                continue
-            }
-            for meta in cached.labelsMeta {
-                if labelKeyOwners[meta.key] == tileKey {
-                    labelKeyOwners.removeValue(forKey: meta.key)
-                }
-            }
+            labelTiles.removeValue(forKey: tileKey)
         }
         
         return true
@@ -607,6 +540,9 @@ class Renderer {
         labelInputs.removeAll(keepingCapacity: true)
         drawLabels.removeAll(keepingCapacity: true)
         labelInputs.reserveCapacity(labelTiles.count * 8)
+        var duplicateFlags: [UInt8] = []
+        duplicateFlags.reserveCapacity(labelTiles.count * 8)
+        var seenLabelKeys: Set<UInt64> = []
         
         var visibleKeys: [Tile] = []
         visibleKeys.reserveCapacity(visibleTiles.count)
@@ -614,6 +550,7 @@ class Renderer {
             visibleKeys.append(placeTile.metalTile.tile)
         }
         
+        // Собираем тайлы, которые сейчас на карте
         let visibleSet = Set(visibleKeys)
         var seenKeys: Set<Tile> = []
         for tileKey in visibleKeys {
@@ -625,6 +562,14 @@ class Renderer {
                 continue
             }
             labelInputs.append(contentsOf: cached.labelsInputs)
+            for meta in cached.labelsMeta {
+                if seenLabelKeys.contains(meta.key) {
+                    duplicateFlags.append(1)
+                } else {
+                    duplicateFlags.append(0)
+                    seenLabelKeys.insert(meta.key)
+                }
+            }
             drawLabels.append(DrawLabels(
                 labelsVerticesBuffer: cached.labelsVerticesBuffer,
                 labelsCount: cached.labelsCount,
@@ -632,10 +577,19 @@ class Renderer {
             ))
         }
         
+        // Собираем удерживаемые тайлы, которые должны будут пропасть
         let retainedTiles = labelTiles.values.filter { visibleSet.contains($0.tileKey) == false }
         let sortedRetained = retainedTiles.sorted { $0.lastSeen > $1.lastSeen }
         for cached in sortedRetained {
             labelInputs.append(contentsOf: cached.labelsInputs)
+            for meta in cached.labelsMeta {
+                if seenLabelKeys.contains(meta.key) {
+                    duplicateFlags.append(1)
+                } else {
+                    duplicateFlags.append(0)
+                    seenLabelKeys.insert(meta.key)
+                }
+            }
             drawLabels.append(DrawLabels(
                 labelsVerticesBuffer: cached.labelsVerticesBuffer,
                 labelsCount: cached.labelsCount,
@@ -643,7 +597,25 @@ class Renderer {
             ))
         }
         
+        // Копируем данные в сщьmpute шейдер для рассчет позиций
         computeGlobeToScreen.copyDataToBuffer(inputs: labelInputs)
+        
+        // Если буффер дубликатов недостаточно большой, то расширяем его
+        let duplicateNeeded = max(1, duplicateFlags.count) * MemoryLayout<UInt8>.stride
+        if labelDuplicateBuffer.length < duplicateNeeded {
+            labelDuplicateBuffer = metalDevice.makeBuffer(
+                length: duplicateNeeded,
+                options: [.storageModeShared]
+            )!
+        }
+        
+        // копируем массив дубликатов в буффер дубликатов
+        if duplicateFlags.isEmpty == false {
+            let bytesCount = duplicateFlags.count * MemoryLayout<UInt8>.stride
+            duplicateFlags.withUnsafeBytes { bytes in
+                labelDuplicateBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
+            }
+        }
     }
     
     private struct TileXY {
