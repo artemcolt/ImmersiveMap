@@ -16,12 +16,19 @@ final class LabelCache {
     private let labelHoldSeconds: TimeInterval = 3.0
     private var labelTiles: [Tile: CachedTileLabels] = [:]
     private(set) var labelDuplicateBuffer: MTLBuffer
+    private(set) var labelTilesList: [Tile] = []
+    private(set) var labelTileIndices: [UInt32] = []
+    private(set) var labelTileIndicesBuffer: MTLBuffer
 
     init(metalDevice: MTLDevice, computeGlobeToScreen: ComputeGlobeToScreen) {
         self.metalDevice = metalDevice
         self.computeGlobeToScreen = computeGlobeToScreen
         self.labelDuplicateBuffer = metalDevice.makeBuffer(
             length: MemoryLayout<UInt8>.stride,
+            options: [.storageModeShared]
+        )!
+        self.labelTileIndicesBuffer = metalDevice.makeBuffer(
+            length: MemoryLayout<UInt32>.stride,
             options: [.storageModeShared]
         )!
     }
@@ -92,10 +99,14 @@ final class LabelCache {
     private func rebuildLabelBuffers(visibleTiles: [PlaceTile]) {
         labelInputs.removeAll(keepingCapacity: true)
         drawLabels.removeAll(keepingCapacity: true)
+        labelTilesList.removeAll(keepingCapacity: true)
+        labelTileIndices.removeAll(keepingCapacity: true)
         labelInputs.reserveCapacity(labelTiles.count * 8)
         var duplicateFlags: [UInt8] = []
         duplicateFlags.reserveCapacity(labelTiles.count * 8)
         var seenLabelKeys: Set<UInt64> = []
+        labelTilesList.reserveCapacity(labelTiles.count)
+        labelTileIndices.reserveCapacity(labelTiles.count * 8)
 
         var visibleKeys: [Tile] = []
         visibleKeys.reserveCapacity(visibleTiles.count)
@@ -113,7 +124,7 @@ final class LabelCache {
             guard let cached = labelTiles[tileKey] else {
                 continue
             }
-            labelInputs.append(contentsOf: cached.labelsInputs)
+            let tileIndex = appendTileLabels(cached: cached)
             for meta in cached.labelsMeta {
                 if seenLabelKeys.contains(meta.key) {
                     duplicateFlags.append(1)
@@ -132,7 +143,7 @@ final class LabelCache {
         let retainedTiles = labelTiles.values.filter { visibleSet.contains($0.tileKey) == false }
         let sortedRetained = retainedTiles.sorted { $0.lastSeen > $1.lastSeen }
         for cached in sortedRetained {
-            labelInputs.append(contentsOf: cached.labelsInputs)
+            _ = appendTileLabels(cached: cached)
             for meta in cached.labelsMeta {
                 if seenLabelKeys.contains(meta.key) {
                     duplicateFlags.append(1)
@@ -163,6 +174,31 @@ final class LabelCache {
                 labelDuplicateBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
             }
         }
+
+        let indicesNeeded = max(1, labelTileIndices.count) * MemoryLayout<UInt32>.stride
+        if labelTileIndicesBuffer.length < indicesNeeded {
+            labelTileIndicesBuffer = metalDevice.makeBuffer(
+                length: indicesNeeded,
+                options: [.storageModeShared]
+            )!
+        }
+        if labelTileIndices.isEmpty == false {
+            let bytesCount = labelTileIndices.count * MemoryLayout<UInt32>.stride
+            labelTileIndices.withUnsafeBytes { bytes in
+                labelTileIndicesBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
+            }
+        }
+    }
+
+    private func appendTileLabels(cached: CachedTileLabels) -> UInt32 {
+        let tileIndex = UInt32(labelTilesList.count)
+        labelTilesList.append(cached.tileKey)
+        labelInputs.append(contentsOf: cached.labelsInputs)
+        let count = cached.labelsInputs.count
+        if count > 0 {
+            labelTileIndices.append(contentsOf: repeatElement(tileIndex, count: count))
+        }
+        return tileIndex
     }
 }
 

@@ -51,6 +51,9 @@ class Renderer {
     private let screenMatrix: ScreenMatrix = ScreenMatrix()
     private let computeGlobeToScreen: ComputeGlobeToScreen
     private let labelCache: LabelCache
+    private var tileOriginsBuffer: MTLBuffer
+    private var tileSizesBuffer: MTLBuffer
+    private var relativeTileSizes: [Float] = []
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -94,9 +97,10 @@ class Renderer {
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
         let globeComputePipeline = GlobeComputePipeline(metalDevice: metalDevice, library: library)
+        let flatComputePipeline = FlatComputePipeline(metalDevice: metalDevice, library: library)
         let labelCollisionPipeline = LabelCollisionPipeline(metalDevice: metalDevice, library: library)
         let labelCollisionCalculator = LabelCollisionCalculator(pipeline: labelCollisionPipeline, metalDevice: metalDevice)
-        computeGlobeToScreen = ComputeGlobeToScreen(globeComputePipeline, labelCollisionCalculator, metalDevice: metalDevice)
+        computeGlobeToScreen = ComputeGlobeToScreen(globeComputePipeline, flatComputePipeline, labelCollisionCalculator, metalDevice: metalDevice)
         
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
@@ -122,6 +126,8 @@ class Renderer {
         
         let len = MemoryLayout<TextVertex>.stride * 4000
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
+        tileOriginsBuffer = metalDevice.makeBuffer(length: MemoryLayout<SIMD2<Float>>.stride)!
+        tileSizesBuffer = metalDevice.makeBuffer(length: MemoryLayout<Float>.stride)!
         
         
         labelCache = LabelCache(metalDevice: metalDevice, computeGlobeToScreen: computeGlobeToScreen)
@@ -205,6 +211,7 @@ class Renderer {
         let to = from + span
         transition = max(0.0, min(1.0, (Float(z) - from) / (to - from)))
         radius = 0.14 * worldScale
+        let mapSize = 2.0 * Double.pi * radius
         
         var globe = Globe(panX: Float(cameraControl.globePan.x),
                           panY: Float(cameraControl.globePan.y),
@@ -232,7 +239,6 @@ class Renderer {
         } else if viewMode == .flat {
             center = getFlatMapCenter(targetZoom: zoom)
             print("Center = \(center)")
-            let mapSize = 2.0 * Double.pi * radius
             seeTiles = tileCulling.iSeeTilesFlat(targetZoom: zoom, center: center, pan: cameraControl.flatPan, mapSize: mapSize)
         }
         let seeTilesHash = seeTiles.hashValue
@@ -302,22 +308,16 @@ class Renderer {
                 tilesTexture.endEncoding()
             }
             
-            // Вычисляем относительные координаты
-            let flatPan = cameraControl.flatPan
-            let tilesCount = 1 << zoom
-            let tilesCountDouble = Double(tilesCount)
-            relativeTileCoords = savedTiles.map { placeTile in
-                let tile = placeTile.placeIn
-                let tilePanX = 1.0 - (2.0 * Double(tile.x) / tilesCountDouble)
-                let tilePanY = 1.0 - (2.0 * Double(tile.y) / tilesCountDouble)
-                let relativeX = tilePanX - flatPan.x
-                let relativeY = tilePanY - flatPan.y
-                return SIMD2<Float>(Float(relativeX), Float(relativeY))
-            }
         }
-        
+
         let nowTime = Date().timeIntervalSince(startDate)
         labelCache.update(visibleTiles: savedTiles, now: nowTime)
+        if viewMode == .flat {
+            updateRelativeTileCoords(tiles: labelCache.labelTilesList,
+                                     zoom: zoom,
+                                     flatPan: cameraControl.flatPan,
+                                     mapSize: mapSize)
+        }
         
         
         // Camera uniform
@@ -327,11 +327,21 @@ class Renderer {
 
 
         // Высчитываем положения и коллизии текстовых меток
-        computeGlobeToScreen.run(drawSize: drawSize,
-                                 cameraUniform: cameraUniform,
-                                 globe: globe,
-                                 commandBuffer: commandBuffer,
-                                 screenPoints: screenPoints)
+        if viewMode == .spherical {
+            computeGlobeToScreen.runGlobe(drawSize: drawSize,
+                                          cameraUniform: cameraUniform,
+                                          globe: globe,
+                                          commandBuffer: commandBuffer,
+                                          screenPoints: screenPoints)
+        } else if viewMode == .flat {
+            computeGlobeToScreen.runFlat(drawSize: drawSize,
+                                         cameraUniform: cameraUniform,
+                                         tileOriginsBuffer: tileOriginsBuffer,
+                                         labelTileIndicesBuffer: labelCache.labelTileIndicesBuffer,
+                                         tileSizesBuffer: tileSizesBuffer,
+                                         commandBuffer: commandBuffer,
+                                         screenPoints: screenPoints)
+        }
         
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture
@@ -507,6 +517,42 @@ class Renderer {
         let tileX = ((-pan.x + 1.0) / 2.0) * Double(tilesCount)
         let tileY = ((-pan.y + 1.0) / 2.0) * Double(tilesCount)
         return Center(tileX: tileX, tileY: tileY)
+    }
+
+    private func updateRelativeTileCoords(tiles: [Tile], zoom: Int, flatPan: SIMD2<Double>, mapSize: Double) {
+        let halfMapSize = mapSize / 2.0
+        relativeTileSizes.removeAll(keepingCapacity: true)
+        relativeTileSizes.reserveCapacity(tiles.count)
+        relativeTileCoords = tiles.map { tile in
+            let tilesCount = 1 << tile.z
+            let tileSize = mapSize / Double(tilesCount)
+            let originX = Double(tile.x) * tileSize - halfMapSize + flatPan.x * halfMapSize + Double(tile.loop) * mapSize
+            let originY = Double(tilesCount - tile.y - 1) * tileSize - halfMapSize - flatPan.y * halfMapSize
+            relativeTileSizes.append(Float(tileSize))
+            return SIMD2<Float>(Float(originX), Float(originY))
+        }
+        
+        let needed = max(1, relativeTileCoords.count) * MemoryLayout<SIMD2<Float>>.stride
+        if tileOriginsBuffer.length < needed {
+            tileOriginsBuffer = metalDevice.makeBuffer(length: needed)!
+        }
+        if relativeTileCoords.isEmpty == false {
+            let bytesCount = relativeTileCoords.count * MemoryLayout<SIMD2<Float>>.stride
+            relativeTileCoords.withUnsafeBytes { bytes in
+                tileOriginsBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
+            }
+        }
+
+        let sizesNeeded = max(1, relativeTileSizes.count) * MemoryLayout<Float>.stride
+        if tileSizesBuffer.length < sizesNeeded {
+            tileSizesBuffer = metalDevice.makeBuffer(length: sizesNeeded)!
+        }
+        if relativeTileSizes.isEmpty == false {
+            let bytesCount = relativeTileSizes.count * MemoryLayout<Float>.stride
+            relativeTileSizes.withUnsafeBytes { bytes in
+                tileSizesBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
+            }
+        }
     }
     
     func switchRenderMode() {

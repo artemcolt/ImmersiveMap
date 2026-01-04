@@ -10,6 +10,7 @@ import simd
 
 class ComputeGlobeToScreen {
     let globeComputePipeline: GlobeComputePipeline
+    let flatComputePipeline: FlatComputePipeline
     let labelCollisionCalculator: LabelCollisionCalculator
     
     private let metalDevice: MTLDevice
@@ -22,9 +23,11 @@ class ComputeGlobeToScreen {
     }
     
     init(_ globeComputePipeline: GlobeComputePipeline,
+         _ flatComputePipeline: FlatComputePipeline,
          _ labelCollisionCalculator: LabelCollisionCalculator,
          metalDevice: MTLDevice) {
         self.globeComputePipeline = globeComputePipeline
+        self.flatComputePipeline = flatComputePipeline
         self.labelCollisionCalculator = labelCollisionCalculator
         self.metalDevice = metalDevice
         
@@ -60,11 +63,11 @@ class ComputeGlobeToScreen {
         inputsCount = inputs.count
     }
     
-    func run(drawSize: CGSize,
-             cameraUniform: CameraUniform,
-             globe: Globe,
-             commandBuffer: MTLCommandBuffer,
-             screenPoints: ScreenPoints) {
+    func runGlobe(drawSize: CGSize,
+                  cameraUniform: CameraUniform,
+                  globe: Globe,
+                  commandBuffer: MTLCommandBuffer,
+                  screenPoints: ScreenPoints) {
         guard inputsCount > 0 else {
             return
         }
@@ -95,6 +98,51 @@ class ComputeGlobeToScreen {
         computeEncoder.endEncoding()
         
         // Рассчитываем коллизии текстовых меток на экране
+        labelCollisionCalculator.run(
+            commandBuffer: commandBuffer,
+            inputsCount: inputsCount,
+            screenPointsBuffer: globeComputeOutputBuffer,
+            inputsBuffer: globeComputeInputBuffer
+        )
+    }
+
+    func runFlat(drawSize: CGSize,
+                 cameraUniform: CameraUniform,
+                 tileOriginsBuffer: MTLBuffer,
+                 labelTileIndicesBuffer: MTLBuffer,
+                 tileSizesBuffer: MTLBuffer,
+                 commandBuffer: MTLCommandBuffer,
+                 screenPoints: ScreenPoints) {
+        guard inputsCount > 0 else {
+            return
+        }
+        guard let computeEncoder = commandBuffer.makeComputeCommandEncoder() else {
+            return
+        }
+
+        flatComputePipeline.encode(encoder: computeEncoder)
+
+        var screenParams = GlobeScreenParams(viewportSize: SIMD2<Float>(Float(drawSize.width), Float(drawSize.height)),
+                                             outputPixels: 1)
+
+        var cameraUniform = cameraUniform
+        computeEncoder.setBuffer(globeComputeInputBuffer, offset: 0, index: 0)
+        computeEncoder.setBuffer(globeComputeOutputBuffer, offset: 0, index: 1)
+        computeEncoder.setBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 2)
+        computeEncoder.setBytes(&screenParams, length: MemoryLayout<GlobeScreenParams>.stride, index: 3)
+        computeEncoder.setBuffer(tileOriginsBuffer, offset: 0, index: 4)
+        computeEncoder.setBuffer(labelTileIndicesBuffer, offset: 0, index: 5)
+        computeEncoder.setBuffer(tileSizesBuffer, offset: 0, index: 6)
+
+        let computeThreadsPerThreadgroup = MTLSize(width: max(1, flatComputePipeline.pipelineState.threadExecutionWidth),
+                                                   height: 1,
+                                                   depth: 1)
+        let computeThreadgroupsPerGrid = MTLSize(width: (inputsCount + computeThreadsPerThreadgroup.width - 1) / computeThreadsPerThreadgroup.width,
+                                                 height: 1,
+                                                 depth: 1)
+        computeEncoder.dispatchThreadgroups(computeThreadgroupsPerGrid, threadsPerThreadgroup: computeThreadsPerThreadgroup)
+        computeEncoder.endEncoding()
+
         labelCollisionCalculator.run(
             commandBuffer: commandBuffer,
             inputsCount: inputsCount,
