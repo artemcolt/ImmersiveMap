@@ -42,6 +42,7 @@ class Renderer {
     private var previousSeeTilesHash: Int = 0
     private var savedSeeTiles: [Tile] = []
     private var savedTiles: [PlaceTile] = []
+    private var relativeTileCoords: [SIMD2<Float>] = []
     private var previousZoom: Int
     private var previousStorageHash: Int = 0
     private let tile: Tile = Tile(x: 0, y: 0, z: 0)
@@ -300,6 +301,19 @@ class Renderer {
                 // Завершаем рисование в текстуре с тайлами
                 tilesTexture.endEncoding()
             }
+            
+            // Вычисляем относительные координаты
+            let flatPan = cameraControl.flatPan
+            let tilesCount = 1 << zoom
+            let tilesCountDouble = Double(tilesCount)
+            relativeTileCoords = savedTiles.map { placeTile in
+                let tile = placeTile.placeIn
+                let tilePanX = 1.0 - (2.0 * Double(tile.x) / tilesCountDouble)
+                let tilePanY = 1.0 - (2.0 * Double(tile.y) / tilesCountDouble)
+                let relativeX = tilePanX - flatPan.x
+                let relativeY = tilePanY - flatPan.y
+                return SIMD2<Float>(Float(relativeX), Float(relativeY))
+            }
         }
         
         let nowTime = Date().timeIntervalSince(startDate)
@@ -310,7 +324,8 @@ class Renderer {
         var cameraUniform = CameraUniform(matrix: cameraMatrix,
                                           eye: camera.eye,
                                           padding: 0)
-        
+
+
         // Высчитываем положения и коллизии текстовых меток
         computeGlobeToScreen.run(drawSize: drawSize,
                                  cameraUniform: cameraUniform,
