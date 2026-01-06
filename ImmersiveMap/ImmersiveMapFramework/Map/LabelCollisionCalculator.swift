@@ -40,8 +40,7 @@ class LabelCollisionCalculator {
              inputsCount: Int,
              screenPointsBuffer: MTLBuffer,
              inputsBuffer: MTLBuffer,
-             labelStateBuffer: MTLBuffer,
-             duplicateFlagsBuffer: MTLBuffer,
+             labelRuntimeBuffer: MTLBuffer,
              desiredVisibilityBuffer: MTLBuffer,
              now: Float,
              duration: Float) {
@@ -58,10 +57,9 @@ class LabelCollisionCalculator {
         encoder.setBuffer(screenPointsBuffer, offset: 0, index: 0)
         encoder.setBuffer(outputBuffer, offset: 0, index: 1)
         encoder.setBuffer(inputsBuffer, offset: 0, index: 2)
-        encoder.setBuffer(labelStateBuffer, offset: 0, index: 3)
-        encoder.setBuffer(duplicateFlagsBuffer, offset: 0, index: 4)
-        encoder.setBuffer(desiredVisibilityBuffer, offset: 0, index: 5)
-        encoder.setBytes(&params, length: MemoryLayout<LabelCollisionParams>.stride, index: 6)
+        encoder.setBuffer(labelRuntimeBuffer, offset: 0, index: 3)
+        encoder.setBuffer(desiredVisibilityBuffer, offset: 0, index: 4)
+        encoder.setBytes(&params, length: MemoryLayout<LabelCollisionParams>.stride, index: 5)
 
         let threadsPerThreadgroup = MTLSize(
             width: max(1, pipeline.pipelineState.threadExecutionWidth),

@@ -274,8 +274,7 @@ class Renderer {
                                            cameraUniform: cameraUniform,
                                            globe: globe,
                                            commandBuffer: commandBuffer,
-                                           labelStateBuffer: labelCache.labelStateBuffer,
-                                           duplicateFlagsBuffer: labelCache.labelDuplicateBuffer,
+                                           labelRuntimeBuffer: labelCache.labelRuntimeBuffer,
                                            desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
                                            now: Float(nowTime),
                                            duration: labelFadeDuration)
@@ -286,8 +285,7 @@ class Renderer {
                                               tileOriginDataBuffer: tileOriginDataBuffer,
                                               labelTileIndicesBuffer: labelCache.labelTileIndicesBuffer,
                                               commandBuffer: commandBuffer,
-                                              labelStateBuffer: labelCache.labelStateBuffer,
-                                              duplicateFlagsBuffer: labelCache.labelDuplicateBuffer,
+                                              labelRuntimeBuffer: labelCache.labelRuntimeBuffer,
                                               desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
                                               now: Float(nowTime),
                                               duration: labelFadeDuration)
@@ -308,7 +306,6 @@ class Renderer {
             globePipeline.selectPipeline(renderEncoder: renderEncoder)
             
             renderEncoder.setCullMode(.front)
-            
             renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
             renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
             renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
@@ -376,8 +373,7 @@ class Renderer {
             let screenPositions = labelScreenCompute.labelOutputBuffer
             let labelInputsBuffer = labelScreenCompute.labelInputBuffer
             let collisionOutput = labelScreenCompute.labelCollisionOutputBuffer
-            let duplicateFlagsBuffer = labelCache.labelDuplicateBuffer
-            let labelStateBuffer = labelCache.labelStateBuffer
+            let labelRuntimeBuffer = labelCache.labelRuntimeBuffer
             
             if labelsCount > 0 {
                 renderEncoder.setVertexBuffer(textVerticesBuffer, offset: 0, index: 0)
@@ -386,10 +382,9 @@ class Renderer {
                 renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
                 renderEncoder.setVertexBuffer(labelInputsBuffer, offset: 0, index: 4)
                 renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
-                renderEncoder.setVertexBuffer(duplicateFlagsBuffer, offset: 0, index: 6)
-                renderEncoder.setVertexBuffer(labelStateBuffer, offset: 0, index: 7)
+                renderEncoder.setVertexBuffer(labelRuntimeBuffer, offset: 0, index: 6)
                 var appTime = Float(nowTime)
-                renderEncoder.setVertexBytes(&appTime, length: MemoryLayout<Float>.stride, index: 8)
+                renderEncoder.setVertexBytes(&appTime, length: MemoryLayout<Float>.stride, index: 7)
                 renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
                 renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
                 renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVerticesCount)

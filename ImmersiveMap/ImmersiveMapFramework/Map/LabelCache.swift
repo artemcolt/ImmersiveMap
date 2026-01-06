@@ -16,8 +16,7 @@ final class LabelCache {
     private let labelHoldSeconds: TimeInterval = 3.0
     private var labelTiles: [Tile: CachedTileLabels] = [:]
     private var lastVisibleTileKeys: Set<Tile> = []
-    private(set) var labelDuplicateBuffer: MTLBuffer
-    private(set) var labelStateBuffer: MTLBuffer
+    private(set) var labelRuntimeBuffer: MTLBuffer
     private(set) var labelInputsCount: Int = 0
     private(set) var labelTilesList: [Tile] = []
     private var labelStateIndices: [LabelStateIndex] = []
@@ -28,12 +27,8 @@ final class LabelCache {
     init(metalDevice: MTLDevice, computeGlobeToScreen: LabelScreenCompute) {
         self.metalDevice = metalDevice
         self.labelScreenCompute = computeGlobeToScreen
-        self.labelDuplicateBuffer = metalDevice.makeBuffer(
-            length: MemoryLayout<UInt8>.stride,
-            options: [.storageModeShared]
-        )!
-        self.labelStateBuffer = metalDevice.makeBuffer(
-            length: MemoryLayout<LabelState>.stride,
+        self.labelRuntimeBuffer = metalDevice.makeBuffer(
+            length: MemoryLayout<LabelRuntimeState>.stride,
             options: [.storageModeShared]
         )!
         self.labelDesiredVisibilityBuffer = metalDevice.makeBuffer(
@@ -125,10 +120,8 @@ final class LabelCache {
         labelTileIndices.removeAll(keepingCapacity: true)
         labelStateIndices.removeAll(keepingCapacity: true)
         labelInputs.reserveCapacity(labelTiles.count * 8)
-        var duplicateFlags: [UInt8] = []
-        duplicateFlags.reserveCapacity(labelTiles.count * 8)
-        var labelStates: [LabelState] = []
-        labelStates.reserveCapacity(labelTiles.count * 8)
+        var runtimeStates: [LabelRuntimeState] = []
+        runtimeStates.reserveCapacity(labelTiles.count * 8)
         var desiredVisibility: [UInt8] = []
         desiredVisibility.reserveCapacity(labelTiles.count * 8)
         var seenLabelKeys: Set<UInt64> = []
@@ -154,13 +147,14 @@ final class LabelCache {
             let tileIndex = appendTileLabels(cached: cached)
             for (index, meta) in cached.labelsMeta.enumerated() {
                 labelStateIndices.append(LabelStateIndex(tileKey: cached.tileKey, localIndex: index))
+                let duplicate: UInt32
                 if seenLabelKeys.contains(meta.key) {
-                    duplicateFlags.append(1)
+                    duplicate = 1
                 } else {
-                    duplicateFlags.append(0)
+                    duplicate = 0
                     seenLabelKeys.insert(meta.key)
                 }
-                labelStates.append(cached.labelsStates[index])
+                runtimeStates.append(LabelRuntimeState(state: cached.labelsStates[index], duplicate: duplicate))
                 desiredVisibility.append(1)
             }
             drawLabels.append(DrawLabels(
@@ -176,13 +170,14 @@ final class LabelCache {
             _ = appendTileLabels(cached: cached)
             for (index, meta) in cached.labelsMeta.enumerated() {
                 labelStateIndices.append(LabelStateIndex(tileKey: cached.tileKey, localIndex: index))
+                let duplicate: UInt32
                 if seenLabelKeys.contains(meta.key) {
-                    duplicateFlags.append(1)
+                    duplicate = 1
                 } else {
-                    duplicateFlags.append(0)
+                    duplicate = 0
                     seenLabelKeys.insert(meta.key)
                 }
-                labelStates.append(cached.labelsStates[index])
+                runtimeStates.append(LabelRuntimeState(state: cached.labelsStates[index], duplicate: duplicate))
                 desiredVisibility.append(0)
             }
             drawLabels.append(DrawLabels(
@@ -194,22 +189,8 @@ final class LabelCache {
 
         labelScreenCompute.copyDataToBuffer(inputs: labelInputs)
         labelInputsCount = labelInputs.count
-        updateLabelStateBuffer(labelStates: labelStates)
+        updateLabelRuntimeBuffer(runtimeStates: runtimeStates)
         updateLabelDesiredVisibilityBuffer(desiredVisibility: desiredVisibility)
-
-        let duplicateNeeded = max(1, duplicateFlags.count) * MemoryLayout<UInt8>.stride
-        if labelDuplicateBuffer.length < duplicateNeeded {
-            labelDuplicateBuffer = metalDevice.makeBuffer(
-                length: duplicateNeeded,
-                options: [.storageModeShared]
-            )!
-        }
-        if duplicateFlags.isEmpty == false {
-            let bytesCount = duplicateFlags.count * MemoryLayout<UInt8>.stride
-            duplicateFlags.withUnsafeBytes { bytes in
-                labelDuplicateBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
-            }
-        }
 
         let indicesNeeded = max(1, labelTileIndices.count) * MemoryLayout<UInt32>.stride
         if labelTileIndicesBuffer.length < indicesNeeded {
@@ -242,35 +223,35 @@ final class LabelCache {
             return
         }
         let count = min(labelInputsCount, labelStateIndices.count)
-        let pointer = labelStateBuffer.contents().assumingMemoryBound(to: LabelState.self)
+        let pointer = labelRuntimeBuffer.contents().assumingMemoryBound(to: LabelRuntimeState.self)
         for i in 0..<count {
             let index = labelStateIndices[i]
             guard var cached = labelTiles[index.tileKey],
                   index.localIndex < cached.labelsStates.count else {
                 continue
             }
-            cached.labelsStates[index.localIndex] = pointer[i]
+            cached.labelsStates[index.localIndex] = pointer[i].state
             labelTiles[index.tileKey] = cached
         }
     }
 
-    private func updateLabelStateBuffer(labelStates: [LabelState]) {
+    private func updateLabelRuntimeBuffer(runtimeStates: [LabelRuntimeState]) {
         let count = max(1, labelInputsCount)
-        let needed = count * MemoryLayout<LabelState>.stride
-        if labelStateBuffer.length < needed {
-            labelStateBuffer = metalDevice.makeBuffer(
+        let needed = count * MemoryLayout<LabelRuntimeState>.stride
+        if labelRuntimeBuffer.length < needed {
+            labelRuntimeBuffer = metalDevice.makeBuffer(
                 length: needed,
                 options: [.storageModeShared]
             )!
         }
 
-        var states = labelStates
+        var states = runtimeStates
         if labelInputsCount == 0 {
-            states = [LabelState(alpha: 0, target: 0, changeTime: 0, alphaStart: 0)]
+            states = [LabelRuntimeState(state: LabelState(alpha: 0, target: 0, changeTime: 0, alphaStart: 0), duplicate: 0)]
         }
-        let bytesCount = states.count * MemoryLayout<LabelState>.stride
+        let bytesCount = states.count * MemoryLayout<LabelRuntimeState>.stride
         states.withUnsafeBytes { bytes in
-            labelStateBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
+            labelRuntimeBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
         }
 
     }

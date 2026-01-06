@@ -20,8 +20,7 @@ final class GlobeLabelScreenCompute {
              commandBuffer: MTLCommandBuffer,
              buffers: LabelScreenBuffers,
              collisionCalculator: LabelCollisionCalculator,
-             labelStateBuffer: MTLBuffer,
-             duplicateFlagsBuffer: MTLBuffer,
+             labelRuntimeBuffer: MTLBuffer,
              desiredVisibilityBuffer: MTLBuffer,
              now: Float,
              duration: Float) {
@@ -59,8 +58,7 @@ final class GlobeLabelScreenCompute {
             inputsCount: buffers.inputsCount,
             screenPointsBuffer: buffers.outputBuffer,
             inputsBuffer: buffers.inputBuffer,
-            labelStateBuffer: labelStateBuffer,
-            duplicateFlagsBuffer: duplicateFlagsBuffer,
+            labelRuntimeBuffer: labelRuntimeBuffer,
             desiredVisibilityBuffer: desiredVisibilityBuffer,
             now: now,
             duration: duration

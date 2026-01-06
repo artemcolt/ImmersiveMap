@@ -13,10 +13,9 @@ using namespace metal;
 kernel void labelCollisionKernel(const device ScreenPointOutput* points [[buffer(0)]],
                                  device uint* visibility [[buffer(1)]],
                                  const device GlobeLabelInput* inputs [[buffer(2)]],
-                                 device LabelState* labelStates [[buffer(3)]],
-                                 const device uchar* duplicateFlags [[buffer(4)]],
-                                 const device uchar* desiredVisibility [[buffer(5)]],
-                                 constant LabelCollisionParams& params [[buffer(6)]],
+                                 device LabelRuntimeState* labelStates [[buffer(3)]],
+                                 const device uchar* desiredVisibility [[buffer(4)]],
+                                 constant LabelCollisionParams& params [[buffer(5)]],
                                  uint gid [[thread_position_in_grid]]) {
     if (gid >= params.count) {
         return;
@@ -46,12 +45,12 @@ kernel void labelCollisionKernel(const device ScreenPointOutput* points [[buffer
         }
     }
 
-    if (duplicateFlags[gid] != 0 || desiredVisibility[gid] == 0) {
+    if (labelStates[gid].duplicate != 0 || desiredVisibility[gid] == 0) {
         isVisible = 0;
     }
     visibility[gid] = isVisible;
 
-    LabelState state = labelStates[gid];
+    LabelState state = labelStates[gid].state;
     float desiredTarget = (isVisible != 0) ? 1.0 : 0.0;
     if (desiredTarget != state.target) {
         state.alphaStart = state.alpha;
@@ -62,5 +61,5 @@ kernel void labelCollisionKernel(const device ScreenPointOutput* points [[buffer
     float t = (params.duration > 0.0) ? ((params.now - state.changeTime) / params.duration) : 1.0;
     t = clamp(t, 0.0, 1.0);
     state.alpha = mix(state.alphaStart, state.target, t);
-    labelStates[gid] = state;
+    labelStates[gid].state = state;
 }

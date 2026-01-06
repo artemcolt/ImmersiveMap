@@ -44,8 +44,7 @@ final class LabelScreenCompute {
                   cameraUniform: CameraUniform,
                   globe: Globe,
                   commandBuffer: MTLCommandBuffer,
-                  labelStateBuffer: MTLBuffer,
-                  duplicateFlagsBuffer: MTLBuffer,
+                  labelRuntimeBuffer: MTLBuffer,
                   desiredVisibilityBuffer: MTLBuffer,
                   now: Float,
                   duration: Float) {
@@ -55,8 +54,7 @@ final class LabelScreenCompute {
                          commandBuffer: commandBuffer,
                          buffers: buffers,
                          collisionCalculator: labelCollisionCalculator,
-                         labelStateBuffer: labelStateBuffer,
-                         duplicateFlagsBuffer: duplicateFlagsBuffer,
+                         labelRuntimeBuffer: labelRuntimeBuffer,
                          desiredVisibilityBuffer: desiredVisibilityBuffer,
                          now: now,
                          duration: duration)
@@ -67,8 +65,7 @@ final class LabelScreenCompute {
                  tileOriginDataBuffer: MTLBuffer,
                  labelTileIndicesBuffer: MTLBuffer,
                  commandBuffer: MTLCommandBuffer,
-                 labelStateBuffer: MTLBuffer,
-                 duplicateFlagsBuffer: MTLBuffer,
+                 labelRuntimeBuffer: MTLBuffer,
                  desiredVisibilityBuffer: MTLBuffer,
                  now: Float,
                  duration: Float) {
@@ -79,8 +76,7 @@ final class LabelScreenCompute {
                         commandBuffer: commandBuffer,
                         buffers: buffers,
                         collisionCalculator: labelCollisionCalculator,
-                        labelStateBuffer: labelStateBuffer,
-                        duplicateFlagsBuffer: duplicateFlagsBuffer,
+                        labelRuntimeBuffer: labelRuntimeBuffer,
                         desiredVisibilityBuffer: desiredVisibilityBuffer,
                         now: now,
                         duration: duration)

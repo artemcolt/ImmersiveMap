@@ -37,6 +37,11 @@ struct LabelState {
     float alphaStart;
 };
 
+struct LabelRuntimeState {
+    LabelState state;
+    uint duplicate;
+};
+
 float wrap(float x, float size);
 
 float4x4 rotationMatrix(float3 axis, float angle);
