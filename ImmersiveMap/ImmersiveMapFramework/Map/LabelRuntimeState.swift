@@ -9,4 +9,5 @@ struct LabelRuntimeState {
     var state: LabelState
     var duplicate: UInt32
     var isRetained: UInt32
+    var tileIndex: UInt32
 }

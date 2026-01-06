@@ -8,7 +8,7 @@
 import Metal
 import simd
 
-struct GlobeLabelInput {
+struct LabelInput {
     var uv: SIMD2<Float>
     var tile: SIMD3<Int32>
     var size: SIMD2<Float>

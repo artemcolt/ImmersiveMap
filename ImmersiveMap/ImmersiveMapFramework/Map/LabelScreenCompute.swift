@@ -35,7 +35,7 @@ final class LabelScreenCompute {
         self.labelCollisionCalculator = labelCollisionCalculator
     }
 
-    func copyDataToBuffer(inputs: [GlobeLabelInput]) {
+    func copyDataToBuffer(inputs: [LabelInput]) {
         buffers.copyDataToBuffer(inputs: inputs)
         labelCollisionCalculator.ensureOutputCapacity(count: buffers.inputsCount)
     }
@@ -61,7 +61,6 @@ final class LabelScreenCompute {
     func runFlat(drawSize: CGSize,
                  cameraUniform: CameraUniform,
                  tileOriginDataBuffer: MTLBuffer,
-                 labelTileIndicesBuffer: MTLBuffer,
                  commandBuffer: MTLCommandBuffer,
                  labelRuntimeBuffer: MTLBuffer,
                  now: Float,
@@ -69,7 +68,6 @@ final class LabelScreenCompute {
         flatCompute.run(drawSize: drawSize,
                         cameraUniform: cameraUniform,
                         tileOriginDataBuffer: tileOriginDataBuffer,
-                        labelTileIndicesBuffer: labelTileIndicesBuffer,
                         commandBuffer: commandBuffer,
                         buffers: buffers,
                         collisionCalculator: labelCollisionCalculator,

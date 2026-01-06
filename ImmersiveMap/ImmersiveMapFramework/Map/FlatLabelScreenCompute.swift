@@ -17,7 +17,6 @@ final class FlatLabelScreenCompute {
     func run(drawSize: CGSize,
              cameraUniform: CameraUniform,
              tileOriginDataBuffer: MTLBuffer,
-             labelTileIndicesBuffer: MTLBuffer,
              commandBuffer: MTLCommandBuffer,
              buffers: LabelScreenBuffers,
              collisionCalculator: LabelCollisionCalculator,
@@ -42,7 +41,7 @@ final class FlatLabelScreenCompute {
         computeEncoder.setBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 2)
         computeEncoder.setBytes(&screenParams, length: MemoryLayout<GlobeScreenParams>.stride, index: 3)
         computeEncoder.setBuffer(tileOriginDataBuffer, offset: 0, index: 4)
-        computeEncoder.setBuffer(labelTileIndicesBuffer, offset: 0, index: 5)
+        computeEncoder.setBuffer(labelRuntimeBuffer, offset: 0, index: 5)
 
         let computeThreadsPerThreadgroup = MTLSize(width: max(1, pipeline.pipelineState.threadExecutionWidth),
                                                    height: 1,

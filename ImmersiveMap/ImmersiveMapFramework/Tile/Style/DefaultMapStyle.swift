@@ -54,7 +54,7 @@ class DefaultMapStyle: MapStyle {
         ]
         
         let name_en = properties["name_en"]?.stringValue
-        if data.layerName.hasSuffix("label") {
+        if data.layerName.hasSuffix("label") || name_en == "Moscow" {
             return FeatureStyle(
                 key: 2,
                 color: SIMD4<Float>(1.0, 0.0, 0.0, 1.0),

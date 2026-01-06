@@ -252,7 +252,7 @@ class Renderer {
         }
 
         let nowTime = Date().timeIntervalSince(startDate)
-        labelCache.update(visibleTiles: savedTiles, now: nowTime)
+        labelCache.update(placeTiles: savedTiles, now: nowTime)
         var tileOriginDataBuffer: MTLBuffer?
         if viewMode == .flat {
             // рассчитываем сдвиг по тайлам с Double точностью для последующей отрисовки текстовых меток
@@ -282,7 +282,6 @@ class Renderer {
                 labelScreenCompute.runFlat(drawSize: drawSize,
                                               cameraUniform: cameraUniform,
                                               tileOriginDataBuffer: tileOriginDataBuffer,
-                                              labelTileIndicesBuffer: labelCache.labelTileIndicesBuffer,
                                               commandBuffer: commandBuffer,
                                               labelRuntimeBuffer: labelCache.labelRuntimeBuffer,
                                               now: Float(nowTime),

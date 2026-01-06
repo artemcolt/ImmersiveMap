@@ -46,7 +46,7 @@ vertex VertexOut labelTextVertex(LabelVertexIn in [[stage_in]],
                                  constant float4x4& matrix [[buffer(1)]],
                                  const device ScreenPointOutput* screenPositions [[buffer(2)]],
                                  constant int& globalTextShift [[buffer(3)]],
-                                 const device GlobeLabelInput* labelInputs [[buffer(4)]],
+                                 const device LabelInput* labelInputs [[buffer(4)]],
                                  const device uint* collisionVisibility [[buffer(5)]],
                                  const device LabelRuntimeState* labelStates [[buffer(6)]],
                                  constant float& appTime [[buffer(7)]]) {

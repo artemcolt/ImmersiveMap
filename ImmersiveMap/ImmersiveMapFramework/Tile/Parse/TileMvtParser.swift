@@ -55,30 +55,25 @@ class TileMvtParser {
         let position: SIMD2<Int16>
         let key: UInt64
         
-        init(text: String, position: SIMD2<Int16>, tile: Tile) {
+        init(text: String, position: SIMD2<Int16>, tile: Tile, featureId: UInt64, layerName: String) {
             self.text = text
             self.position = position
-            self.key = TextLabel.makeKey(tile: tile, position: position, text: text)
+            self.key = TextLabel.makeKey(text: text, featureId: featureId, layerName: layerName)
         }
         
-        private static func makeKey(tile: Tile, position: SIMD2<Int16>, text: String) -> UInt64 {
-            // Compact, stable FNV-1a hash of global map coordinates + zoom + UTF-8 text.
+        private static func makeKey(text: String, featureId: UInt64, layerName: String) -> UInt64 {
+            // Compact, stable FNV-1a hash for a label.
             var hash: UInt64 = 1469598103934665603
             func mix(_ value: UInt64) {
                 hash ^= value
                 hash &*= 1099511628211
             }
             
-            let tileExtent: Int64 = 4096
-            let tilesPerAxis = Int64(1 << tile.z)
-            let globalTileX = Int64(tile.x) + Int64(tile.loop) * tilesPerAxis
-            let globalTileY = Int64(tile.y)
-            let globalX = globalTileX * tileExtent + Int64(position.x)
-            let globalY = globalTileY * tileExtent + Int64(position.y)
-            
-            mix(UInt64(bitPattern: globalX))
-            mix(UInt64(bitPattern: globalY))
-            mix(UInt64(bitPattern: Int64(tile.z)))
+            mix(featureId)
+            for byte in layerName.utf8 {
+                hash ^= UInt64(byte)
+                hash &*= 1099511628211
+            }
             
             for byte in text.utf8 {
                 hash ^= UInt64(byte)
@@ -309,6 +304,7 @@ class TileMvtParser {
                     styles[styleKey] = style
                 }
                 
+                
                 if feature.type == .polygon {
                     let geometry: [UInt32] = feature.geometry
                     let polygons = decodePolygon.decode(geometry: geometry)
@@ -335,8 +331,13 @@ class TileMvtParser {
                 } else if feature.type == .point {
                     guard let nameEn = attributes["name_en"]?.stringValue else { continue }
                     let points = decodePoints(geometry: feature.geometry)
+                    let featureId = feature.id
                     for point in points {
-                        textLabels.append(TextLabel(text: nameEn, position: point, tile: tile))
+                        textLabels.append(TextLabel(text: nameEn,
+                                                    position: point,
+                                                    tile: tile,
+                                                    featureId: featureId,
+                                                    layerName: layerName))
                     }
                 }
             }

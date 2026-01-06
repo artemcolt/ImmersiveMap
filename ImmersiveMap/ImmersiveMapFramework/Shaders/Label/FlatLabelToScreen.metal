@@ -10,15 +10,15 @@ using namespace metal;
 #include "../Common.h"
 #include "LabelCommon.h"
 
-kernel void flatLabelToScreenKernel(const device GlobeLabelInput* inputs [[buffer(0)]],
+kernel void flatLabelToScreenKernel(const device LabelInput* inputs [[buffer(0)]],
                                     device ScreenPointOutput* outputs [[buffer(1)]],
                                     constant Camera& camera [[buffer(2)]],
                                     constant ScreenParams& screenParams [[buffer(3)]],
                                     const device float4* tileData [[buffer(4)]],
-                                    const device uint* tileIndices [[buffer(5)]],
+                                    const device LabelRuntimeState* runtimeStates [[buffer(5)]],
                                     uint gid [[thread_position_in_grid]]) {
-    GlobeLabelInput input = inputs[gid];
-    uint tileIndex = tileIndices[gid];
+    LabelInput input = inputs[gid];
+    uint tileIndex = runtimeStates[gid].tileIndex;
     float4 data = tileData[tileIndex];
     float2 tileOrigin = data.xy;
     float tileSize = data.z;

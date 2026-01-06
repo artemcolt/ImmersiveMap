@@ -16,7 +16,7 @@ final class LabelScreenBuffers {
     init(metalDevice: MTLDevice) {
         self.metalDevice = metalDevice
         self.inputBuffer = metalDevice.makeBuffer(
-            length: MemoryLayout<GlobeLabelInput>.stride, options: [.storageModeShared]
+            length: MemoryLayout<LabelInput>.stride, options: [.storageModeShared]
         )!
         self.outputBuffer = metalDevice.makeBuffer(
             length: MemoryLayout<GlobeScreenPointOutput>.stride, options: [.storageModeShared]
@@ -24,7 +24,7 @@ final class LabelScreenBuffers {
     }
 
     private func ensureBuffersCapacity(count: Int) {
-        let inputNeeded = count * MemoryLayout<GlobeLabelInput>.stride
+        let inputNeeded = count * MemoryLayout<LabelInput>.stride
         if inputBuffer.length < inputNeeded {
             inputBuffer = metalDevice.makeBuffer(length: inputNeeded, options: [.storageModeShared])!
         }
@@ -35,9 +35,9 @@ final class LabelScreenBuffers {
         }
     }
 
-    func copyDataToBuffer(inputs: [GlobeLabelInput]) {
+    func copyDataToBuffer(inputs: [LabelInput]) {
         ensureBuffersCapacity(count: inputs.count)
-        let inputBytes = inputs.count * MemoryLayout<GlobeLabelInput>.stride
+        let inputBytes = inputs.count * MemoryLayout<LabelInput>.stride
         inputs.withUnsafeBytes { bytes in
             inputBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: inputBytes)
         }

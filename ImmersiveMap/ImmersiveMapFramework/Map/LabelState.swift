@@ -6,6 +6,14 @@
 //
 
 struct LabelState {
+    
+    init() {
+        alpha = 0
+        target = 0
+        changeTime = 0
+        alphaStart = 0
+    }
+    
     var alpha: Float
     var target: Float
     var changeTime: Float

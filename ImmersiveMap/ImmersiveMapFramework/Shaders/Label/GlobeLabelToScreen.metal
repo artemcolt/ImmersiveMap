@@ -85,13 +85,13 @@ float4 globeClipFromTileUV(float2 localUv,
     return camera.matrix * position;
 }
 
-kernel void globeLabelToScreenKernel(const device GlobeLabelInput* inputs [[buffer(0)]],
+kernel void globeLabelToScreenKernel(const device LabelInput* inputs [[buffer(0)]],
                                      device ScreenPointOutput* outputs [[buffer(1)]],
                                      constant Camera& camera [[buffer(2)]],
                                      constant Globe& globe [[buffer(3)]],
                                      constant ScreenParams& screenParams [[buffer(4)]],
                                      uint gid [[thread_position_in_grid]]) {
-    GlobeLabelInput input = inputs[gid];
+    LabelInput input = inputs[gid];
     float3 horizonPositionWorld = float3(0.0);
     float4 clip = globeClipFromTileUV(input.uv, input.tile, camera, globe, horizonPositionWorld);
 

@@ -24,7 +24,7 @@ struct Globe {
     float transition;
 };
 
-struct GlobeLabelInput {
+struct LabelInput {
     float2 uv;
     int3 tile;
     float2 size;
@@ -41,6 +41,7 @@ struct LabelRuntimeState {
     LabelState state;
     uint duplicate;
     uint isRetained;
+    uint tileIndex;
 };
 
 float wrap(float x, float size);
