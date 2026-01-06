@@ -108,9 +108,8 @@ class ComputeGlobeToScreen {
 
     func runFlat(drawSize: CGSize,
                  cameraUniform: CameraUniform,
-                 tileOriginsBuffer: MTLBuffer,
+                 tileOriginDataBuffer: MTLBuffer,
                  labelTileIndicesBuffer: MTLBuffer,
-                 tileSizesBuffer: MTLBuffer,
                  commandBuffer: MTLCommandBuffer,
                  screenPoints: ScreenPoints) {
         guard inputsCount > 0 else {
@@ -130,9 +129,8 @@ class ComputeGlobeToScreen {
         computeEncoder.setBuffer(globeComputeOutputBuffer, offset: 0, index: 1)
         computeEncoder.setBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 2)
         computeEncoder.setBytes(&screenParams, length: MemoryLayout<GlobeScreenParams>.stride, index: 3)
-        computeEncoder.setBuffer(tileOriginsBuffer, offset: 0, index: 4)
+        computeEncoder.setBuffer(tileOriginDataBuffer, offset: 0, index: 4)
         computeEncoder.setBuffer(labelTileIndicesBuffer, offset: 0, index: 5)
-        computeEncoder.setBuffer(tileSizesBuffer, offset: 0, index: 6)
 
         let computeThreadsPerThreadgroup = MTLSize(width: max(1, flatComputePipeline.pipelineState.threadExecutionWidth),
                                                    height: 1,

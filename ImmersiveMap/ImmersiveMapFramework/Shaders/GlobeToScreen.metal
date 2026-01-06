@@ -155,14 +155,14 @@ kernel void flatTileToScreenKernel(const device GlobeLabelInput* inputs [[buffer
                                    device ScreenPointOutput* outputs [[buffer(1)]],
                                    constant Camera& camera [[buffer(2)]],
                                    constant ScreenParams& screenParams [[buffer(3)]],
-                                   const device float2* tileOrigins [[buffer(4)]],
+                                   const device float4* tileData [[buffer(4)]],
                                    const device uint* tileIndices [[buffer(5)]],
-                                   const device float* tileSizes [[buffer(6)]],
                                    uint gid [[thread_position_in_grid]]) {
     GlobeLabelInput input = inputs[gid];
     uint tileIndex = tileIndices[gid];
-    float2 tileOrigin = tileOrigins[tileIndex];
-    float tileSize = tileSizes[tileIndex];
+    float4 data = tileData[tileIndex];
+    float2 tileOrigin = data.xy;
+    float tileSize = data.z;
     
     float2 local = float2(input.uv.x * tileSize, (1.0 - input.uv.y) * tileSize);
     float4 world = float4(tileOrigin + local, 0.0, 1.0);

@@ -42,7 +42,6 @@ class Renderer {
     private var previousSeeTilesHash: Int = 0
     private var savedSeeTiles: [Tile] = []
     private var savedTiles: [PlaceTile] = []
-    private var relativeTileCoords: [SIMD2<Float>] = []
     private var previousZoom: Int
     private var previousStorageHash: Int = 0
     private let tile: Tile = Tile(x: 0, y: 0, z: 0)
@@ -51,9 +50,7 @@ class Renderer {
     private let screenMatrix: ScreenMatrix = ScreenMatrix()
     private let computeGlobeToScreen: ComputeGlobeToScreen
     private let labelCache: LabelCache
-    private var tileOriginsBuffer: MTLBuffer
-    private var tileSizesBuffer: MTLBuffer
-    private var relativeTileSizes: [Float] = []
+    private let flatTileOriginCalculator: FlatTileOriginCalculator
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -126,8 +123,7 @@ class Renderer {
         
         let len = MemoryLayout<TextVertex>.stride * 4000
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
-        tileOriginsBuffer = metalDevice.makeBuffer(length: MemoryLayout<SIMD2<Float>>.stride)!
-        tileSizesBuffer = metalDevice.makeBuffer(length: MemoryLayout<Float>.stride)!
+        flatTileOriginCalculator = FlatTileOriginCalculator(metalDevice: metalDevice)
         
         
         labelCache = LabelCache(metalDevice: metalDevice, computeGlobeToScreen: computeGlobeToScreen)
@@ -163,7 +159,7 @@ class Renderer {
         guard var screenMatrix = screenMatrix.get() else {
             return
         }
-
+        
         
         // Не используем tripple buffering
         // На моем телефоне и без него хорошо работает
@@ -312,11 +308,11 @@ class Renderer {
 
         let nowTime = Date().timeIntervalSince(startDate)
         labelCache.update(visibleTiles: savedTiles, now: nowTime)
+        var tileOriginDataBuffer: MTLBuffer?
         if viewMode == .flat {
-            updateRelativeTileCoords(tiles: labelCache.labelTilesList,
-                                     zoom: zoom,
-                                     flatPan: cameraControl.flatPan,
-                                     mapSize: mapSize)
+            tileOriginDataBuffer = flatTileOriginCalculator.update(tiles: labelCache.labelTilesList,
+                                                                   flatPan: cameraControl.flatPan,
+                                                                   mapSize: mapSize)
         }
         
         
@@ -334,13 +330,14 @@ class Renderer {
                                           commandBuffer: commandBuffer,
                                           screenPoints: screenPoints)
         } else if viewMode == .flat {
-            computeGlobeToScreen.runFlat(drawSize: drawSize,
-                                         cameraUniform: cameraUniform,
-                                         tileOriginsBuffer: tileOriginsBuffer,
-                                         labelTileIndicesBuffer: labelCache.labelTileIndicesBuffer,
-                                         tileSizesBuffer: tileSizesBuffer,
-                                         commandBuffer: commandBuffer,
-                                         screenPoints: screenPoints)
+            if let tileOriginDataBuffer {
+                computeGlobeToScreen.runFlat(drawSize: drawSize,
+                                             cameraUniform: cameraUniform,
+                                             tileOriginDataBuffer: tileOriginDataBuffer,
+                                             labelTileIndicesBuffer: labelCache.labelTileIndicesBuffer,
+                                             commandBuffer: commandBuffer,
+                                             screenPoints: screenPoints)
+            }
         }
         
         let renderPassDescriptor = MTLRenderPassDescriptor()
@@ -519,41 +516,6 @@ class Renderer {
         return Center(tileX: tileX, tileY: tileY)
     }
 
-    private func updateRelativeTileCoords(tiles: [Tile], zoom: Int, flatPan: SIMD2<Double>, mapSize: Double) {
-        let halfMapSize = mapSize / 2.0
-        relativeTileSizes.removeAll(keepingCapacity: true)
-        relativeTileSizes.reserveCapacity(tiles.count)
-        relativeTileCoords = tiles.map { tile in
-            let tilesCount = 1 << tile.z
-            let tileSize = mapSize / Double(tilesCount)
-            let originX = Double(tile.x) * tileSize - halfMapSize + flatPan.x * halfMapSize + Double(tile.loop) * mapSize
-            let originY = Double(tilesCount - tile.y - 1) * tileSize - halfMapSize - flatPan.y * halfMapSize
-            relativeTileSizes.append(Float(tileSize))
-            return SIMD2<Float>(Float(originX), Float(originY))
-        }
-        
-        let needed = max(1, relativeTileCoords.count) * MemoryLayout<SIMD2<Float>>.stride
-        if tileOriginsBuffer.length < needed {
-            tileOriginsBuffer = metalDevice.makeBuffer(length: needed)!
-        }
-        if relativeTileCoords.isEmpty == false {
-            let bytesCount = relativeTileCoords.count * MemoryLayout<SIMD2<Float>>.stride
-            relativeTileCoords.withUnsafeBytes { bytes in
-                tileOriginsBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
-            }
-        }
-
-        let sizesNeeded = max(1, relativeTileSizes.count) * MemoryLayout<Float>.stride
-        if tileSizesBuffer.length < sizesNeeded {
-            tileSizesBuffer = metalDevice.makeBuffer(length: sizesNeeded)!
-        }
-        if relativeTileSizes.isEmpty == false {
-            let bytesCount = relativeTileSizes.count * MemoryLayout<Float>.stride
-            relativeTileSizes.withUnsafeBytes { bytes in
-                tileSizesBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
-            }
-        }
-    }
     
     func switchRenderMode() {
         let globePan = cameraControl.globePan
