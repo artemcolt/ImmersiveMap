@@ -22,7 +22,6 @@ final class FlatLabelScreenCompute {
              buffers: LabelScreenBuffers,
              collisionCalculator: LabelCollisionCalculator,
              labelRuntimeBuffer: MTLBuffer,
-             desiredVisibilityBuffer: MTLBuffer,
              now: Float,
              duration: Float) {
         guard buffers.inputsCount > 0 else {
@@ -60,7 +59,6 @@ final class FlatLabelScreenCompute {
             screenPointsBuffer: buffers.outputBuffer,
             inputsBuffer: buffers.inputBuffer,
             labelRuntimeBuffer: labelRuntimeBuffer,
-            desiredVisibilityBuffer: desiredVisibilityBuffer,
             now: now,
             duration: duration
         )

@@ -40,6 +40,7 @@ struct LabelState {
 struct LabelRuntimeState {
     LabelState state;
     uint duplicate;
+    uint isRetained;
 };
 
 float wrap(float x, float size);

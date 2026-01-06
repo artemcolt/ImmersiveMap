@@ -275,7 +275,6 @@ class Renderer {
                                            globe: globe,
                                            commandBuffer: commandBuffer,
                                            labelRuntimeBuffer: labelCache.labelRuntimeBuffer,
-                                           desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
                                            now: Float(nowTime),
                                            duration: labelFadeDuration)
         } else if viewMode == .flat {
@@ -286,7 +285,6 @@ class Renderer {
                                               labelTileIndicesBuffer: labelCache.labelTileIndicesBuffer,
                                               commandBuffer: commandBuffer,
                                               labelRuntimeBuffer: labelCache.labelRuntimeBuffer,
-                                              desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
                                               now: Float(nowTime),
                                               duration: labelFadeDuration)
             }

@@ -14,8 +14,7 @@ kernel void labelCollisionKernel(const device ScreenPointOutput* points [[buffer
                                  device uint* visibility [[buffer(1)]],
                                  const device GlobeLabelInput* inputs [[buffer(2)]],
                                  device LabelRuntimeState* labelStates [[buffer(3)]],
-                                 const device uchar* desiredVisibility [[buffer(4)]],
-                                 constant LabelCollisionParams& params [[buffer(5)]],
+                                 constant LabelCollisionParams& params [[buffer(4)]],
                                  uint gid [[thread_position_in_grid]]) {
     if (gid >= params.count) {
         return;
@@ -45,7 +44,7 @@ kernel void labelCollisionKernel(const device ScreenPointOutput* points [[buffer
         }
     }
 
-    if (labelStates[gid].duplicate != 0 || desiredVisibility[gid] == 0) {
+    if (labelStates[gid].duplicate != 0 || labelStates[gid].isRetained != 0) {
         isVisible = 0;
     }
     visibility[gid] = isVisible;

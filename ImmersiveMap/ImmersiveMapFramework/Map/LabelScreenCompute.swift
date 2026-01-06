@@ -45,7 +45,6 @@ final class LabelScreenCompute {
                   globe: Globe,
                   commandBuffer: MTLCommandBuffer,
                   labelRuntimeBuffer: MTLBuffer,
-                  desiredVisibilityBuffer: MTLBuffer,
                   now: Float,
                   duration: Float) {
         globeCompute.run(drawSize: drawSize,
@@ -55,7 +54,6 @@ final class LabelScreenCompute {
                          buffers: buffers,
                          collisionCalculator: labelCollisionCalculator,
                          labelRuntimeBuffer: labelRuntimeBuffer,
-                         desiredVisibilityBuffer: desiredVisibilityBuffer,
                          now: now,
                          duration: duration)
     }
@@ -66,7 +64,6 @@ final class LabelScreenCompute {
                  labelTileIndicesBuffer: MTLBuffer,
                  commandBuffer: MTLCommandBuffer,
                  labelRuntimeBuffer: MTLBuffer,
-                 desiredVisibilityBuffer: MTLBuffer,
                  now: Float,
                  duration: Float) {
         flatCompute.run(drawSize: drawSize,
@@ -77,7 +74,6 @@ final class LabelScreenCompute {
                         buffers: buffers,
                         collisionCalculator: labelCollisionCalculator,
                         labelRuntimeBuffer: labelRuntimeBuffer,
-                        desiredVisibilityBuffer: desiredVisibilityBuffer,
                         now: now,
                         duration: duration)
     }
