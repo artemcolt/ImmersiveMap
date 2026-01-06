@@ -15,7 +15,6 @@ class Renderer {
     private let metalLayer: CAMetalLayer
     let metalDevice: MTLDevice
     let commandQueue: MTLCommandQueue
-    let vertexBuffer: MTLBuffer
     let parameters: Parameters
     let polygonPipeline: PolygonsPipeline
     let tilePipeline: TilePipeline
@@ -30,6 +29,7 @@ class Renderer {
     private let tilesTexture: TilesTexture
     private let textRenderer: TextRenderer
     private let uiView: ImmersiveMapUIView
+    private let debugOverlayRenderer: DebugOverlayRenderer
     
     private let baseGridBuffers: GridBuffers
     private var lastDrawableSize: CGSize = .zero
@@ -57,18 +57,6 @@ class Renderer {
     private var tileTextVerticesCount: Int = 0
     private let labelFadeDuration: Float = 1.0
     
-    let vertices: [PolygonsPipeline.Vertex] = [
-        // axes
-        PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 0.0, 1.0),   color: SIMD4<Float>(1, 0, 0, 1)),
-        PolygonsPipeline.Vertex(position: SIMD4<Float>(1.0, 0.0, 0.0, 1.0),   color: SIMD4<Float>(1, 0, 0, 1)),
-        
-        PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 0.0, 1.0),   color: SIMD4<Float>(0, 1, 0, 1)),
-        PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 1.0, 0.0, 1.0),   color: SIMD4<Float>(0, 1, 0, 1)),
-        
-        PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 0.0, 1.0),   color: SIMD4<Float>(0, 0, 1, 1)),
-        PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 1.0, 1.0),   color: SIMD4<Float>(0, 0, 1, 1)),
-    ]
-    
     init(layer: CAMetalLayer, uiView: ImmersiveMapUIView) {
         self.metalLayer = layer
         self.uiView = uiView
@@ -85,9 +73,6 @@ class Renderer {
         }
         self.commandQueue = queue
         
-        // Создаём вершинный буфер
-        vertexBuffer = metalDevice.makeBuffer(bytes: vertices, length: vertices.count * MemoryLayout<PolygonsPipeline.Vertex>.stride, options: [])!
-            
         let bundle = Bundle(for: Renderer.self)
         let library = try! metalDevice.makeDefaultLibrary(bundle: bundle)
         
@@ -105,6 +90,7 @@ class Renderer {
         
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
+        debugOverlayRenderer = DebugOverlayRenderer(metalDevice: metalDevice)
         camera = Camera()
         tileCulling = TileCulling(camera: camera)
         cameraControl = CameraControl()
@@ -414,11 +400,9 @@ class Renderer {
 
         
         
-        // Axes
-        polygonPipeline.setPipelineState(renderEncoder: renderEncoder)
-        renderEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
-        renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: 6)
+        debugOverlayRenderer.drawAxes(renderEncoder: renderEncoder,
+                                      polygonPipeline: polygonPipeline,
+                                      cameraUniform: cameraUniform)
         
         for point in camera.testPoints {
             let verticesTest = [PolygonsPipeline.Vertex(position: point, color: SIMD4<Float>(1, 0, 0, 1))]
@@ -438,20 +422,11 @@ class Renderer {
             renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesTest.count)
         }
         
-        let zoomText = TextEntry(text: "z: " + cameraControl.zoom.formatted(.number.precision(.fractionLength(2))),
-                                 position: SIMD2<Float>(100, Float(drawSize.height) - 300),
-                                 scale: 100)
-        let textVertices = textRenderer.collectMultiTextVertices(for: [
-            zoomText
-        ])
-        
-        var zoomTextColor = SIMD3<Float>(0, 0, 0)
-        renderEncoder.setRenderPipelineState(textRenderer.pipelineState)
-        renderEncoder.setVertexBytes(textVertices, length: MemoryLayout<TextVertex>.stride * textVertices.count, index: 0)
-        renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
-        renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
-        renderEncoder.setFragmentBytes(&zoomTextColor, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
-        renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVertices.count)
+        debugOverlayRenderer.drawZoomText(renderEncoder: renderEncoder,
+                                          textRenderer: textRenderer,
+                                          screenMatrix: screenMatrix,
+                                          drawSize: drawSize,
+                                          zoom: cameraControl.zoom)
         
         renderEncoder.endEncoding()
         
