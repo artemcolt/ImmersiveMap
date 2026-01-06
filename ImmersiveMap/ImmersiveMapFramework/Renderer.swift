@@ -48,14 +48,14 @@ class Renderer {
     private var viewMode: ViewMode = ViewMode.spherical
     private var radius: Double = 0.0
     private let screenMatrix: ScreenMatrix = ScreenMatrix()
-    private let computeGlobeLabelToScreen: ComputeGlobeLabelToScreen
+    private let labelScreenCompute: LabelScreenCompute
     private let labelCache: LabelCache
     private let flatTileOriginCalculator: FlatTileOriginCalculator
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
     private var tileTextVerticesCount: Int = 0
-    private let labelFadeDuration: Float = 0.25
+    private let labelFadeDuration: Float = 1.0
     
     let vertices: [PolygonsPipeline.Vertex] = [
         // axes
@@ -98,7 +98,10 @@ class Renderer {
         let flatComputePipeline = FlatLabelComputePipeline(metalDevice: metalDevice, library: library)
         let labelCollisionPipeline = LabelCollisionPipeline(metalDevice: metalDevice, library: library)
         let labelCollisionCalculator = LabelCollisionCalculator(pipeline: labelCollisionPipeline, metalDevice: metalDevice)
-        computeGlobeLabelToScreen = ComputeGlobeLabelToScreen(globeComputePipeline, flatComputePipeline, labelCollisionCalculator, metalDevice: metalDevice)
+        labelScreenCompute = LabelScreenCompute(globeComputePipeline: globeComputePipeline,
+                                                flatComputePipeline: flatComputePipeline,
+                                                labelCollisionCalculator: labelCollisionCalculator,
+                                                metalDevice: metalDevice)
         
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
@@ -127,7 +130,7 @@ class Renderer {
         flatTileOriginCalculator = FlatTileOriginCalculator(metalDevice: metalDevice)
         
         
-        labelCache = LabelCache(metalDevice: metalDevice, computeGlobeToScreen: computeGlobeLabelToScreen)
+        labelCache = LabelCache(metalDevice: metalDevice, computeGlobeToScreen: labelScreenCompute)
         metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(),
                                               metalDevice: metalDevice,
                                               renderer: self,
@@ -169,27 +172,7 @@ class Renderer {
         currentIndex = 0
         
         // Движение камеры
-        if cameraControl.update {
-            let yaw = cameraControl.yaw
-            let pitch = cameraControl.pitch
-            
-            let zRemains = cameraControl.zoom.truncatingRemainder(dividingBy: 1.0)
-            let camUp = SIMD3<Float>(0, 1, 0)
-            let camPosition = SIMD3<Float>(0, 0, (1.0 - Float(zRemains) * 0.5))
-            let camRight = SIMD3<Float>(1, 0, 0)
-            
-            let pitchQuat = simd_quatf(angle: pitch, axis: camRight)
-            let yawQuat = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 0, 1))
-            
-            camera.eye = simd_act(yawQuat * pitchQuat, camPosition)
-            camera.up = simd_act(yawQuat * pitchQuat, camUp)
-            
-            camera.recalculateMatrix()
-            
-            // Мы камеру обновили, флаг возвращаем в исходное состояние
-            // Когда в камере что-то меняется, то этот флаг становится true
-            cameraControl.update = false
-        }
+        CameraUpdater.updateIfNeeded(camera: camera, cameraControl: cameraControl)
         
         guard let cameraMatrix = camera.cameraMatrix,
               let drawable = layer.nextDrawable() else {
@@ -200,21 +183,13 @@ class Renderer {
         let clearColor = parameters.clearColor
         let commandBuffer = commandQueue.makeCommandBuffer()!
         
-        // При увеличении зума, мы масштабируем глобус, возвращая камеру в исходное нулевое положение
-        let worldScale = pow(2.0, floor(cameraControl.zoom))
-        let z = cameraControl.zoom
-        let from = Float(6.0)
-        let span = Float(1.0)
-        let to = from + span
-        transition = max(0.0, min(1.0, (Float(z) - from) / (to - from)))
-        radius = 0.14 * worldScale
-        let mapSize = 2.0 * Double.pi * radius
-        
-        var globe = Globe(panX: Float(cameraControl.globePan.x),
-                          panY: Float(cameraControl.globePan.y),
-                          radius: Float(radius),
-                          transition: Float(transition))
-        let newViewMode = transition >= 1.0 ? ViewMode.flat : ViewMode.spherical
+        let viewResult = ViewModeCalculator.calculate(zoom: cameraControl.zoom,
+                                                      globePan: cameraControl.globePan)
+        transition = viewResult.transition
+        radius = viewResult.radius
+        let mapSize = viewResult.mapSize
+        var globe = viewResult.globe
+        let newViewMode = viewResult.viewMode
         
         if viewMode != newViewMode {
             // Необходимо переключение режима
@@ -245,24 +220,7 @@ class Renderer {
         if previousSeeTilesHash != seeTilesHash {
             print("Previous see tiles hash changed")
             // Сортируем тайлы для правильной, последовательной отрисовки
-            savedSeeTiles = Array(seeTiles).sorted(by: { t1, t2 in
-                if t1.z != t2.z {
-                    // Сперва тайлы, которые занимают меньшую площадь
-                    // То есть с большим z
-                    return t1.z > t2.z
-                }
-                
-                let dx1 = abs(t1.x - Int(center.tileX))
-                let dy1 = abs(t1.y - Int(center.tileY))
-                let d1 = dx1 + dy1
-                
-                let dx2 = abs(t2.x - Int(center.tileX))
-                let dy2 = abs(t2.y - Int(center.tileY))
-                let d2 = dx2 + dy2
-                
-                // Сперва тайлы, которые ближе всего к центру
-                return d1 < d2 // true -> элементы остаются на месте
-            })
+            savedSeeTiles = TileSorter.sortForRendering(seeTiles, center: center)
             previousSeeTilesHash = seeTilesHash
         }
         
@@ -311,6 +269,7 @@ class Renderer {
         labelCache.update(visibleTiles: savedTiles, now: nowTime)
         var tileOriginDataBuffer: MTLBuffer?
         if viewMode == .flat {
+            // рассчитываем сдвиг по тайлам с Double точностью для последующей отрисовки текстовых меток
             tileOriginDataBuffer = flatTileOriginCalculator.update(tiles: labelCache.labelTilesList,
                                                                    flatPan: cameraControl.flatPan,
                                                                    mapSize: mapSize)
@@ -325,29 +284,27 @@ class Renderer {
 
         // Высчитываем положения и коллизии текстовых меток
         if viewMode == .spherical {
-            computeGlobeLabelToScreen.runGlobe(drawSize: drawSize,
-                                          cameraUniform: cameraUniform,
-                                          globe: globe,
-                                          commandBuffer: commandBuffer,
-                                          screenPoints: screenPoints,
-                                          labelStateBuffer: labelCache.labelStateBuffer,
-                                          duplicateFlagsBuffer: labelCache.labelDuplicateBuffer,
-                                          desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
-                                          now: Float(nowTime),
-                                          duration: labelFadeDuration)
+            labelScreenCompute.runGlobe(drawSize: drawSize,
+                                           cameraUniform: cameraUniform,
+                                           globe: globe,
+                                           commandBuffer: commandBuffer,
+                                           labelStateBuffer: labelCache.labelStateBuffer,
+                                           duplicateFlagsBuffer: labelCache.labelDuplicateBuffer,
+                                           desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
+                                           now: Float(nowTime),
+                                           duration: labelFadeDuration)
         } else if viewMode == .flat {
             if let tileOriginDataBuffer {
-                computeGlobeLabelToScreen.runFlat(drawSize: drawSize,
-                                             cameraUniform: cameraUniform,
-                                             tileOriginDataBuffer: tileOriginDataBuffer,
-                                             labelTileIndicesBuffer: labelCache.labelTileIndicesBuffer,
-                                             commandBuffer: commandBuffer,
-                                             screenPoints: screenPoints,
-                                             labelStateBuffer: labelCache.labelStateBuffer,
-                                             duplicateFlagsBuffer: labelCache.labelDuplicateBuffer,
-                                             desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
-                                             now: Float(nowTime),
-                                             duration: labelFadeDuration)
+                labelScreenCompute.runFlat(drawSize: drawSize,
+                                              cameraUniform: cameraUniform,
+                                              tileOriginDataBuffer: tileOriginDataBuffer,
+                                              labelTileIndicesBuffer: labelCache.labelTileIndicesBuffer,
+                                              commandBuffer: commandBuffer,
+                                              labelStateBuffer: labelCache.labelStateBuffer,
+                                              duplicateFlagsBuffer: labelCache.labelDuplicateBuffer,
+                                              desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
+                                              now: Float(nowTime),
+                                              duration: labelFadeDuration)
             }
         }
         
@@ -430,9 +387,9 @@ class Renderer {
             let textVerticesBuffer = drawLabel.labelsVerticesBuffer
             let labelsCount = drawLabel.labelsCount
             let textVerticesCount = drawLabel.labelsVerticesCount
-            let screenPositions = computeGlobeLabelToScreen.globeComputeOutputBuffer
-            let labelInputsBuffer = computeGlobeLabelToScreen.globeComputeInputBuffer
-            let collisionOutput = computeGlobeLabelToScreen.labelCollisionOutputBuffer
+            let screenPositions = labelScreenCompute.labelOutputBuffer
+            let labelInputsBuffer = labelScreenCompute.labelInputBuffer
+            let collisionOutput = labelScreenCompute.labelCollisionOutputBuffer
             let duplicateFlagsBuffer = labelCache.labelDuplicateBuffer
             let labelStateBuffer = labelCache.labelStateBuffer
             

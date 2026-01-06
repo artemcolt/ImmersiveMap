@@ -10,7 +10,7 @@ import Metal
 
 final class LabelCache {
     private let metalDevice: MTLDevice
-    private let computeGlobeLabelToScreen: ComputeGlobeLabelToScreen
+    private let labelScreenCompute: LabelScreenCompute
     private var labelInputs: [GlobeLabelInput] = []
     private(set) var drawLabels: [DrawLabels] = []
     private let labelHoldSeconds: TimeInterval = 3.0
@@ -25,9 +25,9 @@ final class LabelCache {
     private(set) var labelTileIndices: [UInt32] = []
     private(set) var labelTileIndicesBuffer: MTLBuffer
 
-    init(metalDevice: MTLDevice, computeGlobeToScreen: ComputeGlobeLabelToScreen) {
+    init(metalDevice: MTLDevice, computeGlobeToScreen: LabelScreenCompute) {
         self.metalDevice = metalDevice
-        self.computeGlobeLabelToScreen = computeGlobeToScreen
+        self.labelScreenCompute = computeGlobeToScreen
         self.labelDuplicateBuffer = metalDevice.makeBuffer(
             length: MemoryLayout<UInt8>.stride,
             options: [.storageModeShared]
@@ -192,7 +192,7 @@ final class LabelCache {
             ))
         }
 
-        computeGlobeLabelToScreen.copyDataToBuffer(inputs: labelInputs)
+        labelScreenCompute.copyDataToBuffer(inputs: labelInputs)
         labelInputsCount = labelInputs.count
         updateLabelStateBuffer(labelStates: labelStates)
         updateLabelDesiredVisibilityBuffer(desiredVisibility: desiredVisibility)
