@@ -11,7 +11,7 @@ class LabelCollisionPipeline {
     let pipelineState: MTLComputePipelineState
     
     init(metalDevice: MTLDevice, library: MTLLibrary) {
-        let kernel = library.makeFunction(name: "globeLabelCollisionKernel")
+        let kernel = library.makeFunction(name: "labelCollisionKernel")
         self.pipelineState = try! metalDevice.makeComputePipelineState(function: kernel!)
     }
     

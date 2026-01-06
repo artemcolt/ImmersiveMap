@@ -1,5 +1,5 @@
 //
-//  ComputeGloneToScreen.swift
+//  ComputeGlobeLabelToScreen.swift
 //  ImmersiveMap
 //
 //  Created by Artem on 1/2/26.
@@ -8,9 +8,9 @@
 import Metal
 import simd
 
-class ComputeGlobeToScreen {
-    let globeComputePipeline: GlobeComputePipeline
-    let flatComputePipeline: FlatComputePipeline
+class ComputeGlobeLabelToScreen {
+    let globeComputePipeline: GlobeLabelComputePipeline
+    let flatComputePipeline: FlatLabelComputePipeline
     let labelCollisionCalculator: LabelCollisionCalculator
     
     private let metalDevice: MTLDevice
@@ -22,8 +22,8 @@ class ComputeGlobeToScreen {
         labelCollisionCalculator.outputBuffer
     }
     
-    init(_ globeComputePipeline: GlobeComputePipeline,
-         _ flatComputePipeline: FlatComputePipeline,
+    init(_ globeComputePipeline: GlobeLabelComputePipeline,
+         _ flatComputePipeline: FlatLabelComputePipeline,
          _ labelCollisionCalculator: LabelCollisionCalculator,
          metalDevice: MTLDevice) {
         self.globeComputePipeline = globeComputePipeline
@@ -67,7 +67,12 @@ class ComputeGlobeToScreen {
                   cameraUniform: CameraUniform,
                   globe: Globe,
                   commandBuffer: MTLCommandBuffer,
-                  screenPoints: ScreenPoints) {
+                  screenPoints: ScreenPoints,
+                  labelStateBuffer: MTLBuffer,
+                  duplicateFlagsBuffer: MTLBuffer,
+                  desiredVisibilityBuffer: MTLBuffer,
+                  now: Float,
+                  duration: Float) {
         guard inputsCount > 0 else {
             return
         }
@@ -102,7 +107,12 @@ class ComputeGlobeToScreen {
             commandBuffer: commandBuffer,
             inputsCount: inputsCount,
             screenPointsBuffer: globeComputeOutputBuffer,
-            inputsBuffer: globeComputeInputBuffer
+            inputsBuffer: globeComputeInputBuffer,
+            labelStateBuffer: labelStateBuffer,
+            duplicateFlagsBuffer: duplicateFlagsBuffer,
+            desiredVisibilityBuffer: desiredVisibilityBuffer,
+            now: now,
+            duration: duration
         )
     }
 
@@ -111,7 +121,12 @@ class ComputeGlobeToScreen {
                  tileOriginDataBuffer: MTLBuffer,
                  labelTileIndicesBuffer: MTLBuffer,
                  commandBuffer: MTLCommandBuffer,
-                 screenPoints: ScreenPoints) {
+                 screenPoints: ScreenPoints,
+                 labelStateBuffer: MTLBuffer,
+                 duplicateFlagsBuffer: MTLBuffer,
+                 desiredVisibilityBuffer: MTLBuffer,
+                 now: Float,
+                 duration: Float) {
         guard inputsCount > 0 else {
             return
         }
@@ -145,7 +160,12 @@ class ComputeGlobeToScreen {
             commandBuffer: commandBuffer,
             inputsCount: inputsCount,
             screenPointsBuffer: globeComputeOutputBuffer,
-            inputsBuffer: globeComputeInputBuffer
+            inputsBuffer: globeComputeInputBuffer,
+            labelStateBuffer: labelStateBuffer,
+            duplicateFlagsBuffer: duplicateFlagsBuffer,
+            desiredVisibilityBuffer: desiredVisibilityBuffer,
+            now: now,
+            duration: duration
         )
     }
 }

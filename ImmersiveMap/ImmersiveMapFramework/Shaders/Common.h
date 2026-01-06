@@ -30,6 +30,13 @@ struct GlobeLabelInput {
     float2 size;
 };
 
+struct LabelState {
+    float alpha;
+    float target;
+    float changeTime;
+    float alphaStart;
+};
+
 float wrap(float x, float size);
 
 float4x4 rotationMatrix(float3 axis, float angle);

@@ -48,7 +48,9 @@ vertex VertexOut labelTextVertex(LabelVertexIn in [[stage_in]],
                                  constant int& globalTextShift [[buffer(3)]],
                                  const device GlobeLabelInput* labelInputs [[buffer(4)]],
                                  const device uint* collisionVisibility [[buffer(5)]],
-                                 const device uchar* duplicateFlags [[buffer(6)]]) {
+                                 const device uchar* duplicateFlags [[buffer(6)]],
+                                 const device LabelState* labelStates [[buffer(7)]],
+                                 constant float& appTime [[buffer(8)]]) {
     VertexOut out;
     int screenIndex = in.labelIndex + globalTextShift;
     ScreenPointOutput screenPoint = screenPositions[screenIndex];
@@ -57,7 +59,7 @@ vertex VertexOut labelTextVertex(LabelVertexIn in [[stage_in]],
     float2 pixelPosition = screenPoint.position + in.position - halfSize;
     out.position = matrix * float4(pixelPosition, 0.0, 1.0);
     out.uv = in.uv;
-    out.alpha = (screenPoint.visible == 0 || collisionVisibility[screenIndex] == 0 || duplicateFlags[screenIndex] != 0) ? 0.0 : 1.0;
+    out.alpha = labelStates[screenIndex].alpha;
     return out;
 }
 
@@ -75,7 +77,6 @@ fragment float4 textFragment(VertexOut in [[stage_in]],
     
     float sd = median(msdf.r, msdf.g, msdf.b);
     sd = clamp(sd, 0.0, 1.0);
-    //return float4(float3(sd), 1.0);
     float alpha = smoothstep(0.2, 0.6, sd);
     
     float finalAlpha = alpha * in.alpha;

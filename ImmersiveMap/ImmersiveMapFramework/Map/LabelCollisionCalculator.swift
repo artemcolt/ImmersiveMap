@@ -13,9 +13,11 @@ class LabelCollisionCalculator {
     private let metalDevice: MTLDevice
     private(set) var outputBuffer: MTLBuffer
 
-    struct CollisionParams {
+    struct LabelCollisionParams {
         var count: UInt32
-        var _padding: SIMD3<UInt32> = SIMD3<UInt32>(0, 0, 0)
+        var now: Float
+        var duration: Float
+        var _padding: UInt32 = 0
     }
 
     init(pipeline: LabelCollisionPipeline, metalDevice: MTLDevice) {
@@ -37,7 +39,12 @@ class LabelCollisionCalculator {
     func run(commandBuffer: MTLCommandBuffer,
              inputsCount: Int,
              screenPointsBuffer: MTLBuffer,
-             inputsBuffer: MTLBuffer) {
+             inputsBuffer: MTLBuffer,
+             labelStateBuffer: MTLBuffer,
+             duplicateFlagsBuffer: MTLBuffer,
+             desiredVisibilityBuffer: MTLBuffer,
+             now: Float,
+             duration: Float) {
         guard inputsCount > 0 else {
             return
         }
@@ -46,12 +53,15 @@ class LabelCollisionCalculator {
         }
 
         pipeline.encode(encoder: encoder)
-        var params = CollisionParams(count: UInt32(inputsCount))
+        var params = LabelCollisionParams(count: UInt32(inputsCount), now: now, duration: duration)
 
         encoder.setBuffer(screenPointsBuffer, offset: 0, index: 0)
         encoder.setBuffer(outputBuffer, offset: 0, index: 1)
         encoder.setBuffer(inputsBuffer, offset: 0, index: 2)
-        encoder.setBytes(&params, length: MemoryLayout<CollisionParams>.stride, index: 3)
+        encoder.setBuffer(labelStateBuffer, offset: 0, index: 3)
+        encoder.setBuffer(duplicateFlagsBuffer, offset: 0, index: 4)
+        encoder.setBuffer(desiredVisibilityBuffer, offset: 0, index: 5)
+        encoder.setBytes(&params, length: MemoryLayout<LabelCollisionParams>.stride, index: 6)
 
         let threadsPerThreadgroup = MTLSize(
             width: max(1, pipeline.pipelineState.threadExecutionWidth),

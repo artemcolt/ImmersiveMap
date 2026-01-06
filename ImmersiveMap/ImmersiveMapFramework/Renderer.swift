@@ -48,13 +48,14 @@ class Renderer {
     private var viewMode: ViewMode = ViewMode.spherical
     private var radius: Double = 0.0
     private let screenMatrix: ScreenMatrix = ScreenMatrix()
-    private let computeGlobeToScreen: ComputeGlobeToScreen
+    private let computeGlobeLabelToScreen: ComputeGlobeLabelToScreen
     private let labelCache: LabelCache
     private let flatTileOriginCalculator: FlatTileOriginCalculator
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
     private var tileTextVerticesCount: Int = 0
+    private let labelFadeDuration: Float = 0.25
     
     let vertices: [PolygonsPipeline.Vertex] = [
         // axes
@@ -93,11 +94,11 @@ class Renderer {
         polygonPipeline = PolygonsPipeline(metalDevice: metalDevice, layer: layer, library: library)
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
-        let globeComputePipeline = GlobeComputePipeline(metalDevice: metalDevice, library: library)
-        let flatComputePipeline = FlatComputePipeline(metalDevice: metalDevice, library: library)
+        let globeComputePipeline = GlobeLabelComputePipeline(metalDevice: metalDevice, library: library)
+        let flatComputePipeline = FlatLabelComputePipeline(metalDevice: metalDevice, library: library)
         let labelCollisionPipeline = LabelCollisionPipeline(metalDevice: metalDevice, library: library)
         let labelCollisionCalculator = LabelCollisionCalculator(pipeline: labelCollisionPipeline, metalDevice: metalDevice)
-        computeGlobeToScreen = ComputeGlobeToScreen(globeComputePipeline, flatComputePipeline, labelCollisionCalculator, metalDevice: metalDevice)
+        computeGlobeLabelToScreen = ComputeGlobeLabelToScreen(globeComputePipeline, flatComputePipeline, labelCollisionCalculator, metalDevice: metalDevice)
         
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
@@ -126,7 +127,7 @@ class Renderer {
         flatTileOriginCalculator = FlatTileOriginCalculator(metalDevice: metalDevice)
         
         
-        labelCache = LabelCache(metalDevice: metalDevice, computeGlobeToScreen: computeGlobeToScreen)
+        labelCache = LabelCache(metalDevice: metalDevice, computeGlobeToScreen: computeGlobeLabelToScreen)
         metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(),
                                               metalDevice: metalDevice,
                                               renderer: self,
@@ -324,19 +325,29 @@ class Renderer {
 
         // Высчитываем положения и коллизии текстовых меток
         if viewMode == .spherical {
-            computeGlobeToScreen.runGlobe(drawSize: drawSize,
+            computeGlobeLabelToScreen.runGlobe(drawSize: drawSize,
                                           cameraUniform: cameraUniform,
                                           globe: globe,
                                           commandBuffer: commandBuffer,
-                                          screenPoints: screenPoints)
+                                          screenPoints: screenPoints,
+                                          labelStateBuffer: labelCache.labelStateBuffer,
+                                          duplicateFlagsBuffer: labelCache.labelDuplicateBuffer,
+                                          desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
+                                          now: Float(nowTime),
+                                          duration: labelFadeDuration)
         } else if viewMode == .flat {
             if let tileOriginDataBuffer {
-                computeGlobeToScreen.runFlat(drawSize: drawSize,
+                computeGlobeLabelToScreen.runFlat(drawSize: drawSize,
                                              cameraUniform: cameraUniform,
                                              tileOriginDataBuffer: tileOriginDataBuffer,
                                              labelTileIndicesBuffer: labelCache.labelTileIndicesBuffer,
                                              commandBuffer: commandBuffer,
-                                             screenPoints: screenPoints)
+                                             screenPoints: screenPoints,
+                                             labelStateBuffer: labelCache.labelStateBuffer,
+                                             duplicateFlagsBuffer: labelCache.labelDuplicateBuffer,
+                                             desiredVisibilityBuffer: labelCache.labelDesiredVisibilityBuffer,
+                                             now: Float(nowTime),
+                                             duration: labelFadeDuration)
             }
         }
         
@@ -419,10 +430,11 @@ class Renderer {
             let textVerticesBuffer = drawLabel.labelsVerticesBuffer
             let labelsCount = drawLabel.labelsCount
             let textVerticesCount = drawLabel.labelsVerticesCount
-            let screenPositions = computeGlobeToScreen.globeComputeOutputBuffer
-            let labelInputsBuffer = computeGlobeToScreen.globeComputeInputBuffer
-            let collisionOutput = computeGlobeToScreen.labelCollisionOutputBuffer
+            let screenPositions = computeGlobeLabelToScreen.globeComputeOutputBuffer
+            let labelInputsBuffer = computeGlobeLabelToScreen.globeComputeInputBuffer
+            let collisionOutput = computeGlobeLabelToScreen.labelCollisionOutputBuffer
             let duplicateFlagsBuffer = labelCache.labelDuplicateBuffer
+            let labelStateBuffer = labelCache.labelStateBuffer
             
             if labelsCount > 0 {
                 renderEncoder.setVertexBuffer(textVerticesBuffer, offset: 0, index: 0)
@@ -432,6 +444,9 @@ class Renderer {
                 renderEncoder.setVertexBuffer(labelInputsBuffer, offset: 0, index: 4)
                 renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
                 renderEncoder.setVertexBuffer(duplicateFlagsBuffer, offset: 0, index: 6)
+                renderEncoder.setVertexBuffer(labelStateBuffer, offset: 0, index: 7)
+                var appTime = Float(nowTime)
+                renderEncoder.setVertexBytes(&appTime, length: MemoryLayout<Float>.stride, index: 8)
                 renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
                 renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
                 renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVerticesCount)

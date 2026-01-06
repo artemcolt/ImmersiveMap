@@ -1,5 +1,5 @@
 //
-//  GlobeComputePipeline.swift
+//  GlobeLabelComputePipeline.swift
 //  ImmersiveMap
 //
 //  Created by Artem on 9/20/25.
@@ -26,11 +26,11 @@ struct GlobeScreenPointOutput {
     var visible: UInt32
 }
 
-class GlobeComputePipeline {
+class GlobeLabelComputePipeline {
     let pipelineState: MTLComputePipelineState
     
     init(metalDevice: MTLDevice, library: MTLLibrary) {
-        let kernel = library.makeFunction(name: "globeTileToScreenKernel")
+        let kernel = library.makeFunction(name: "globeLabelToScreenKernel")
         self.pipelineState = try! metalDevice.makeComputePipelineState(function: kernel!)
     }
     
