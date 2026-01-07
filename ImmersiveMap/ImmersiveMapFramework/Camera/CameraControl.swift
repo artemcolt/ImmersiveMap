@@ -50,11 +50,13 @@ class CameraControl {
     }
     
     func setLatLonDeg(latDeg: Double, lonDeg: Double) {
+        // Для глобусного представления
         globePan.x = -(lonDeg / 180)
         
         let maxLatitudeDeg = maxLatitude * (180.0 / .pi)
         globePan.y = (latDeg / maxLatitudeDeg)
         
+        // Для плоского представления
         flatPan.x = globePan.x
         
         let globeLat = (latDeg / 180.0) * Double.pi

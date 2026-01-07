@@ -58,6 +58,12 @@ final class LabelCache {
         for placeTile in placeTiles {
             let tile = placeTile.metalTile.tile
             let tileBuffers = placeTile.metalTile.tileBuffers
+            if placeTile.placeIn.isMinimized {
+                if labelTiles.removeValue(forKey: tile) != nil {
+                    changed = true
+                }
+                continue
+            }
             
             // в тайле нету лэйблов
             let labelsCount = tileBuffers.labelsCount
