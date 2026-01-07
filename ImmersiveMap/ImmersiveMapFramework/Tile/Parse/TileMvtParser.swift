@@ -28,6 +28,14 @@ class TileMvtParser {
     
     struct ParseGeometryStyleData {
         let lineWidth: Double
+        let lineCapRound: Bool
+        let lineJoinRound: Bool
+        
+        init(lineWidth: Double, lineCapRound: Bool = false, lineJoinRound: Bool = false) {
+            self.lineWidth = lineWidth
+            self.lineCapRound = lineCapRound
+            self.lineJoinRound = lineJoinRound
+        }
     }
     
     struct ParsedPolygon {
@@ -323,7 +331,11 @@ class TileMvtParser {
                     
                     let lines = decodeLine.decode(geometry: geometry)
                     for line in lines {
-                        let linePolygons = parseLine.parse(line: line, width: width, tileExtent: Float(tileExtent))
+                        let linePolygons = parseLine.parse(line: line,
+                                                           width: width,
+                                                           tileExtent: Float(tileExtent),
+                                                           lineCapRound: style.parseGeometryStyleData.lineCapRound,
+                                                           lineJoinRound: style.parseGeometryStyleData.lineJoinRound)
                         if linePolygons.isEmpty == false {
                             polygonByStyle[styleKey, default: []].append(contentsOf: linePolygons)
                         }

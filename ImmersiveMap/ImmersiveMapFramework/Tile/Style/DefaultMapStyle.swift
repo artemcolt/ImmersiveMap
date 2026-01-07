@@ -185,7 +185,9 @@ class DefaultMapStyle: MapStyle {
                 return FeatureStyle(
                     key: 201,
                     color: roadColor,
-                    parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: max(40.0 * factor, minWidth))
+                    parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: max(40.0 * factor, minWidth),
+                                                                                  lineCapRound: true,
+                                                                                  lineJoinRound: true)
                 )
             }
             
@@ -213,14 +215,18 @@ class DefaultMapStyle: MapStyle {
                 return FeatureStyle(
                     key: 200,
                     color: roadColor,
-                    parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: max(25.0 * factor, minWidth))
+                    parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: max(25.0 * factor, minWidth),
+                                                                                  lineCapRound: true,
+                                                                                  lineJoinRound: true)
                 )
             }
             
             return FeatureStyle(
                 key: fallbackKey, // Bottom-most
                 color: colors["fallback"]!,
-                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 1)
+                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 1,
+                                                                              lineCapRound: true,
+                                                                              lineJoinRound: true)
             )
 
         case "building":

@@ -94,7 +94,7 @@ class Renderer {
         camera = Camera()
         tileCulling = TileCulling(camera: camera)
         cameraControl = CameraControl()
-        //cameraControl.setZoom(zoom: 6)
+        cameraControl.setZoom(zoom: 14)
         cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
@@ -302,7 +302,7 @@ class Renderer {
         if viewMode == .spherical {
             globePipeline.selectPipeline(renderEncoder: renderEncoder)
             
-            renderEncoder.setCullMode(.front)
+            //renderEncoder.setCullMode(.front)
             renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
             renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
             renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
