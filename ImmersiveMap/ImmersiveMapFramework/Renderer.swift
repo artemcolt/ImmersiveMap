@@ -55,7 +55,7 @@ class Renderer {
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
     private var tileTextVerticesCount: Int = 0
-    private let labelFadeDuration: Float = 1.0
+    private let labelFadeDuration: Float = 0.25
     
     init(layer: CAMetalLayer, uiView: ImmersiveMapUIView) {
         self.metalLayer = layer
@@ -363,27 +363,27 @@ class Renderer {
         renderEncoder.setRenderPipelineState(textRenderer.labelPipelineState)
         var color = SIMD3<Float>(1.0, 0.0, 0.0)
         var globalTextShift: simd_int1 = 0
+        let screenPositions = labelScreenCompute.labelOutputBuffer
+        let labelInputsBuffer = labelScreenCompute.labelInputBuffer
+        let collisionOutput = labelScreenCompute.labelCollisionOutputBuffer
+        let labelRuntimeBuffer = labelCache.labelRuntimeBuffer
+        var appTime = Float(nowTime)
+        renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+        renderEncoder.setVertexBuffer(screenPositions, offset: 0, index: 2)
+        renderEncoder.setVertexBuffer(labelInputsBuffer, offset: 0, index: 4)
+        renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
+        renderEncoder.setVertexBuffer(labelRuntimeBuffer, offset: 0, index: 6)
+        renderEncoder.setVertexBytes(&appTime, length: MemoryLayout<Float>.stride, index: 7)
+        renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+        renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
         for drawLabel in labelCache.drawLabels {
             let textVerticesBuffer = drawLabel.labelsVerticesBuffer
             let labelsCount = drawLabel.labelsCount
             let textVerticesCount = drawLabel.labelsVerticesCount
-            let screenPositions = labelScreenCompute.labelOutputBuffer
-            let labelInputsBuffer = labelScreenCompute.labelInputBuffer
-            let collisionOutput = labelScreenCompute.labelCollisionOutputBuffer
-            let labelRuntimeBuffer = labelCache.labelRuntimeBuffer
             
             if labelsCount > 0 {
                 renderEncoder.setVertexBuffer(textVerticesBuffer, offset: 0, index: 0)
-                renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
-                renderEncoder.setVertexBuffer(screenPositions, offset: 0, index: 2)
                 renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
-                renderEncoder.setVertexBuffer(labelInputsBuffer, offset: 0, index: 4)
-                renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
-                renderEncoder.setVertexBuffer(labelRuntimeBuffer, offset: 0, index: 6)
-                var appTime = Float(nowTime)
-                renderEncoder.setVertexBytes(&appTime, length: MemoryLayout<Float>.stride, index: 7)
-                renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
-                renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
                 renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: textVerticesCount)
             }
             
