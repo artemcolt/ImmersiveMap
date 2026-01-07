@@ -16,6 +16,7 @@ class Renderer {
     let metalDevice: MTLDevice
     let commandQueue: MTLCommandQueue
     let parameters: Parameters
+    let config: MapConfiguration
     let polygonPipeline: PolygonsPipeline
     let tilePipeline: TilePipeline
     let globePipeline: GlobePipeline
@@ -57,9 +58,10 @@ class Renderer {
     private var tileTextVerticesCount: Int = 0
     private let labelFadeDuration: Float = 0.25
     
-    init(layer: CAMetalLayer, uiView: ImmersiveMapUIView) {
+    init(layer: CAMetalLayer, uiView: ImmersiveMapUIView, config: MapConfiguration = .default) {
         self.metalLayer = layer
         self.uiView = uiView
+        self.config = config
         guard let metalDevice = MTLCreateSystemDefaultDevice() else {
             fatalError("Metal не поддерживается на этом устройстве")
         }
@@ -74,7 +76,16 @@ class Renderer {
         self.commandQueue = queue
         
         let bundle = Bundle(for: Renderer.self)
-        let library = try! metalDevice.makeDefaultLibrary(bundle: bundle)
+        let library: MTLLibrary
+        do {
+            library = try metalDevice.makeDefaultLibrary(bundle: bundle)
+        } catch {
+            if let fallback = metalDevice.makeDefaultLibrary() {
+                library = fallback
+            } else {
+                fatalError("Не удалось создать MTLLibrary: \(error)")
+            }
+        }
         
         polygonPipeline = PolygonsPipeline(metalDevice: metalDevice, layer: layer, library: library)
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
@@ -92,8 +103,8 @@ class Renderer {
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
         debugOverlayRenderer = DebugOverlayRenderer(metalDevice: metalDevice)
         camera = Camera()
-        tileCulling = TileCulling(camera: camera)
-        cameraControl = CameraControl()
+        tileCulling = TileCulling(camera: camera, debugLogging: config.debugRenderLogging)
+        cameraControl = CameraControl(config: config)
         cameraControl.setZoom(zoom: 14)
         cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
@@ -120,7 +131,8 @@ class Renderer {
         metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(),
                                               metalDevice: metalDevice,
                                               renderer: self,
-                                              textRenderer: textRenderer)
+                                              textRenderer: textRenderer,
+                                              config: config)
     }
         
     func newTileAvailable(tile: Tile) {
@@ -129,6 +141,12 @@ class Renderer {
     
     func render(to layer: CAMetalLayer) {
         semaphore.wait()
+        var didSchedule = false
+        defer {
+            if !didSchedule {
+                semaphore.signal()
+            }
+        }
         
         let drawSize = layer.drawableSize
         if drawSize.width == 0 || drawSize.height == 0 {
@@ -153,8 +171,6 @@ class Renderer {
         
         // Не используем tripple buffering
         // На моем телефоне и без него хорошо работает
-        let nextIndex = (currentIndex + 1) % 3
-        currentIndex = nextIndex
         currentIndex = 0
         
         // Движение камеры
@@ -162,7 +178,6 @@ class Renderer {
         
         guard let cameraMatrix = camera.cameraMatrix,
               let drawable = layer.nextDrawable() else {
-            semaphore.signal()
             return
         }
         
@@ -196,7 +211,9 @@ class Renderer {
                                                   pan: SIMD2<Float>(Float(cameraControl.globePan.x), Float(cameraControl.globePan.y)))
         } else if viewMode == .flat {
             center = getFlatMapCenter(targetZoom: zoom)
-            print("Center = \(center)")
+            if config.debugRenderLogging {
+                print("Center = \(center)")
+            }
             seeTiles = tileCulling.iSeeTilesFlat(targetZoom: zoom, center: center, pan: cameraControl.flatPan, mapSize: mapSize)
         }
         let seeTilesHash = seeTiles.hashValue
@@ -204,17 +221,21 @@ class Renderer {
         // Если мы видим такие же тайлы, что и на предыдущем кадре, то тогда нету смысла обрабатывать их опять
         // Использовать тайлы с предыдущего кадра
         if previousSeeTilesHash != seeTilesHash {
-            print("Previous see tiles hash changed")
+            if config.debugRenderLogging {
+                print("Previous see tiles hash changed")
+            }
             // Сортируем тайлы для правильной, последовательной отрисовки
             savedSeeTiles = TileSorter.sortForRendering(seeTiles, center: center)
             previousSeeTilesHash = seeTilesHash
         }
         
-        print("- - -")
-        print("count = \(savedSeeTiles.count)")
-        for i in 0..<savedSeeTiles.count {
-            let sortedSeeTile = savedSeeTiles[i]
-            print("\(i+1)) x=\(sortedSeeTile.x), y=\(sortedSeeTile.y), z=\(sortedSeeTile.z), loop=\(sortedSeeTile.loop)")
+        if config.debugRenderLogging {
+            print("- - -")
+            print("count = \(savedSeeTiles.count)")
+            for i in 0..<savedSeeTiles.count {
+                let sortedSeeTile = savedSeeTiles[i]
+                print("\(i+1)) x=\(sortedSeeTile.x), y=\(sortedSeeTile.y), z=\(sortedSeeTile.z), loop=\(sortedSeeTile.loop)")
+            }
         }
         
         
@@ -226,7 +247,9 @@ class Renderer {
         
         // Перерисовываем только если загруженные тайлы другие
         if previousStorageHash != storageHash {
-            print("Tiles storage hash changed")
+            if config.debugRenderLogging {
+                print("Tiles storage hash changed")
+            }
             // Если тайлы изменились
             // Заменяем пробелы тайлами из предыдущего кадра.
             let placeTiles = getPlaceTiles(tilesFromStorage: tilesFromStorage, zoom: zoom)
@@ -302,7 +325,7 @@ class Renderer {
         if viewMode == .spherical {
             globePipeline.selectPipeline(renderEncoder: renderEncoder)
             
-            //renderEncoder.setCullMode(.front)
+            renderEncoder.setCullMode(.front) // Иначе будет видно обратную строну глобуса.
             renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
             renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
             renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
@@ -425,6 +448,7 @@ class Renderer {
         commandBuffer.addCompletedHandler { [weak self] _ in
             self?.semaphore.signal()
         }
+        didSchedule = true
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }
@@ -596,7 +620,9 @@ class Renderer {
             let depth = placeTile.depth
             let placed = tilesTexture.draw(placeTile: placeTile, depth: depth, maxDepth: 4)
             if placed == false {
-                print("[ERROR] No place for tile in texture!")
+                if config.debugRenderLogging {
+                    print("[ERROR] No place for tile in texture!")
+                }
                 break
             }
         }

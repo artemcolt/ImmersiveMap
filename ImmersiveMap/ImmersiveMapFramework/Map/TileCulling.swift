@@ -7,16 +7,20 @@
 
 class TileCulling {
     let camera: Camera
+    private let debugLogging: Bool
     
-    init(camera: Camera) {
+    init(camera: Camera, debugLogging: Bool) {
         self.camera = camera
+        self.debugLogging = debugLogging
     }
     
      func iSeeTilesGlobe(globe: Globe, targetZoom: Int, center: Center, viewMode: ViewMode, pan: SIMD2<Float>) -> Set<Tile> {
         let tileX = (Int) (center.tileX)
         let tileY = (Int) (center.tileY)
         
-        print("[CENTER] \(tileX), \(tileY), \(targetZoom)")
+        if debugLogging {
+            print("[CENTER] \(tileX), \(tileY), \(targetZoom)")
+        }
         let rotation = camera.createRotationMatrix(globe: globe)
         var result: Set<Tile> = []
         camera.collectVisibleTilesGlobe(x: 0, y: 0, z: 0,
@@ -37,7 +41,9 @@ class TileCulling {
        let tileX = (Int) (center.tileX)
        let tileY = (Int) (center.tileY)
        
-       print("[CENTER] \(tileX), \(tileY), \(targetZoom)")
+       if debugLogging {
+           print("[CENTER] \(tileX), \(tileY), \(targetZoom)")
+       }
        var result: Set<Tile> = []
        camera.collectVisibleTilesFlat(x: 0, y: 0, z: 0,
                                       targetZ: targetZoom,

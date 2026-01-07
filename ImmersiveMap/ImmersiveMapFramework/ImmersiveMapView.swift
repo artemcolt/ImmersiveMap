@@ -9,15 +9,19 @@ import SwiftUI
 import UIKit // Для UIView
 
 public struct ImmersiveMapView: UIViewRepresentable {
-    public init() {
-        
+    private let config: MapConfiguration
+
+    public init(config: MapConfiguration = .default) {
+        self.config = config
     }
     
     public func makeUIView(context: Context) -> ImmersiveMapUIView {
-        return ImmersiveMapUIView()
+        return ImmersiveMapUIView(frame: .zero, config: config)
     }
     
     public func updateUIView(_ uiView: ImmersiveMapUIView, context: Context) {
-        print("update UI view")
+        if config.debugRenderLogging {
+            print("update UI view")
+        }
     }
 }

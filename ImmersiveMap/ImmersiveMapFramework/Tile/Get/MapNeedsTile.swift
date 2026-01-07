@@ -5,6 +5,7 @@
 //  Created by Artem on 5/30/25.
 //
 
+import Foundation
 import MetalKit
 
 class MapNeedsTile {
@@ -14,19 +15,24 @@ class MapNeedsTile {
     private let maxConcurrentFetchs: Int
     private let fifo: FIFOStack<Tile>
     private let metalTilesStorage: MetalTilesStorage
+    private let config: MapConfiguration
+    private let stateQueue = DispatchQueue(label: "ImmersiveMap.MapNeedsTile.state")
     
-    init(metalTilesStorage: MetalTilesStorage) {
+    init(metalTilesStorage: MetalTilesStorage, config: MapConfiguration) {
         self.metalTilesStorage = metalTilesStorage
-        self.maxConcurrentFetchs = MapParameters.maxConcurrentFetchs
-        let maxFifoCapacity = MapParameters.maxFifoCapacity
+        self.config = config
+        self.maxConcurrentFetchs = config.maxConcurrentFetchs
+        let maxFifoCapacity = config.maxFifoCapacity
         self.fifo = FIFOStack(capacity: maxFifoCapacity)
         
-        tileDiskCaching = TileDiskCaching()
-        tileDownloader = TileDownloader()
+        tileDiskCaching = TileDiskCaching(config: config)
+        tileDownloader = TileDownloader(config: config)
     }
     
     func freePlaces() -> Int {
-        return maxConcurrentFetchs - ongoingTasks.count
+        return stateQueue.sync {
+            maxConcurrentFetchs - ongoingTasks.count
+        }
     }
     
     func request(tiles: [Tile]) {
@@ -35,7 +41,9 @@ class MapNeedsTile {
         }
         
         // У нас теперь требуются новые тайлы, зачистить очередь
-        fifo.clear()
+        stateQueue.sync {
+            fifo.clear()
+        }
         
         // Запрашиваем столько, сколько можем.
         // Остальное будет добавлено в очередь fifo и вызвано позже
@@ -45,16 +53,18 @@ class MapNeedsTile {
     }
     
     private func requestSingleTile(tile: Tile) {
-        if ongoingTasks[tile] != nil {
-            return
+        stateQueue.sync {
+            if ongoingTasks[tile] != nil {
+                return
+            }
+            
+            if ongoingTasks.count >= maxConcurrentFetchs {
+                fifo.push(tile)
+                return
+            }
+            
+            createLoadTileTask(tile: tile)
         }
-        
-        if ongoingTasks.count >= maxConcurrentFetchs {
-            fifo.push(tile)
-            return
-        }
-        
-        createLoadTileTask(tile: tile)
     }
     
     private func createLoadTileTask(tile: Tile) {
@@ -67,6 +77,11 @@ class MapNeedsTile {
     }
     
     private func loadTile(tile: Tile) async {
+        defer {
+            Task { @MainActor in
+                finishLoading(tile: tile)
+            }
+        }
         if let data = await tileDiskCaching.requestDiskCached(tile: tile) {
             await parseTile(data: data, tile: tile)
             return
@@ -84,12 +99,17 @@ class MapNeedsTile {
             await metalTilesStorage.parseTile(tile: tile, data: data)
             print("[TILE] \(tile) ready.")
         }
-        
-        await MainActor.run {
+    }
+
+    @MainActor
+    private func finishLoading(tile: Tile) {
+        var nextTile: Tile?
+        stateQueue.sync {
             ongoingTasks.removeValue(forKey: tile)
-            if let deqeueTile = fifo.pop() {
-                requestSingleTile(tile: deqeueTile)
-            }
+            nextTile = fifo.pop()
+        }
+        if let deqeueTile = nextTile {
+            requestSingleTile(tile: deqeueTile)
         }
     }
 }

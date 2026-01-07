@@ -16,6 +16,11 @@ class CameraControl {
     var pitch: Float = 0
     var zoom: Double = 0
     private let maxLatitude = (2.0 * atan(exp(Double.pi)) - Double.pi / 2.0)
+    private let config: MapConfiguration
+
+    init(config: MapConfiguration) {
+        self.config = config
+    }
     
     func pan(deltaX: Double, deltaY: Double) {
         let yaw = Double(yaw)
@@ -71,7 +76,7 @@ class CameraControl {
     }
     
     func rotatePitch(pitch: Float) {
-        self.pitch = MapParameters.maxPitch - pitch
+        self.pitch = config.maxPitch - pitch
         update = true
     }
     

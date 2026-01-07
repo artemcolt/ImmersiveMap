@@ -187,7 +187,7 @@ class TextRenderer {
         var currentX: Float = position.x
         let lineHeight = Float(atlasData.metrics.lineHeight) * scale
         let y = position.y  // Базовая линия на position.y
-        var glyphs = atlasData.glyphs
+        let glyphs = atlasData.glyphs
         
         for char in text.unicodeScalars {
             guard let glyph = glyphs.first(where: { $0.unicode == char.value }) else {
@@ -239,28 +239,59 @@ class TextRenderer {
     
     private func loadAtlasTexture() {
         guard let url = bundle.url(forResource: "atlas", withExtension: "png") else {
-            fatalError("Atlas texture not found")
+            texture = makeFallbackTexture()
+            return
         }
         let textureLoader = MTKTextureLoader(device: device)
         do {
             texture = try textureLoader.newTexture(URL: url, options: nil)
             print("Atlas texture loaded: \(texture.width)x\(texture.height)")
         } catch {
-            fatalError("Failed to load atlas texture: \(error)")
+            texture = makeFallbackTexture()
         }
     }
     
     private func loadAtlasJSON() {
         guard let url = bundle.url(forResource: "atlas", withExtension: "json") else {
-            fatalError("Atlas JSON not found")
+            atlasData = makeFallbackAtlasData()
+            return
         }
         do {
             let data = try Data(contentsOf: url)
             atlasData = try JSONDecoder().decode(AtlasData.self, from: data)
             print("Atlas JSON loaded: \(atlasData.glyphs.count) glyphs")
         } catch {
-            fatalError("Failed to load atlas JSON: \(error)")
+            atlasData = makeFallbackAtlasData()
         }
+    }
+
+    private func makeFallbackTexture() -> MTLTexture {
+        let descriptor = MTLTextureDescriptor()
+        descriptor.textureType = .type2D
+        descriptor.pixelFormat = .bgra8Unorm
+        descriptor.width = 1
+        descriptor.height = 1
+        descriptor.usage = [.shaderRead]
+        return device.makeTexture(descriptor: descriptor)!
+    }
+
+    private func makeFallbackAtlasData() -> AtlasData {
+        return AtlasData(
+            atlas: AtlasInfo(type: "fallback",
+                             distanceRange: 0,
+                             distanceRangeMiddle: 0,
+                             size: 1,
+                             width: 1,
+                             height: 1,
+                             yOrigin: "bottom"),
+            metrics: Metrics(emSize: 1,
+                             lineHeight: 1,
+                             ascender: 0,
+                             descender: 0,
+                             underlineY: 0,
+                             underlineThickness: 0),
+            glyphs: []
+        )
     }
     
     private func createPipelines() {

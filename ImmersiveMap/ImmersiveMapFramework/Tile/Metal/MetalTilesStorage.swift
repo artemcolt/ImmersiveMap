@@ -14,25 +14,29 @@ class MetalTilesStorage {
     var tileParser                  : TileMvtParser!
     private var memoryMetalTile     : MemoryMetalTileCache!
     private let metalDevice         : MTLDevice
-    private let debugAssemblingMap  = MapParameters.debugAssemblingMap
+    private let debugAssemblingMap  : Bool
     private let renderer            : Renderer
     private let textRenderer        : TextRenderer
+    private let config              : MapConfiguration
     
     init(
         mapStyle: MapStyle,
         metalDevice: MTLDevice,
         renderer: Renderer,
-        textRenderer: TextRenderer
+        textRenderer: TextRenderer,
+        config: MapConfiguration
     ) {
         self.metalDevice = metalDevice
         self.renderer = renderer
         self.textRenderer = textRenderer
-        let maxCachedTilesMemory = MapParameters.maxCachedTilesMemInBytes
+        self.config = config
+        self.debugAssemblingMap = config.debugAssemblingMap
+        let maxCachedTilesMemory = config.maxCachedTilesMemInBytes
         memoryMetalTile = MemoryMetalTileCache(maxCacheSizeInBytes: maxCachedTilesMemory)
         let determineFeatureStyle = DetermineFeatureStyle(mapStyle: mapStyle)
-        tileParser = TileMvtParser(determineFeatureStyle: determineFeatureStyle)
+        tileParser = TileMvtParser(determineFeatureStyle: determineFeatureStyle, config: config)
         
-        mapNeedsTile = MapNeedsTile(metalTilesStorage: self)
+        mapNeedsTile = MapNeedsTile(metalTilesStorage: self, config: config)
     }
     
     func getMetalTile(tile: Tile) -> MetalTile? {

@@ -10,8 +10,10 @@ import Foundation
 class TileDiskCaching {
     private let cacheDirectory: URL
     private let cacheDuration: TimeInterval = 7 * 24 * 60 * 60 // 1 week in seconds
+    private let config: MapConfiguration
     
-    init() {
+    init(config: MapConfiguration) {
+        self.config = config
         // Initialize cache directory
         let fileManager = FileManager.default
         let cachesDirectory = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -24,7 +26,7 @@ class TileDiskCaching {
             print("Failed to create cache directory: \(error)")
         }
         
-        let clearDownloadedOnDiskTiles = MapParameters.clearDownloadedOnDiskTiles
+        let clearDownloadedOnDiskTiles = config.clearDownloadedOnDiskTiles
         if clearDownloadedOnDiskTiles {
             do {
                 try clearAllCache()

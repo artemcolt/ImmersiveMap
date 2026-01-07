@@ -11,13 +11,23 @@ import Metal
 public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
     public override class var layerClass: AnyClass { return CAMetalLayer.self }
     
+    private let config: MapConfiguration
+    
     override init(frame: CGRect) {
+        self.config = .default
         super.init(frame: frame)
         setup()
     }
     
     required init?(coder: NSCoder) {
+        self.config = .default
         super.init(coder: coder)
+        setup()
+    }
+    
+    init(frame: CGRect, config: MapConfiguration) {
+        self.config = config
+        super.init(frame: frame)
         setup()
     }
     
@@ -61,7 +71,7 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
     
     private func setup() {
         metalLayer.contentsScale = UIScreen.main.scale
-        renderer = Renderer(layer: metalLayer, uiView: self)
+        renderer = Renderer(layer: metalLayer, uiView: self, config: config)
         
         // Добавляем обработчик жеста панорамирования одним пальцем
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
@@ -86,8 +96,8 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
         // Добавляем ползунок для контроля pitch (наклона камеры)
         pitchSlider = UISlider()
         pitchSlider.minimumValue = 0.0
-        pitchSlider.maximumValue = MapParameters.maxPitch
-        pitchSlider.value = MapParameters.maxPitch
+        pitchSlider.maximumValue = config.maxPitch
+        pitchSlider.value = config.maxPitch
         pitchSlider.addTarget(self, action: #selector(handlePitchChange(_:)), for: .valueChanged)
         pitchSlider.transform = CGAffineTransform(rotationAngle: -CGFloat.pi / 2)  // Делаем вертикальным
         addSubview(pitchSlider)
@@ -106,7 +116,7 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
     }
     
     @objc private func handleDoubleTap(_ gestrue: UITapGestureRecognizer) {
-        let location = gestrue.location(in: self)
+        _ = gestrue.location(in: self)
         renderer?.switchRenderMode()
     }
     
@@ -160,7 +170,7 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
     }
     
     @objc private func renderLoop() {
-        if redraw || MapParameters.continueRendering {
+        if redraw || config.continueRendering {
             render()
             redraw = false
         }

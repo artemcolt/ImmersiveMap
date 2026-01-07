@@ -18,7 +18,10 @@ struct Tile: Hashable {
     let isMinimized: Bool // это чтобы далекие тайлы определять, они заменяются на карте на более мелкие тайлы
     
     static func == (lhs: Tile, rhs: Tile) -> Bool {
-        return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.loop == rhs.loop
+        return lhs.x == rhs.x &&
+               lhs.y == rhs.y &&
+               lhs.z == rhs.z &&
+               lhs.loop == rhs.loop
     }
     
     // Ручная реализация хэширования

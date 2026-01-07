@@ -54,7 +54,7 @@ class Camera {
     func aproximateTileGlobe(tx: Int, ty: Int, tz: Int, radius: Float,
                              rotation: float4x4,
                              pan: SIMD2<Float>) -> [SIMD4<Float>] {
-        var step = Float(0.25)
+        let step = Float(0.25)
         
         let count = Int(1.0 / step)
         var points: [SIMD4<Float>] = Array(repeating: SIMD4<Float>(), count: (count + 1) * (count + 1) )
