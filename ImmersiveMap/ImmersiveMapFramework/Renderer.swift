@@ -92,11 +92,14 @@ class Renderer {
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
         let globeComputePipeline = GlobeLabelComputePipeline(metalDevice: metalDevice, library: library)
         let flatComputePipeline = FlatLabelComputePipeline(metalDevice: metalDevice, library: library)
-        let labelCollisionPipeline = LabelCollisionPipeline(metalDevice: metalDevice, library: library)
-        let labelCollisionCalculator = LabelCollisionCalculator(pipeline: labelCollisionPipeline, metalDevice: metalDevice)
+        let screenCollisionPipeline = ScreenCollisionPipeline(metalDevice: metalDevice, library: library)
+        let screenCollisionCalculator = ScreenCollisionCalculator(pipeline: screenCollisionPipeline, metalDevice: metalDevice)
+        let labelStateUpdatePipeline = LabelStateUpdatePipeline(metalDevice: metalDevice, library: library)
+        let labelStateUpdateCalculator = LabelStateUpdateCalculator(pipeline: labelStateUpdatePipeline)
         labelScreenCompute = LabelScreenCompute(globeComputePipeline: globeComputePipeline,
                                                 flatComputePipeline: flatComputePipeline,
-                                                labelCollisionCalculator: labelCollisionCalculator,
+                                                screenCollisionCalculator: screenCollisionCalculator,
+                                                labelStateUpdateCalculator: labelStateUpdateCalculator,
                                                 metalDevice: metalDevice)
         
         textRenderer = TextRenderer(device: metalDevice, library: library)

@@ -1,5 +1,5 @@
 //
-//  LabelCommon.h
+//  ScreenCommon.h
 //  ImmersiveMap
 //
 //  Created by Artem on 1/6/26.
@@ -7,6 +7,9 @@
 
 #include <metal_stdlib>
 using namespace metal;
+
+#ifndef SCREEN_COMMON
+#define SCREEN_COMMON
 
 struct ScreenParams {
     float2 viewportSize; // In pixels; used only when outputPixels != 0
@@ -19,9 +22,4 @@ struct ScreenPointOutput {
     uint visible;    // 0 = clipped/behind, 1 = visible
 };
 
-struct LabelCollisionParams {
-    uint count;
-    float now;
-    float duration;
-    uint padding;
-};
+#endif

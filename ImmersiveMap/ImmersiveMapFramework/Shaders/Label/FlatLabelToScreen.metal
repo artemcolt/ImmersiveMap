@@ -8,7 +8,7 @@
 #include <metal_stdlib>
 using namespace metal;
 #include "../Common.h"
-#include "LabelCommon.h"
+#include "../Screen/ScreenCommon.h"
 
 kernel void flatLabelToScreenKernel(const device LabelInput* inputs [[buffer(0)]],
                                     device ScreenPointOutput* outputs [[buffer(1)]],

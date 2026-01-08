@@ -1,26 +1,25 @@
 //
-//  LabelCollisionCalculator.swift
+//  ScreenCollisionCalculator.swift
 //  ImmersiveMap
 //
-//  Created by Artem on 1/3/26.
+//  Created by Artem on 1/6/26.
 //
 
 import Metal
-import simd
 
-class LabelCollisionCalculator {
-    private let pipeline: LabelCollisionPipeline
+final class ScreenCollisionCalculator {
+    private let pipeline: ScreenCollisionPipeline
     private let metalDevice: MTLDevice
     private(set) var outputBuffer: MTLBuffer
 
-    struct LabelCollisionParams {
+    struct ScreenCollisionParams {
         var count: UInt32
-        var now: Float
-        var duration: Float
-        var _padding: UInt32 = 0
+        var _padding0: UInt32 = 0
+        var _padding1: UInt32 = 0
+        var _padding2: UInt32 = 0
     }
 
-    init(pipeline: LabelCollisionPipeline, metalDevice: MTLDevice) {
+    init(pipeline: ScreenCollisionPipeline, metalDevice: MTLDevice) {
         self.pipeline = pipeline
         self.metalDevice = metalDevice
         self.outputBuffer = metalDevice.makeBuffer(
@@ -39,10 +38,7 @@ class LabelCollisionCalculator {
     func run(commandBuffer: MTLCommandBuffer,
              inputsCount: Int,
              screenPointsBuffer: MTLBuffer,
-             inputsBuffer: MTLBuffer,
-             labelRuntimeBuffer: MTLBuffer,
-             now: Float,
-             duration: Float) {
+             inputsBuffer: MTLBuffer) {
         guard inputsCount > 0 else {
             return
         }
@@ -51,13 +47,12 @@ class LabelCollisionCalculator {
         }
 
         pipeline.encode(encoder: encoder)
-        var params = LabelCollisionParams(count: UInt32(inputsCount), now: now, duration: duration)
+        var params = ScreenCollisionParams(count: UInt32(inputsCount))
 
         encoder.setBuffer(screenPointsBuffer, offset: 0, index: 0)
         encoder.setBuffer(outputBuffer, offset: 0, index: 1)
         encoder.setBuffer(inputsBuffer, offset: 0, index: 2)
-        encoder.setBuffer(labelRuntimeBuffer, offset: 0, index: 3)
-        encoder.setBytes(&params, length: MemoryLayout<LabelCollisionParams>.stride, index: 4)
+        encoder.setBytes(&params, length: MemoryLayout<ScreenCollisionParams>.stride, index: 3)
 
         let threadsPerThreadgroup = MTLSize(
             width: max(1, pipeline.pipelineState.threadExecutionWidth),

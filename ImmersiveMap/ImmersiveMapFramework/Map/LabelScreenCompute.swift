@@ -11,10 +11,11 @@ final class LabelScreenCompute {
     private let buffers: LabelScreenBuffers
     private let globeCompute: GlobeLabelScreenCompute
     private let flatCompute: FlatLabelScreenCompute
-    private let labelCollisionCalculator: LabelCollisionCalculator
+    private let screenCollisionCalculator: ScreenCollisionCalculator
+    private let labelStateUpdateCalculator: LabelStateUpdateCalculator
 
     var labelCollisionOutputBuffer: MTLBuffer {
-        labelCollisionCalculator.outputBuffer
+        screenCollisionCalculator.outputBuffer
     }
 
     var labelInputBuffer: MTLBuffer {
@@ -27,17 +28,19 @@ final class LabelScreenCompute {
 
     init(globeComputePipeline: GlobeLabelComputePipeline,
          flatComputePipeline: FlatLabelComputePipeline,
-         labelCollisionCalculator: LabelCollisionCalculator,
+         screenCollisionCalculator: ScreenCollisionCalculator,
+         labelStateUpdateCalculator: LabelStateUpdateCalculator,
          metalDevice: MTLDevice) {
         self.buffers = LabelScreenBuffers(metalDevice: metalDevice)
         self.globeCompute = GlobeLabelScreenCompute(pipeline: globeComputePipeline)
         self.flatCompute = FlatLabelScreenCompute(pipeline: flatComputePipeline)
-        self.labelCollisionCalculator = labelCollisionCalculator
+        self.screenCollisionCalculator = screenCollisionCalculator
+        self.labelStateUpdateCalculator = labelStateUpdateCalculator
     }
 
     func copyDataToBuffer(inputs: [LabelInput]) {
         buffers.copyDataToBuffer(inputs: inputs)
-        labelCollisionCalculator.ensureOutputCapacity(count: buffers.inputsCount)
+        screenCollisionCalculator.ensureOutputCapacity(count: buffers.inputsCount)
     }
 
     func runGlobe(drawSize: CGSize,
@@ -52,7 +55,8 @@ final class LabelScreenCompute {
                          globe: globe,
                          commandBuffer: commandBuffer,
                          buffers: buffers,
-                         collisionCalculator: labelCollisionCalculator,
+                         collisionCalculator: screenCollisionCalculator,
+                         labelStateUpdater: labelStateUpdateCalculator,
                          labelRuntimeBuffer: labelRuntimeBuffer,
                          now: now,
                          duration: duration)
@@ -70,7 +74,8 @@ final class LabelScreenCompute {
                         tileOriginDataBuffer: tileOriginDataBuffer,
                         commandBuffer: commandBuffer,
                         buffers: buffers,
-                        collisionCalculator: labelCollisionCalculator,
+                        collisionCalculator: screenCollisionCalculator,
+                        labelStateUpdater: labelStateUpdateCalculator,
                         labelRuntimeBuffer: labelRuntimeBuffer,
                         now: now,
                         duration: duration)

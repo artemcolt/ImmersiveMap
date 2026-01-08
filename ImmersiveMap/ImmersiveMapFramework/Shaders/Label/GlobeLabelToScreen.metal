@@ -8,7 +8,7 @@
 #include <metal_stdlib>
 using namespace metal;
 #include "../Common.h"
-#include "LabelCommon.h"
+#include "../Screen/ScreenCommon.h"
 
 
 float4 globeClipFromTileUV(float2 localUv,
