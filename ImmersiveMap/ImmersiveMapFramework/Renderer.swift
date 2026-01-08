@@ -28,9 +28,9 @@ class Renderer {
     
     private var metalTilesStorage: MetalTilesStorage?
     private let tilesTexture: TilesTexture
-    private let textRenderer: TextRenderer
+    let textRenderer: TextRenderer
     private let uiView: ImmersiveMapUIView
-    private let debugOverlayRenderer: DebugOverlayRenderer
+    let debugOverlayRenderer: DebugOverlayRenderer
     
     private let baseGridBuffers: GridBuffers
     private var lastDrawableSize: CGSize = .zero
@@ -418,33 +418,11 @@ class Renderer {
 
         
         
-        debugOverlayRenderer.drawAxes(renderEncoder: renderEncoder,
-                                      polygonPipeline: polygonPipeline,
-                                      cameraUniform: cameraUniform)
-        
-        for point in camera.testPoints {
-            let verticesTest = [PolygonsPipeline.Vertex(position: point, color: SIMD4<Float>(1, 0, 0, 1))]
-            renderEncoder.setVertexBytes(verticesTest,
-                                         length: MemoryLayout<PolygonsPipeline.Vertex>.stride * verticesTest.count,
-                                         index: 0)
-            renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesTest.count)
-        }
-        camera.testPoints = []
-        
-        renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
-        for screenPoint in screenPoints.get() {
-            let simd4 = SIMD4<Float>(screenPoint.x, screenPoint.y, 0, 1)
-            let verticesTest = [PolygonsPipeline.Vertex(position: simd4, color: SIMD4<Float>(1, 0, 0, 1))]
-            let len = MemoryLayout<PolygonsPipeline.Vertex>.stride * verticesTest.count
-            renderEncoder.setVertexBytes(verticesTest, length: len, index: 0)
-            renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesTest.count)
-        }
-        
-        debugOverlayRenderer.drawZoomText(renderEncoder: renderEncoder,
-                                          textRenderer: textRenderer,
-                                          screenMatrix: screenMatrix,
-                                          drawSize: drawSize,
-                                          zoom: cameraControl.zoom)
+        drawDebugOverlay(renderEncoder: renderEncoder,
+                         screenMatrix: screenMatrix,
+                         drawSize: drawSize,
+                         viewMode: viewMode,
+                         cameraUniform: cameraUniform)
         
         renderEncoder.endEncoding()
         

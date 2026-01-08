@@ -17,3 +17,6 @@ Documentation folder contains helpful information about implemented modules
 
 # Commands that you are always permitted to execute
 1) /Users/artem/Desktop/ImmersiveMap/save.sh - execute it when user asks you to save/push project
+
+# Code style
+Follow swift, ios developers code style rules.
