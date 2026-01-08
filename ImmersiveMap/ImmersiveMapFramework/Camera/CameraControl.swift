@@ -69,6 +69,52 @@ class CameraControl {
         let yNormalized = yMerc / Double.pi
         flatPan.y = yNormalized
     }
+
+    func getLatLonDegGlobe() -> (latDeg: Double, lonDeg: Double) {
+        let maxLatitudeDeg = maxLatitude * (180.0 / .pi)
+        let latDeg = globePan.y * maxLatitudeDeg
+        let lonDeg = -globePan.x * 180.0
+        return (latDeg, lonDeg)
+    }
+
+    func getLatLonDegFlat() -> (latDeg: Double, lonDeg: Double) {
+        let lonDeg = -flatPan.x * 180.0
+        let yMerc = flatPan.y * Double.pi
+        let latRad = 2.0 * atan(exp(yMerc)) - Double.pi / 2.0
+        let latDeg = latRad * (180.0 / .pi)
+        return (latDeg, lonDeg)
+    }
+
+    func getLatLonRadGlobe() -> (latRad: Double, lonRad: Double) {
+        let latRad = globePan.y * maxLatitude
+        let lonRad = -globePan.x * Double.pi
+        return (latRad, lonRad)
+    }
+
+    func getLatLonRadFlat() -> (latRad: Double, lonRad: Double) {
+        let lonRad = -flatPan.x * Double.pi
+        let yMerc = flatPan.y * Double.pi
+        let latRad = 2.0 * atan(exp(yMerc)) - Double.pi / 2.0
+        return (latRad, lonRad)
+    }
+
+    func getLatLonDeg(viewMode: ViewMode) -> (latDeg: Double, lonDeg: Double) {
+        switch viewMode {
+        case .spherical:
+            return getLatLonDegGlobe()
+        case .flat:
+            return getLatLonDegFlat()
+        }
+    }
+
+    func getLatLonRad(viewMode: ViewMode) -> (latRad: Double, lonRad: Double) {
+        switch viewMode {
+        case .spherical:
+            return getLatLonRadGlobe()
+        case .flat:
+            return getLatLonRadFlat()
+        }
+    }
     
     func rotateYaw(delta: Float) {
         yaw += delta
