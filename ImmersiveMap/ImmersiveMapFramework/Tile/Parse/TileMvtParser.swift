@@ -25,6 +25,7 @@ class TileMvtParser {
         let rawLineByStyle: [UInt8: [ParsedLineRawVertices]]
         let styles: [UInt8: FeatureStyle]
         let textLabels: [TextLabel]
+        let roadTextLabels: [RoadTextLabel]
     }
     
     struct ParseGeometryStyleData {
@@ -67,30 +68,42 @@ class TileMvtParser {
         init(text: String, position: SIMD2<Int16>, tile: Tile, featureId: UInt64, layerName: String) {
             self.text = text
             self.position = position
-            self.key = TextLabel.makeKey(text: text, featureId: featureId, layerName: layerName)
+            self.key = TileMvtParser.makeLabelKey(text: text, featureId: featureId, layerName: layerName)
+        }
+    }
+
+    struct RoadTextLabel {
+        let text: String
+        let path: [SIMD2<Int16>]
+        let key: UInt64
+
+        init(text: String, path: [SIMD2<Int16>], tile: Tile, featureId: UInt64, layerName: String) {
+            self.text = text
+            self.path = path
+            self.key = TileMvtParser.makeLabelKey(text: text, featureId: featureId, layerName: layerName)
+        }
+    }
+
+    private static func makeLabelKey(text: String, featureId: UInt64, layerName: String) -> UInt64 {
+        // Compact, stable FNV-1a hash for a label.
+        var hash: UInt64 = 1469598103934665603
+        func mix(_ value: UInt64) {
+            hash ^= value
+            hash &*= 1099511628211
         }
         
-        private static func makeKey(text: String, featureId: UInt64, layerName: String) -> UInt64 {
-            // Compact, stable FNV-1a hash for a label.
-            var hash: UInt64 = 1469598103934665603
-            func mix(_ value: UInt64) {
-                hash ^= value
-                hash &*= 1099511628211
-            }
-            
-            mix(featureId)
-            for byte in layerName.utf8 {
-                hash ^= UInt64(byte)
-                hash &*= 1099511628211
-            }
-            
-            for byte in text.utf8 {
-                hash ^= UInt64(byte)
-                hash &*= 1099511628211
-            }
-            
-            return hash
+        mix(featureId)
+        for byte in layerName.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1099511628211
         }
+        
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1099511628211
+        }
+        
+        return hash
     }
     
     class ParsedTile {
@@ -98,17 +111,20 @@ class TileMvtParser {
         let styles: [TilePolygonStyle]
         let tile: Tile
         let textLabels: [TextLabel]
+        let roadTextLabels: [RoadTextLabel]
         
         init(
             drawingPolygon: DrawingPolygonBytes,
             styles: [TilePolygonStyle],
             tile: Tile,
-            textLabels: [TextLabel]
+            textLabels: [TextLabel],
+            roadTextLabels: [RoadTextLabel]
         ) {
             self.drawingPolygon = drawingPolygon
             self.styles = styles
             self.tile = tile
             self.textLabels = textLabels
+            self.roadTextLabels = roadTextLabels
         }
     }
     
@@ -130,7 +146,8 @@ class TileMvtParser {
             drawingPolygon: unificationResult.drawingPolygon,
             styles: unificationResult.styles,
             tile: tile,
-            textLabels: readingStageResult.textLabels
+            textLabels: readingStageResult.textLabels,
+            roadTextLabels: readingStageResult.roadTextLabels
         )
     }
 
@@ -168,6 +185,10 @@ class TileMvtParser {
         }
         
         return points
+    }
+
+    private func linePath(line: LineString) -> [SIMD2<Int16>] {
+        return line.map { SIMD2(Int16($0.x), Int16($0.y)) }
     }
     
     private func addBorder(polygonByStyle: inout [UInt8: [ParsedPolygon]], styles: inout [UInt8: FeatureStyle], borderWidth: Int16) {
@@ -278,6 +299,7 @@ class TileMvtParser {
         let rawLineByStyle: [UInt8: [ParsedLineRawVertices]] = [:]
         var styles: [UInt8: FeatureStyle] = [:]
         var textLabels: [TextLabel] = []
+        var roadTextLabels: [RoadTextLabel] = []
         
         for layer in vectorTile.layers {
             let layerName = layer.name
@@ -341,6 +363,16 @@ class TileMvtParser {
                         if linePolygons.isEmpty == false {
                             polygonByStyle[styleKey, default: []].append(contentsOf: linePolygons)
                         }
+                        if style.includeRoadLabelPath, let nameEn = attributes["name_en"]?.stringValue {
+                            let path = linePath(line: line)
+                            if path.isEmpty == false {
+                                roadTextLabels.append(RoadTextLabel(text: nameEn,
+                                                                    path: path,
+                                                                    tile: tile,
+                                                                    featureId: feature.id,
+                                                                    layerName: layerName))
+                            }
+                        }
                     }
                 } else if feature.type == .point {
                     guard let nameEn = attributes["name_en"]?.stringValue else { continue }
@@ -364,7 +396,8 @@ class TileMvtParser {
             polygonByStyle: polygonByStyle.filter { $0.value.isEmpty == false },
             rawLineByStyle: rawLineByStyle.filter { $0.value.isEmpty == false },
             styles: styles,
-            textLabels: textLabels
+            textLabels: textLabels,
+            roadTextLabels: roadTextLabels
         )
     }
     

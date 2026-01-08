@@ -8,7 +8,7 @@ Usages: Swift, Metal GPU.
 
 Vector tile specification: documentation/TILE_SPECIFICATION.md
 
-documentation folder contains helpful information about implemented modules
+Documentation folder contains helpful information about implemented modules
 
 # Main files
 1. ImmersiveMapFramework/Renderer.swift - contains render frame logic.
