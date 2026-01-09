@@ -20,6 +20,7 @@ class Renderer {
     let polygonPipeline: PolygonsPipeline
     let tilePipeline: TilePipeline
     let globePipeline: GlobePipeline
+    let starfield: Starfield
     let camera: Camera
     let cameraControl: CameraControl
     let tileCulling: TileCulling
@@ -52,6 +53,8 @@ class Renderer {
     private let labelScreenCompute: LabelScreenCompute
     private let labelCache: LabelCache
     private let flatTileOriginCalculator: FlatTileOriginCalculator
+    private let tileRetentionTracker: TileRetentionTracker
+    private var trackedTiles: [TileRetentionTracker.TrackedTile] = []
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -90,6 +93,10 @@ class Renderer {
         polygonPipeline = PolygonsPipeline(metalDevice: metalDevice, layer: layer, library: library)
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
+        starfield = Starfield(metalDevice: metalDevice,
+                              layer: layer,
+                              library: library,
+                              config: config.starfield)
         let globeComputePipeline = GlobeLabelComputePipeline(metalDevice: metalDevice, library: library)
         let flatComputePipeline = FlatLabelComputePipeline(metalDevice: metalDevice, library: library)
         let screenCollisionPipeline = ScreenCollisionPipeline(metalDevice: metalDevice, library: library)
@@ -108,8 +115,8 @@ class Renderer {
         camera = Camera()
         tileCulling = TileCulling(camera: camera, debugLogging: config.debugRenderLogging)
         cameraControl = CameraControl(config: config)
-        cameraControl.setZoom(zoom: 14)
-        cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
+        cameraControl.setZoom(zoom: 0)
+        //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
         let baseGrid = SphereGeometry.createGrid(stacks: 30, slices: 30)
@@ -128,9 +135,9 @@ class Renderer {
         let len = MemoryLayout<TextVertex>.stride * 4000
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
         flatTileOriginCalculator = FlatTileOriginCalculator(metalDevice: metalDevice)
-        
-        
+
         labelCache = LabelCache(metalDevice: metalDevice, computeGlobeToScreen: labelScreenCompute)
+        tileRetentionTracker = TileRetentionTracker(holdSeconds: config.tileHoldSeconds)
         metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(),
                                               metalDevice: metalDevice,
                                               renderer: self,
@@ -180,11 +187,11 @@ class Renderer {
         CameraUpdater.updateIfNeeded(camera: camera, cameraControl: cameraControl)
         
         guard let cameraMatrix = camera.cameraMatrix,
+              let cameraView = camera.view,
               let drawable = layer.nextDrawable() else {
             return
         }
         
-        let clearColor = parameters.clearColor
         let commandBuffer = commandQueue.makeCommandBuffer()!
         
         let viewResult = ViewModeCalculator.calculate(zoom: cameraControl.zoom,
@@ -278,6 +285,9 @@ class Renderer {
         }
 
         let nowTime = Date().timeIntervalSince(startDate)
+        let visibleTiles = savedTiles.map { $0.placeIn }
+        trackedTiles = tileRetentionTracker.update(visibleTiles: visibleTiles, now: nowTime)
+        
         labelCache.update(placeTiles: savedTiles, now: nowTime)
         var tileOriginDataBuffer: MTLBuffer?
         if viewMode == .flat {
@@ -315,6 +325,7 @@ class Renderer {
             }
         }
         
+        let clearColor = viewMode == .spherical ? config.space.clearColor : parameters.clearColor
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture
         renderPassDescriptor.colorAttachments[0].loadAction = .clear
@@ -325,6 +336,16 @@ class Renderer {
         renderPassDescriptor.colorAttachments[0].storeAction = .store
         
         let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
+        if viewMode == .spherical {
+            starfield.draw(renderEncoder: renderEncoder,
+                           globe: globe,
+                           cameraView: cameraView,
+                           cameraEye: camera.eye,
+                           drawSize: drawSize,
+                           nowTime: Float(nowTime))
+        }
+        
+        
         if viewMode == .spherical {
             globePipeline.selectPipeline(renderEncoder: renderEncoder)
             
@@ -438,6 +459,7 @@ class Renderer {
         let tileX: Int
         let tileY: Int
     }
+
     
     private func getGlobeMapCenter(targetZoom: Int) -> Center {
         let pan = cameraControl.globePan

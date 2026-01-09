@@ -5,7 +5,47 @@
 //  Created by Artem on 9/6/25.
 //
 
+import Foundation
+import simd
+
 public struct MapConfiguration {
+    public struct StarfieldConfiguration {
+        public var starCount: Int
+        public var sizeMin: Float
+        public var sizeMax: Float
+        public var brightnessMin: Float
+        public var brightnessMax: Float
+        public var near: Float
+        public var far: Float
+        public var radiusScale: Float
+
+        public init(starCount: Int,
+                    sizeMin: Float,
+                    sizeMax: Float,
+                    brightnessMin: Float,
+                    brightnessMax: Float,
+                    near: Float,
+                    far: Float,
+                    radiusScale: Float) {
+            self.starCount = starCount
+            self.sizeMin = sizeMin
+            self.sizeMax = sizeMax
+            self.brightnessMin = brightnessMin
+            self.brightnessMax = brightnessMax
+            self.near = near
+            self.far = far
+            self.radiusScale = radiusScale
+        }
+    }
+
+    public struct SpaceConfiguration {
+        public var clearColor: SIMD4<Double>
+
+        public init(clearColor: SIMD4<Double>) {
+            self.clearColor = clearColor
+        }
+    }
+
     public var maxPitch: Float
     public var continueRendering: Bool
     public var debugAssemblingMap: Bool
@@ -15,6 +55,9 @@ public struct MapConfiguration {
     public var maxConcurrentFetchs: Int
     public var maxFifoCapacity: Int
     public var maxCachedTilesMemInBytes: Int
+    public var tileHoldSeconds: TimeInterval
+    public var starfield: StarfieldConfiguration
+    public var space: SpaceConfiguration
 
     public init(maxPitch: Float,
                 continueRendering: Bool,
@@ -24,7 +67,10 @@ public struct MapConfiguration {
                 addTestBorders: Bool,
                 maxConcurrentFetchs: Int,
                 maxFifoCapacity: Int,
-                maxCachedTilesMemInBytes: Int) {
+                maxCachedTilesMemInBytes: Int,
+                tileHoldSeconds: TimeInterval,
+                starfield: StarfieldConfiguration,
+                space: SpaceConfiguration) {
         self.maxPitch = maxPitch
         self.continueRendering = continueRendering
         self.debugAssemblingMap = debugAssemblingMap
@@ -34,6 +80,9 @@ public struct MapConfiguration {
         self.maxConcurrentFetchs = maxConcurrentFetchs
         self.maxFifoCapacity = maxFifoCapacity
         self.maxCachedTilesMemInBytes = maxCachedTilesMemInBytes
+        self.tileHoldSeconds = tileHoldSeconds
+        self.starfield = starfield
+        self.space = space
     }
 
     public static let `default` = MapConfiguration(
@@ -45,6 +94,16 @@ public struct MapConfiguration {
         addTestBorders: false,
         maxConcurrentFetchs: 5,
         maxFifoCapacity: 50,
-        maxCachedTilesMemInBytes: 512 * 1024 * 1024
+        maxCachedTilesMemInBytes: 512 * 1024 * 1024,
+        tileHoldSeconds: 3.0,
+        starfield: StarfieldConfiguration(starCount: 2400,
+                                          sizeMin: 2.2,
+                                          sizeMax: 4.0,
+                                          brightnessMin: 0.6,
+                                          brightnessMax: 1.0,
+                                          near: 0.1,
+                                          far: 6000.0,
+                                          radiusScale: 8.0),
+        space: SpaceConfiguration(clearColor: SIMD4<Double>(0.02, 0.02, 0.05, 1.0))
     )
 }
