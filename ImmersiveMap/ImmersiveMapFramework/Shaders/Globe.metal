@@ -25,6 +25,22 @@ struct VertexOut {
     float halfTexel;  // For inset clamping and discard relaxation
 };
 
+struct CapVertexIn {
+    float2 latLon [[attribute(0)]];
+};
+
+struct CapVertexOut {
+    float4 position [[position]];
+    float capAlpha;
+};
+
+struct CapParams {
+    float4 baseColor;
+    float4 landColor;
+    float useBlend;
+    float3 _padding;
+};
+
 struct Tile {
     int position;
     int textureSize;
@@ -181,4 +197,60 @@ fragment float4 globeFragmentShader(VertexOut in [[stage_in]], texture2d<float> 
     
     float4 color = texture.sample(textureSampler, float2(u_clamped, v_clamped));
     return color;
+}
+
+vertex CapVertexOut globeCapVertexShader(CapVertexIn vertexIn [[stage_in]],
+                                         constant Camera& camera [[buffer(1)]],
+                                         constant Globe& globe [[buffer(2)]]) {
+    float lat = vertexIn.latLon.x;
+    float lon = vertexIn.latLon.y;
+    
+    float globeRadius = globe.radius;
+    float phi = -(lat + M_PI_2_F);
+    float theta = lon;
+    
+    float x = globeRadius * sin(phi) * sin(theta);
+    float y = globeRadius * cos(phi);
+    float z = globeRadius * sin(phi) * cos(theta);
+    float3 spherePosition = float3(x, y, z);
+    
+    float maxLatitude = 2.0 * atan(exp(M_PI_F)) - M_PI_2_F;
+    float latitude = globe.panY * maxLatitude;
+    float longitude = globe.panX * M_PI_F;
+    
+    float cx = cos(-latitude);
+    float sx = sin(-latitude);
+    float cy = cos(-longitude);
+    float sy = sin(-longitude);
+    
+    float4x4 rotation = float4x4(
+        float4(cy,        0,         -sy,       0),
+        float4(sy * sx,   cx,        cy * sx,   0),
+        float4(sy * cx,  -sx,        cy * cx,   0),
+        float4(0,         0,          0,        1)
+    );
+    
+    float4x4 translationM = translationMatrix(float3(0, 0, -globeRadius));
+    float4 spherePositionTranslated = float4(spherePosition, 1.0) * rotation * translationM;
+    float4 clip = camera.matrix * spherePositionTranslated;
+    
+    float transitionFade = clamp(globe.transition, 0.0, 1.0);
+    
+    CapVertexOut out;
+    out.position = clip;
+    out.capAlpha = 1.0 - transitionFade;
+    return out;
+}
+
+fragment float4 globeCapFragmentShader(CapVertexOut in [[stage_in]],
+                                       constant CapParams& params [[buffer(0)]]) {
+    float4 color = params.baseColor;
+    if (params.useBlend > 0.5) {
+        float4 bg = params.baseColor;
+        float4 land = params.landColor;
+        float outAlpha = land.a + bg.a * (1.0 - land.a);
+        float3 outRgb = (land.rgb * land.a + bg.rgb * bg.a * (1.0 - land.a)) / max(outAlpha, 1e-5);
+        color = float4(outRgb, outAlpha);
+    }
+    return float4(color.rgb, color.a * in.capAlpha);
 }

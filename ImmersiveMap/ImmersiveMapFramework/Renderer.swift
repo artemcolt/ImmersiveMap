@@ -11,6 +11,13 @@ import Metal
 import MetalKit
 import QuartzCore // Для CAMetalLayer
 
+struct GlobeCapParams {
+    var baseColor: SIMD4<Float>
+    var landColor: SIMD4<Float>
+    var useBlend: Float
+    var padding = SIMD3<Float>(0, 0, 0)
+}
+
 class Renderer {
     private let metalLayer: CAMetalLayer
     let metalDevice: MTLDevice
@@ -20,6 +27,7 @@ class Renderer {
     let polygonPipeline: PolygonsPipeline
     let tilePipeline: TilePipeline
     let globePipeline: GlobePipeline
+    let globeCapPipeline: GlobeCapPipeline
     let starfield: Starfield
     let camera: Camera
     let cameraControl: CameraControl
@@ -34,6 +42,8 @@ class Renderer {
     let debugOverlayRenderer: DebugOverlayRenderer
     
     private let baseGridBuffers: GridBuffers
+    private let northCapBuffers: GridBuffers
+    private let southCapBuffers: GridBuffers
     private var lastDrawableSize: CGSize = .zero
     private let maxLatitude = 2.0 * atan(exp(Double.pi)) - Double.pi / 2.0
     
@@ -60,6 +70,8 @@ class Renderer {
     private var previousTilesTextKey: String = ""
     private var tileTextVerticesCount: Int = 0
     private let labelFadeDuration: Float = 0.25
+    private let northCapParams: GlobeCapParams
+    private let southCapParams: GlobeCapParams
     
     init(layer: CAMetalLayer, uiView: ImmersiveMapUIView, config: MapConfiguration = .default) {
         self.metalLayer = layer
@@ -90,13 +102,18 @@ class Renderer {
             }
         }
         
+        let mapStyle = DefaultMapStyle()
+        let mapBaseColors = mapStyle.getMapBaseColors()
+        
         polygonPipeline = PolygonsPipeline(metalDevice: metalDevice, layer: layer, library: library)
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
+        globeCapPipeline = GlobeCapPipeline(metalDevice: metalDevice, layer: layer, library: library)
         starfield = Starfield(metalDevice: metalDevice,
                               layer: layer,
                               library: library,
-                              config: config.starfield)
+                              config: config.starfield,
+                              comets: config.comets)
         let globeComputePipeline = GlobeLabelComputePipeline(metalDevice: metalDevice, library: library)
         let flatComputePipeline = FlatLabelComputePipeline(metalDevice: metalDevice, library: library)
         let screenCollisionPipeline = ScreenCollisionPipeline(metalDevice: metalDevice, library: library)
@@ -132,13 +149,57 @@ class Renderer {
             indicesCount: baseGrid.indices.count
         )
         
+        let capStacks = 12
+        let capSlices = 48
+        let maxLatitude = Float(self.maxLatitude)
+        let northCap = CapGeometry.createCapGrid(stacks: capStacks,
+                                                 slices: capSlices,
+                                                 isNorth: true,
+                                                 maxLatitude: maxLatitude)
+        let southCap = CapGeometry.createCapGrid(stacks: capStacks,
+                                                 slices: capSlices,
+                                                 isNorth: false,
+                                                 maxLatitude: maxLatitude)
+        northCapBuffers = GridBuffers(
+            verticesBuffer: metalDevice.makeBuffer(
+                bytes: northCap.vertices,
+                length: MemoryLayout<CapGeometry.Vertex>.stride * northCap.vertices.count
+            )!,
+            indicesBuffer: metalDevice.makeBuffer(
+                bytes: northCap.indices,
+                length: MemoryLayout<UInt32>.stride * northCap.indices.count
+            )!,
+            indicesCount: northCap.indices.count
+        )
+        southCapBuffers = GridBuffers(
+            verticesBuffer: metalDevice.makeBuffer(
+                bytes: southCap.vertices,
+                length: MemoryLayout<CapGeometry.Vertex>.stride * southCap.vertices.count
+            )!,
+            indicesBuffer: metalDevice.makeBuffer(
+                bytes: southCap.indices,
+                length: MemoryLayout<UInt32>.stride * southCap.indices.count
+            )!,
+            indicesCount: southCap.indices.count
+        )
+        
         let len = MemoryLayout<TextVertex>.stride * 4000
         tileTextVerticesBuffer = metalDevice.makeBuffer(length: len)!
         flatTileOriginCalculator = FlatTileOriginCalculator(metalDevice: metalDevice)
 
+        let waterColor = mapBaseColors.getWaterColor()
+        let bgColor = mapBaseColors.getTileBgColor()
+        let landColor = mapBaseColors.getLandCoverColor()
+        northCapParams = GlobeCapParams(baseColor: bgColor,
+                                        landColor: landColor,
+                                        useBlend: 1)
+        southCapParams = GlobeCapParams(baseColor: waterColor,
+                                        landColor: SIMD4<Float>(0, 0, 0, 0),
+                                        useBlend: 0)
+
         labelCache = LabelCache(metalDevice: metalDevice, computeGlobeToScreen: labelScreenCompute)
         tileRetentionTracker = TileRetentionTracker(holdSeconds: config.tileHoldSeconds)
-        metalTilesStorage = MetalTilesStorage(mapStyle: DefaultMapStyle(),
+        metalTilesStorage = MetalTilesStorage(mapStyle: mapStyle,
                                               metalDevice: metalDevice,
                                               renderer: self,
                                               textRenderer: textRenderer,
@@ -347,6 +408,29 @@ class Renderer {
         
         
         if viewMode == .spherical {
+            globeCapPipeline.selectPipeline(renderEncoder: renderEncoder)
+            renderEncoder.setCullMode(.front)
+            renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
+            renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
+            
+            var capParams = northCapParams
+            renderEncoder.setFragmentBytes(&capParams, length: MemoryLayout<GlobeCapParams>.stride, index: 0)
+            renderEncoder.setVertexBuffer(northCapBuffers.verticesBuffer, offset: 0, index: 0)
+            renderEncoder.drawIndexedPrimitives(type: .triangle,
+                                                indexCount: northCapBuffers.indicesCount,
+                                                indexType: .uint32,
+                                                indexBuffer: northCapBuffers.indicesBuffer,
+                                                indexBufferOffset: 0)
+            
+            capParams = southCapParams
+            renderEncoder.setFragmentBytes(&capParams, length: MemoryLayout<GlobeCapParams>.stride, index: 0)
+            renderEncoder.setVertexBuffer(southCapBuffers.verticesBuffer, offset: 0, index: 0)
+            renderEncoder.drawIndexedPrimitives(type: .triangle,
+                                                indexCount: southCapBuffers.indicesCount,
+                                                indexType: .uint32,
+                                                indexBuffer: southCapBuffers.indicesBuffer,
+                                                indexBufferOffset: 0)
+            
             globePipeline.selectPipeline(renderEncoder: renderEncoder)
             
             renderEncoder.setCullMode(.front) // Иначе будет видно обратную строну глобуса.
