@@ -136,7 +136,7 @@ class Renderer {
         //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
-        let baseGrid = SphereGeometry.createGrid(stacks: 30, slices: 30)
+        let baseGrid = SphereGeometry.createGrid(stacks: 50, slices: 50)
         baseGridBuffers = GridBuffers(
             verticesBuffer: metalDevice.makeBuffer(
                 bytes: baseGrid.vertices,
@@ -386,7 +386,10 @@ class Renderer {
             }
         }
         
-        let clearColor = viewMode == .spherical ? config.space.clearColor : parameters.clearColor
+        let transitionMix = Double(transition)
+        let spaceColor = config.space.clearColor
+        let mapColor = parameters.clearColor
+        let clearColor = spaceColor + (mapColor - spaceColor) * transitionMix
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture
         renderPassDescriptor.colorAttachments[0].loadAction = .clear
@@ -437,6 +440,7 @@ class Renderer {
             renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
             renderEncoder.setVertexBytes(&globe, length: MemoryLayout<Globe>.stride, index: 2)
             renderEncoder.setFragmentTexture(tilesTexture.texture[currentIndex], index: 0)
+            renderEncoder.setFragmentBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
             renderEncoder.setVertexBuffer(baseGridBuffers.verticesBuffer, offset: 0, index: 0)
             
             let tileMappings = tilesTexture.tileData

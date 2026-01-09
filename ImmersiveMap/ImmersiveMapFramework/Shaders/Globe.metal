@@ -23,6 +23,9 @@ struct VertexOut {
     float posV;
     float lastPos;
     float halfTexel;  // For inset clamping and discard relaxation
+    float3 normal;
+    float3 worldPos;
+    float transition;
 };
 
 struct CapVertexIn {
@@ -162,10 +165,15 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     out.posV = posV;
     out.lastPos = lastPos;
     out.halfTexel = 0.5 / textureSize;
+    out.normal = normalize((float4(spherePosition, 0.0) * rotation).xyz);
+    out.worldPos = spherePositionTranslated.xyz;
+    out.transition = transition;
     return out;
 }
 
-fragment float4 globeFragmentShader(VertexOut in [[stage_in]], texture2d<float> texture [[texture(0)]]) {
+fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
+                                    texture2d<float> texture [[texture(0)]],
+                                    constant Camera& camera [[buffer(1)]]) {
     constexpr sampler textureSampler(filter::linear, mip_filter::linear, mag_filter::linear);
     
 //    return float4(1.0, 0, 0, 1);
@@ -196,6 +204,11 @@ fragment float4 globeFragmentShader(VertexOut in [[stage_in]], texture2d<float> 
     float v_clamped = max(v_min + in.halfTexel, min(v_max - in.halfTexel, v));
     
     float4 color = texture.sample(textureSampler, float2(u_clamped, v_clamped));
+    float3 viewDir = normalize(camera.eye - in.worldPos);
+    float rim = pow(max(0.0, 1.0 - dot(in.normal, viewDir)), 3.0);
+    float glowStrength = rim * 0.6 * (1.0 - in.transition);
+    float3 glowColor = float3(0.35, 0.55, 1.0) * glowStrength;
+    color.rgb += glowColor;
     return color;
 }
 

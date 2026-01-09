@@ -298,9 +298,6 @@ class Camera {
         let xRotation = rotationPair.0
         let yRotation = rotationPair.1
         
-        let distortion = cos(xRotation);
-        print("distortion = \(distortion)")
-        
         let cx = cos(-xRotation);
         let sx = sin(-xRotation);
         let cy = cos(-yRotation);
