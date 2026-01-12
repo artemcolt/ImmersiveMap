@@ -163,7 +163,7 @@ class Camera {
             
             if maxRelative > 2 {
                 // добавляем родителя, чтобы оптимизировать рендринг
-                if let parent = addTile.findParentTile(atZoom: z - 1, isMinimized: true) {
+                if let parent = addTile.findParentTile(atZoom: z - 1, isCoarseTile: true) {
                     result.insert(parent)
                     return
                 }
@@ -249,7 +249,7 @@ class Camera {
             
             if maxRelative > 2 {
                 // добавляем родителя, чтобы оптимизировать рендринг
-                if let parent = addTile.findParentTile(atZoom: z - 1, isMinimized: true) {
+                if let parent = addTile.findParentTile(atZoom: z - 1, isCoarseTile: true) {
                     result.insert(parent)
                     return
                 }

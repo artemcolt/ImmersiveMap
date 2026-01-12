@@ -15,7 +15,7 @@ struct Tile: Hashable {
     let y: Int
     let z: Int
     let loop: Int8
-    let isMinimized: Bool // это чтобы далекие тайлы определять, они заменяются на карте на более мелкие тайлы
+    let isCoarseTile: Bool // родительский тайл меньшего зума для LOD/подмены покрытия
     
     static func == (lhs: Tile, rhs: Tile) -> Bool {
         return lhs.x == rhs.x &&
@@ -32,12 +32,12 @@ struct Tile: Hashable {
         hasher.combine(loop)
     }
     
-    init(x: Int, y: Int, z: Int, loop: Int8 = 0, isMinimized: Bool = false) {
+    init(x: Int, y: Int, z: Int, loop: Int8 = 0, isCoarseTile: Bool = false) {
         self.x = x
         self.y = y
         self.z = z
         self.loop = loop
-        self.isMinimized = isMinimized
+        self.isCoarseTile = isCoarseTile
     }
     
     // Проверяет, покрывает ли текущий тайл другой тайл
@@ -61,7 +61,7 @@ struct Tile: Hashable {
                other.y >= minY && other.y <= maxY
     }
     
-    func findParentTile(atZoom targetZoom: Int, isMinimized: Bool = false) -> Tile? {
+    func findParentTile(atZoom targetZoom: Int, isCoarseTile: Bool = false) -> Tile? {
         // Проверяем, что текущий зум больше целевого (иначе родителя нет на targetZoom)
         guard z >= targetZoom, targetZoom >= 0 else {
             return nil
@@ -75,6 +75,6 @@ struct Tile: Hashable {
         let parentX = x >> zoomDifference
         let parentY = y >> zoomDifference
         
-        return Tile(x: parentX, y: parentY, z: targetZoom, loop: loop, isMinimized: isMinimized)
+        return Tile(x: parentX, y: parentY, z: targetZoom, loop: loop, isCoarseTile: isCoarseTile)
     }
 }

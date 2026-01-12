@@ -44,7 +44,7 @@ class Renderer {
     private let startDate = Date()
     private var previousSeeTilesHash: Int = 0
     private var savedSeeTiles: [Tile] = []
-    private var savedTiles: [PlaceTile] = []
+    private var placeTilesContext = PlaceTilesContext.empty
     private var previousZoom: Int
     private var previousStorageHash: Int = 0
     private let tile: Tile = Tile(x: 0, y: 0, z: 0)
@@ -56,6 +56,8 @@ class Renderer {
     private let flatTileOriginCalculator: FlatTileOriginCalculator
     private let tileRetentionTracker: TileRetentionTracker
     private var trackedTiles: [TileRetentionTracker.TrackedTile] = []
+    private var previousTrackedTilesHash: Int = 0
+    private var previousDetailTrackedTilesHash: Int = 0
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -273,9 +275,11 @@ class Renderer {
             }
             // Если тайлы изменились
             // Заменяем пробелы тайлами из предыдущего кадра.
-            let placeTiles = getPlaceTiles(tilesFromStorage: tilesFromStorage, zoom: zoom)
+            let placeTilesContext = getPlaceTiles(tilesFromStorage: tilesFromStorage,
+                                                  zoom: zoom,
+                                                  previousContext: placeTilesContext)
             // Сохраняем текущие тайлы, чтобы заменять отсутствующие тайлы следующего кадра
-            savedTiles = placeTiles
+            self.placeTilesContext = placeTilesContext
             previousZoom = zoom
             previousStorageHash = storageHash
             
@@ -296,10 +300,22 @@ class Renderer {
         }
 
         let nowTime = Date().timeIntervalSince(startDate)
-        let visibleTiles = savedTiles.map { $0.placeIn }
-        trackedTiles = tileRetentionTracker.update(visibleTiles: visibleTiles, now: nowTime)
+        let visibleTiles = placeTilesContext.visibleTiles
         
-        labelCache.update(placeTiles: savedTiles, now: nowTime)
+        trackedTiles = tileRetentionTracker.update(visibleTiles: visibleTiles, now: nowTime)
+        let trackedTilesHash = hashTrackedTiles(trackedTiles)
+        let detailTrackedTiles = trackedTiles.filter { $0.tile.isCoarseTile == false }
+        let detailTrackedTilesHash = hashTrackedTiles(detailTrackedTiles)
+        
+        let shouldRebuildLabels = trackedTilesHash != previousTrackedTilesHash ||
+            detailTrackedTilesHash != previousDetailTrackedTilesHash
+        
+        if shouldRebuildLabels {
+            previousTrackedTilesHash = trackedTilesHash
+            previousDetailTrackedTilesHash = detailTrackedTilesHash
+            labelCache.rebuild(placeTilesContext: placeTilesContext, trackedTiles: detailTrackedTiles)
+        }
+        
         var tileOriginDataBuffer: MTLBuffer?
         if viewMode == .flat {
             // рассчитываем сдвиг по тайлам с Double точностью для последующей отрисовки текстовых меток
@@ -393,7 +409,7 @@ class Renderer {
             renderEncoder.setVertexBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
             
             let flatPan = cameraControl.flatPan
-            for placeTile in savedTiles {
+            for placeTile in placeTilesContext.placeTiles {
                 let metalTile = placeTile.metalTile
                 let tile = metalTile.tile
                 let buffers = metalTile.tileBuffers
@@ -522,7 +538,9 @@ class Renderer {
     }
     
     
-    private func getPlaceTiles(tilesFromStorage: [MetalTilesStorage.TileInStorage], zoom: Int) -> [PlaceTile] {
+    private func getPlaceTiles(tilesFromStorage: [MetalTilesStorage.TileInStorage],
+                               zoom: Int,
+                               previousContext: PlaceTilesContext) -> PlaceTilesContext {
         var placeTiles: [PlaceTile] = []
         let tileDepthCount = TileDepthCount()
         for i in 0..<tilesFromStorage.count {
@@ -532,7 +550,7 @@ class Renderer {
             
             // Ищем один тайл, который полностью покрывает необходимый
             func findFullReplacement() -> Bool? {
-                for prev in savedTiles {
+                for prev in previousContext.placeTiles {
                     let prevMetalTile = prev.metalTile
                     let prevTile = prev.metalTile.tile
                     
@@ -553,7 +571,7 @@ class Renderer {
             // Ищем тайлы, которые частично покрывают необходимый
             func findPartialReplacement() -> Bool? {
                 var foundSome = false
-                for prev in savedTiles {
+                for prev in previousContext.placeTiles {
                     let prevMetalTile = prev.metalTile
                     let prevTile = prev.metalTile.tile
                     
@@ -609,7 +627,7 @@ class Renderer {
             placeTiles.append(PlaceTile(metalTile: metalTile!, placeIn: tile, depth: depth))
         }
         
-        return placeTiles
+        return PlaceTilesContext(placeTiles: placeTiles)
     }
     
     private func drawTileCoordText() {
@@ -637,8 +655,8 @@ class Renderer {
     
     private func drawGlobeTexture() {
         tilesTexture.selectTilePipeline()
-        for i in savedTiles.indices {
-            let placeTile = savedTiles[i]
+        for i in placeTilesContext.placeTiles.indices {
+            let placeTile = placeTilesContext.placeTiles[i]
             let depth = placeTile.depth
             let placed = tilesTexture.draw(placeTile: placeTile, depth: depth, maxDepth: 4)
             if placed == false {
@@ -648,5 +666,20 @@ class Renderer {
                 break
             }
         }
+    }
+
+    private func hashTrackedTiles(_ tiles: [TileRetentionTracker.TrackedTile]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(tiles.count)
+        for tracked in tiles {
+            let tile = tracked.tile
+            hasher.combine(tile.x)
+            hasher.combine(tile.y)
+            hasher.combine(tile.z)
+            hasher.combine(tile.loop)
+            hasher.combine(tile.isCoarseTile)
+            hasher.combine(tracked.isRetained)
+        }
+        return hasher.finalize()
     }
 }

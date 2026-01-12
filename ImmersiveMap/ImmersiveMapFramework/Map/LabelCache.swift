@@ -19,11 +19,6 @@ final class LabelCache {
     private(set) var drawLabels: [DrawLabels] = []
     
     
-    private let labelHoldSeconds: TimeInterval = 3.0
-    
-    // Тут кэш тайлов, которые отображаются или были на карте (удерживаемые определенное время тайлы)
-    private var labelTiles: [Tile: CachedTileLabels] = [:]
-    
     // Этот буфер читается в шейдере, тут все состояния по каждому лейблу на карте
     private(set) var labelRuntimeBuffer: MTLBuffer
     
@@ -45,88 +40,7 @@ final class LabelCache {
         )!
     }
 
-    func update(placeTiles: [PlaceTile], now: TimeInterval) {
-        var labelsNeedsRebuild = updateLabelCache(placeTiles: placeTiles, now: now)
-        labelsNeedsRebuild = expireLabelTileCache(now: now) || labelsNeedsRebuild
-        if labelsNeedsRebuild {
-            rebuildLabelBuffers(now: now)
-        }
-    }
-
-    private func updateLabelCache(placeTiles: [PlaceTile], now: TimeInterval) -> Bool {
-        var changed = false
-        for placeTile in placeTiles {
-            let tile = placeTile.metalTile.tile
-            let tileBuffers = placeTile.metalTile.tileBuffers
-            if placeTile.placeIn.isMinimized {
-                if labelTiles.removeValue(forKey: tile) != nil {
-                    changed = true
-                }
-                continue
-            }
-            
-            // в тайле нету лэйблов
-            let labelsCount = tileBuffers.labelsCount
-            if labelsCount == 0 {
-                continue
-            }
-            
-            // тайл уже в кэше
-            if var cached = labelTiles[tile] {
-                cached.lastSeen = now
-                labelTiles[tile] = cached
-                continue
-            }
-
-            let meta = tileBuffers.labelsMeta
-            labelTiles[tile] = CachedTileLabels(
-                tile: tile,
-                lastSeen: now,
-                isRetained: false,
-                labelsInputs: tileBuffers.labelsInputs,
-                labelsMeta: meta,
-                labelsVerticesBuffer: tileBuffers.labelsVerticesBuffer,
-                labelsCount: labelsCount,
-                labelsVerticesCount: tileBuffers.labelsVerticesCount
-            )
-            changed = true
-        }
-        
-        return changed
-    }
-
-    private func expireLabelTileCache(now: TimeInterval) -> Bool {
-        let keys = Array(labelTiles.keys)
-        var expired: [Tile] = []
-        expired.reserveCapacity(keys.count)
-        var changed = false
-        for tileKey in keys {
-            guard var cached = labelTiles[tileKey] else {
-                continue
-            }
-            if now - cached.lastSeen > labelHoldSeconds {
-                expired.append(tileKey)
-                continue
-            }
-            let retainedNow = cached.lastSeen < now
-            if cached.isRetained != retainedNow {
-                changed = true
-                cached.isRetained = retainedNow
-                labelTiles[tileKey] = cached
-            }
-        }
-
-        if expired.isEmpty == false {
-            for tileKey in expired {
-                labelTiles.removeValue(forKey: tileKey)
-            }
-            changed = true
-        }
-
-        return changed
-    }
-
-    private func rebuildLabelBuffers(now: TimeInterval) {
+    func rebuild(placeTilesContext: PlaceTilesContext, trackedTiles: [TileRetentionTracker.TrackedTile]) {
         let stateByKey = captureLabelStates()
         labelInputs.removeAll(keepingCapacity: true)
         drawLabels.removeAll(keepingCapacity: true)
@@ -135,10 +49,21 @@ final class LabelCache {
         
         var runtimeStates: [LabelRuntimeState] = []
         var seenLabelKeys: Set<UInt64> = []
-        for cached in labelTiles.values.sorted(by: { ($0.isRetained ? 1 : 0) < ($1.isRetained ? 1 : 0) }) {
-            let tileIndex = appendTileLabels(cached: cached)
-            let retainedFlag: UInt32 = cached.isRetained ? 1 : 0
-            for meta in cached.labelsMeta {
+        let placeTilesByTile = placeTilesContext.placeTilesByTile
+
+        for tracked in trackedTiles {
+            guard let placeTile = placeTilesByTile[tracked.tile] else {
+                continue
+            }
+            let tileBuffers = placeTile.metalTile.tileBuffers
+            if tileBuffers.labelsCount == 0 {
+                continue
+            }
+
+            let tileIndex = appendTileLabels(tile: placeTile.metalTile.tile,
+                                             labelsInputs: tileBuffers.labelsInputs)
+            let retainedFlag: UInt32 = tracked.isRetained ? 1 : 0
+            for meta in tileBuffers.labelsMeta {
                 let duplicate = seenLabelKeys.contains(meta.key)
                 let state: LabelState
                 if duplicate {
@@ -146,8 +71,7 @@ final class LabelCache {
                 } else {
                     state = stateByKey[meta.key] ?? LabelState()
                 }
-                
-                
+
                 runtimeStates.append(LabelRuntimeState(state: state,
                                                        duplicate: duplicate ? 1 : 0,
                                                        isRetained: retainedFlag,
@@ -156,9 +80,9 @@ final class LabelCache {
                 seenLabelKeys.insert(meta.key)
             }
             drawLabels.append(DrawLabels(
-                labelsVerticesBuffer: cached.labelsVerticesBuffer,
-                labelsCount: cached.labelsCount,
-                labelsVerticesCount: cached.labelsVerticesCount
+                labelsVerticesBuffer: tileBuffers.labelsVerticesBuffer,
+                labelsCount: tileBuffers.labelsCount,
+                labelsVerticesCount: tileBuffers.labelsVerticesCount
             ))
         }
 
@@ -167,10 +91,10 @@ final class LabelCache {
         updateLabelRuntimeBuffer(runtimeStates: runtimeStates)
     }
 
-    private func appendTileLabels(cached: CachedTileLabels) -> UInt32 {
+    private func appendTileLabels(tile: Tile, labelsInputs: [LabelInput]) -> UInt32 {
         let tileIndex = UInt32(labelTilesList.count)
-        labelTilesList.append(cached.tile)
-        labelInputs.append(contentsOf: cached.labelsInputs)
+        labelTilesList.append(tile)
+        labelInputs.append(contentsOf: labelsInputs)
         return tileIndex
     }
 
@@ -215,15 +139,4 @@ final class LabelCache {
         }
 
     }
-}
-
-private struct CachedTileLabels {
-    let tile: Tile
-    var lastSeen: TimeInterval
-    var isRetained: Bool
-    let labelsInputs: [LabelInput]
-    let labelsMeta: [GlobeLabelMeta]
-    let labelsVerticesBuffer: MTLBuffer?
-    let labelsCount: Int
-    let labelsVerticesCount: Int
 }
