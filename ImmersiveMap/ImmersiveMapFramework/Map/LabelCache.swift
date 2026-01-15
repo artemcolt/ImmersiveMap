@@ -10,10 +10,11 @@ import Metal
 
 final class LabelCache {
     private let metalDevice: MTLDevice
-    private let labelScreenCompute: LabelScreenCompute
+    private let tilePointScreenCompute: TilePointScreenCompute
     
     // позиции лейблов на карте
-    private var labelInputs: [LabelInput] = []
+    private var tilePointInputs: [TilePointInput] = []
+    private var tilePointTileIndices: [UInt32] = []
     
     // Для отрисовки текста лейблов
     private(set) var drawLabels: [DrawLabels] = []
@@ -21,6 +22,7 @@ final class LabelCache {
     
     // Этот буфер читается в шейдере, тут все состояния по каждому лейблу на карте
     private(set) var labelRuntimeBuffer: MTLBuffer
+    private(set) var collisionInputBuffer: MTLBuffer
     
     
     private(set) var labelInputsCount: Int = 0
@@ -31,18 +33,23 @@ final class LabelCache {
     // Чтобы потом из compute буффера прочитать новые состояния и записать их в кэш
     private var labelRuntimeKeys: [UInt64] = []
 
-    init(metalDevice: MTLDevice, computeGlobeToScreen: LabelScreenCompute) {
+    init(metalDevice: MTLDevice, screenCompute: TilePointScreenCompute) {
         self.metalDevice = metalDevice
-        self.labelScreenCompute = computeGlobeToScreen
+        self.tilePointScreenCompute = screenCompute
         self.labelRuntimeBuffer = metalDevice.makeBuffer(
             length: MemoryLayout<LabelRuntimeState>.stride,
+            options: [.storageModeShared]
+        )!
+        self.collisionInputBuffer = metalDevice.makeBuffer(
+            length: MemoryLayout<ScreenCollisionInput>.stride,
             options: [.storageModeShared]
         )!
     }
 
     func rebuild(placeTilesContext: PlaceTilesContext, trackedTiles: [TileRetentionTracker.TrackedTile]) {
         let stateByKey = captureLabelStates()
-        labelInputs.removeAll(keepingCapacity: true)
+        tilePointInputs.removeAll(keepingCapacity: true)
+        tilePointTileIndices.removeAll(keepingCapacity: true)
         drawLabels.removeAll(keepingCapacity: true)
         labelTilesList.removeAll(keepingCapacity: true)
         labelRuntimeKeys.removeAll(keepingCapacity: true)
@@ -61,7 +68,7 @@ final class LabelCache {
             }
 
             let tileIndex = appendTileLabels(tile: placeTile.metalTile.tile,
-                                             labelsInputs: tileBuffers.labelsInputs)
+                                             tilePointInputs: tileBuffers.tilePointInputs)
             let retainedFlag: UInt32 = tracked.isRetained ? 1 : 0
             for meta in tileBuffers.labelsMeta {
                 let duplicate = seenLabelKeys.contains(meta.key)
@@ -86,15 +93,17 @@ final class LabelCache {
             ))
         }
 
-        labelScreenCompute.copyDataToBuffer(inputs: labelInputs)
-        labelInputsCount = labelInputs.count
+        tilePointScreenCompute.copyDataToBuffer(inputs: tilePointInputs, tileIndices: tilePointTileIndices)
+        labelInputsCount = tilePointInputs.count
+        updateCollisionInputBuffer(inputs: tilePointInputs)
         updateLabelRuntimeBuffer(runtimeStates: runtimeStates)
     }
 
-    private func appendTileLabels(tile: Tile, labelsInputs: [LabelInput]) -> UInt32 {
+    private func appendTileLabels(tile: Tile, tilePointInputs: [TilePointInput]) -> UInt32 {
         let tileIndex = UInt32(labelTilesList.count)
         labelTilesList.append(tile)
-        labelInputs.append(contentsOf: labelsInputs)
+        self.tilePointInputs.append(contentsOf: tilePointInputs)
+        tilePointTileIndices.append(contentsOf: repeatElement(tileIndex, count: tilePointInputs.count))
         return tileIndex
     }
 
@@ -138,5 +147,34 @@ final class LabelCache {
             labelRuntimeBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: bytesCount)
         }
 
+    }
+
+    private func updateCollisionInputBuffer(inputs: [TilePointInput]) {
+        let count = max(1, inputs.count)
+        let needed = count * MemoryLayout<ScreenCollisionInput>.stride
+        if collisionInputBuffer.length < needed {
+            collisionInputBuffer = metalDevice.makeBuffer(
+                length: needed,
+                options: [.storageModeShared]
+            )!
+        }
+
+        var collisionInputs: [ScreenCollisionInput] = []
+        collisionInputs.reserveCapacity(max(1, inputs.count))
+        if inputs.isEmpty {
+            collisionInputs.append(ScreenCollisionInput(halfSize: .zero, radius: 0.0, shapeType: .rect))
+        } else {
+            for input in inputs {
+                let halfSize = SIMD2<Float>(input.size.x * 0.5, input.size.y * 0.5)
+                collisionInputs.append(ScreenCollisionInput(halfSize: halfSize,
+                                                            radius: 0.0,
+                                                            shapeType: .rect))
+            }
+        }
+
+        let collisionBytes = collisionInputs.count * MemoryLayout<ScreenCollisionInput>.stride
+        collisionInputs.withUnsafeBytes { bytes in
+            collisionInputBuffer.contents().copyMemory(from: bytes.baseAddress!, byteCount: collisionBytes)
+        }
     }
 }

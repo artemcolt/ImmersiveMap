@@ -24,7 +24,7 @@ struct Globe {
     float transition;
 };
 
-struct LabelInput {
+struct TilePointInput {
     float2 uv;
     int3 tile;
     float2 size;

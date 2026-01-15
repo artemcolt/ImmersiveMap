@@ -1,21 +1,31 @@
 //
-//  GlobeLabelToScreen.metal
+//  TilePointCommon.h
 //  ImmersiveMap
 //
-//  Created by Artem on 1/2/26.
+//  Created by Artem on 1/10/26.
 //
 
 #include <metal_stdlib>
 using namespace metal;
-#include "../Common.h"
-#include "../Screen/ScreenCommon.h"
+#include "Common.h"
 
+#ifndef TILE_POINT_COMMON
+#define TILE_POINT_COMMON
 
-float4 globeClipFromTileUV(float2 localUv,
-                           int3 tile,
-                           constant Camera& camera,
-                           constant Globe& globe,
-                           thread float3& horizonPositionWorld) {
+static inline float4 flatClipFromTileUV(float2 tileUv,
+                                        float2 tileOrigin,
+                                        float tileSize,
+                                        constant Camera& camera) {
+    float2 local = float2(tileUv.x * tileSize, (1.0 - tileUv.y) * tileSize);
+    float4 world = float4(tileOrigin + local, 0.0, 1.0);
+    return camera.matrix * world;
+}
+
+static inline float4 globeClipFromTileUV(float2 localUv,
+                                         int3 tile,
+                                         constant Camera& camera,
+                                         constant Globe& globe,
+                                         thread float3& horizonPositionWorld) {
     float vertexUvX = localUv.x; // 0..1 inside the tile
     float vertexUvY = localUv.y; // 0..1 inside the tile
 
@@ -85,50 +95,4 @@ float4 globeClipFromTileUV(float2 localUv,
     return camera.matrix * position;
 }
 
-kernel void globeLabelToScreenKernel(const device LabelInput* inputs [[buffer(0)]],
-                                     device ScreenPointOutput* outputs [[buffer(1)]],
-                                     constant Camera& camera [[buffer(2)]],
-                                     constant Globe& globe [[buffer(3)]],
-                                     constant ScreenParams& screenParams [[buffer(4)]],
-                                     uint gid [[thread_position_in_grid]]) {
-    LabelInput input = inputs[gid];
-    float3 horizonPositionWorld = float3(0.0);
-    float4 clip = globeClipFromTileUV(input.uv, input.tile, camera, globe, horizonPositionWorld);
-
-    ScreenPointOutput result;
-    if (clip.w <= 0.0) {
-        result.position = float2(0.0);
-        result.depth = 0.0;
-        result.visible = 0;
-        outputs[gid] = result;
-        return;
-    }
-
-    bool horizonHidden = false;
-    float3 globeCenter = float3(0.0, 0.0, -globe.radius);
-    float3 toCamera = camera.eye - globeCenter;
-    float toCameraLen = length(toCamera);
-    if (toCameraLen > 0.0) {
-        if (globe.transition < 0.95) {
-            float dotToCamera = dot(horizonPositionWorld - globeCenter, toCamera);
-            float horizonFade = smoothstep(0.8, 0.95, globe.transition);
-            float horizonThreshold = mix(globe.radius * globe.radius, -1e6, horizonFade);
-            if (dotToCamera < horizonThreshold) {
-                horizonHidden = true;
-            }
-        }
-    }
-
-    float2 ndc = clip.xy / clip.w; // [-1..1]
-    float depth = clip.z / clip.w;
-    float2 position = ndc;
-
-    if (screenParams.outputPixels != 0 && all(screenParams.viewportSize > 0.0)) {
-        position = (ndc * 0.5 + 0.5) * screenParams.viewportSize;
-    }
-
-    result.position = position;
-    result.depth = depth;
-    result.visible = horizonHidden ? 0 : 1;
-    outputs[gid] = result;
-}
+#endif

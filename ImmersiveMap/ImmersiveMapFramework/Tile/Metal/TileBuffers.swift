@@ -16,7 +16,7 @@ struct TileBuffers {
     let verticesCount: Int
     
     // labels
-    let labelsInputs: [LabelInput]
+    let tilePointInputs: [TilePointInput]
     let labelsVertices: [LabelVertex]
     let labelsVerticesRanges: [LabelVerticesRange]
     let labelsVerticesBuffer: MTLBuffer?

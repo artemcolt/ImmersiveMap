@@ -1,5 +1,5 @@
 //
-//  FlatLabelComputePipeline.swift
+//  FlatTilePointComputePipeline.swift
 //  ImmersiveMap
 //
 //  Created by Artem on 1/4/26.
@@ -7,11 +7,11 @@
 
 import Metal
 
-class FlatLabelComputePipeline {
+class FlatTilePointComputePipeline {
     let pipelineState: MTLComputePipelineState
     
     init(metalDevice: MTLDevice, library: MTLLibrary) {
-        let kernel = library.makeFunction(name: "flatLabelToScreenKernel")
+        let kernel = library.makeFunction(name: "flatTilePointToScreenKernel")
         self.pipelineState = try! metalDevice.makeComputePipelineState(function: kernel!)
     }
     

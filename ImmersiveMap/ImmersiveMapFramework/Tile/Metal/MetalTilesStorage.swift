@@ -81,7 +81,7 @@ class MetalTilesStorage {
         // Parse Text labels
         let textLabels = parsedTile.textLabels
         var labelsVertices: [LabelVertex] = []
-        var labelsInputs: [LabelInput] = []
+        var tilePointInputs: [TilePointInput] = []
         var labelsMeta: [GlobeLabelMeta] = []
         var labelsVerticesRanges: [LabelVerticesRange] = []
         for i in textLabels.indices {
@@ -103,7 +103,7 @@ class MetalTilesStorage {
             // Это для GPU шейдера массив
             // Тут данные на каждый label
             let size = SIMD2<Float>(textMetrics.size.width, textMetrics.size.height)
-            labelsInputs.append(LabelInput(uv: uv, tile: tile, size: size))
+            tilePointInputs.append(TilePointInput(uv: uv, tile: tile, size: size))
             
             labelsMeta.append(GlobeLabelMeta(key: label.key))
         }
@@ -132,7 +132,7 @@ class MetalTilesStorage {
             indicesCount: parsedTile.drawingPolygon.indices.count,
             verticesCount: parsedTile.drawingPolygon.vertices.count,
             // текстовые метки
-            labelsInputs: labelsInputs,
+            tilePointInputs: tilePointInputs,
             labelsVertices: labelsVertices,
             labelsVerticesRanges: labelsVerticesRanges,
             labelsVerticesBuffer: labelsBuffer,

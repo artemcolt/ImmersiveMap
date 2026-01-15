@@ -51,9 +51,11 @@ class Renderer {
     private var viewMode: ViewMode = ViewMode.spherical
     private var radius: Double = 0.0
     private let screenMatrix: ScreenMatrix = ScreenMatrix()
-    private let labelScreenCompute: LabelScreenCompute
+    private let tilePointScreenCompute: TilePointScreenCompute
     private let labelCache: LabelCache
     private let flatTileOriginCalculator: FlatTileOriginCalculator
+    private let screenCollisionCalculator: ScreenCollisionCalculator
+    private let labelStateUpdateCalculator: LabelStateUpdateCalculator
     private let tileRetentionTracker: TileRetentionTracker
     private var trackedTiles: [TileRetentionTracker.TrackedTile] = []
     private var previousTrackedTilesHash: Int = 0
@@ -104,17 +106,16 @@ class Renderer {
                               library: library,
                               config: config.starfield,
                               comets: config.comets)
-        let globeComputePipeline = GlobeLabelComputePipeline(metalDevice: metalDevice, library: library)
-        let flatComputePipeline = FlatLabelComputePipeline(metalDevice: metalDevice, library: library)
+        let globeComputePipeline = GlobeTilePointComputePipeline(metalDevice: metalDevice, library: library)
+        let flatComputePipeline = FlatTilePointComputePipeline(metalDevice: metalDevice, library: library)
         let screenCollisionPipeline = ScreenCollisionPipeline(metalDevice: metalDevice, library: library)
-        let screenCollisionCalculator = ScreenCollisionCalculator(pipeline: screenCollisionPipeline, metalDevice: metalDevice)
+        self.screenCollisionCalculator = ScreenCollisionCalculator(pipeline: screenCollisionPipeline,
+                                                                    metalDevice: metalDevice)
         let labelStateUpdatePipeline = LabelStateUpdatePipeline(metalDevice: metalDevice, library: library)
-        let labelStateUpdateCalculator = LabelStateUpdateCalculator(pipeline: labelStateUpdatePipeline)
-        labelScreenCompute = LabelScreenCompute(globeComputePipeline: globeComputePipeline,
-                                                flatComputePipeline: flatComputePipeline,
-                                                screenCollisionCalculator: screenCollisionCalculator,
-                                                labelStateUpdateCalculator: labelStateUpdateCalculator,
-                                                metalDevice: metalDevice)
+        self.labelStateUpdateCalculator = LabelStateUpdateCalculator(pipeline: labelStateUpdatePipeline)
+        tilePointScreenCompute = TilePointScreenCompute(globeComputePipeline: globeComputePipeline,
+                                                        flatComputePipeline: flatComputePipeline,
+                                                        metalDevice: metalDevice)
         
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
@@ -149,7 +150,7 @@ class Renderer {
                                             maxLatitude: maxLatitude,
                                             mapBaseColors: mapBaseColors)
 
-        labelCache = LabelCache(metalDevice: metalDevice, computeGlobeToScreen: labelScreenCompute)
+        labelCache = LabelCache(metalDevice: metalDevice, screenCompute: tilePointScreenCompute)
         tileRetentionTracker = TileRetentionTracker(holdSeconds: config.tileHoldSeconds)
         metalTilesStorage = MetalTilesStorage(mapStyle: mapStyle,
                                               metalDevice: metalDevice,
@@ -330,26 +331,39 @@ class Renderer {
                                           eye: camera.eye,
                                           padding: 0)
 
-
-        // Высчитываем положения и коллизии текстовых меток
+            
+        // Высчитываем положения текстовых меток
         if viewMode == .spherical {
-            labelScreenCompute.runGlobe(drawSize: drawSize,
-                                           cameraUniform: cameraUniform,
-                                           globe: globe,
-                                           commandBuffer: commandBuffer,
-                                           labelRuntimeBuffer: labelCache.labelRuntimeBuffer,
-                                           now: Float(nowTime),
-                                           duration: labelFadeDuration)
+            tilePointScreenCompute.runGlobe(drawSize: drawSize,
+                                            cameraUniform: cameraUniform,
+                                            globe: globe,
+                                            commandBuffer: commandBuffer)
         } else if viewMode == .flat {
             if let tileOriginDataBuffer {
-                labelScreenCompute.runFlat(drawSize: drawSize,
-                                              cameraUniform: cameraUniform,
-                                              tileOriginDataBuffer: tileOriginDataBuffer,
-                                              commandBuffer: commandBuffer,
-                                              labelRuntimeBuffer: labelCache.labelRuntimeBuffer,
-                                              now: Float(nowTime),
-                                              duration: labelFadeDuration)
+                tilePointScreenCompute.runFlat(drawSize: drawSize,
+                                               cameraUniform: cameraUniform,
+                                               tileOriginDataBuffer: tileOriginDataBuffer,
+                                               commandBuffer: commandBuffer)
             }
+        }
+        
+        if tilePointScreenCompute.pointsCount > 0 {
+            screenCollisionCalculator.ensureOutputCapacity(count: tilePointScreenCompute.pointsCount)
+            screenCollisionCalculator.run(
+                commandBuffer: commandBuffer,
+                inputsCount: tilePointScreenCompute.pointsCount,
+                screenPointsBuffer: tilePointScreenCompute.pointOutputBuffer,
+                inputsBuffer: labelCache.collisionInputBuffer
+            )
+
+            labelStateUpdateCalculator.run(
+                commandBuffer: commandBuffer,
+                inputsCount: tilePointScreenCompute.pointsCount,
+                visibilityBuffer: screenCollisionCalculator.outputBuffer,
+                labelRuntimeBuffer: labelCache.labelRuntimeBuffer,
+                now: Float(nowTime),
+                duration: labelFadeDuration
+            )
         }
         
         let transitionMix = Double(transition)
@@ -445,14 +459,14 @@ class Renderer {
         renderEncoder.setRenderPipelineState(textRenderer.labelPipelineState)
         var color = SIMD3<Float>(1.0, 0.0, 0.0)
         var globalTextShift: simd_int1 = 0
-        let screenPositions = labelScreenCompute.labelOutputBuffer
-        let labelInputsBuffer = labelScreenCompute.labelInputBuffer
-        let collisionOutput = labelScreenCompute.labelCollisionOutputBuffer
+        let screenPositions = tilePointScreenCompute.pointOutputBuffer
+        let pointInputsBuffer = tilePointScreenCompute.pointInputBuffer
+        let collisionOutput = screenCollisionCalculator.outputBuffer
         let labelRuntimeBuffer = labelCache.labelRuntimeBuffer
         var appTime = Float(nowTime)
         renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
         renderEncoder.setVertexBuffer(screenPositions, offset: 0, index: 2)
-        renderEncoder.setVertexBuffer(labelInputsBuffer, offset: 0, index: 4)
+        renderEncoder.setVertexBuffer(pointInputsBuffer, offset: 0, index: 4)
         renderEncoder.setVertexBuffer(collisionOutput, offset: 0, index: 5)
         renderEncoder.setVertexBuffer(labelRuntimeBuffer, offset: 0, index: 6)
         renderEncoder.setVertexBytes(&appTime, length: MemoryLayout<Float>.stride, index: 7)
