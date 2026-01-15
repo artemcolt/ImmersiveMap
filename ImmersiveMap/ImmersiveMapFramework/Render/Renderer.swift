@@ -331,7 +331,7 @@ class Renderer {
                                           eye: camera.eye,
                                           padding: 0)
 
-            
+        
         // Высчитываем положения текстовых меток
         if viewMode == .spherical {
             tilePointScreenCompute.runGlobe(drawSize: drawSize,
