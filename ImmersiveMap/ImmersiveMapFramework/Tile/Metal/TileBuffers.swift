@@ -31,10 +31,17 @@ struct TileBuffers {
 
     let roadLabelBaseVertices: [LabelVertex]
     let roadLabelVertexRanges: [LabelVerticesRange]
+    let roadLabelGlyphBounds: [SIMD4<Float>]
+    let roadLabelGlyphBoundRanges: [LabelGlyphRange]
     let roadLabelSizes: [SIMD2<Float>]
 }
 
 struct LabelVerticesRange {
+    let start: Int
+    let count: Int
+}
+
+struct LabelGlyphRange {
     let start: Int
     let count: Int
 }

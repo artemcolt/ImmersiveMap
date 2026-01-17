@@ -24,6 +24,8 @@ final class LabelCache {
     private var roadPathTileIndices: [UInt32] = []
     private var roadLabelBaseVertices: [LabelVertex] = []
     private var roadLabelBaseRanges: [LabelVerticesRange] = []
+    private var roadLabelGlyphBounds: [SIMD4<Float>] = []
+    private var roadLabelGlyphBoundRanges: [LabelGlyphRange] = []
     private var roadLabelSizes: [SIMD2<Float>] = []
     private var roadGlyphInputs: [RoadGlyphInput] = []
     private var roadLabelGlyphRanges: [RoadLabelGlyphRange] = []
@@ -121,6 +123,8 @@ final class LabelCache {
         roadPathTileIndices.removeAll(keepingCapacity: true)
         roadLabelBaseVertices.removeAll(keepingCapacity: true)
         roadLabelBaseRanges.removeAll(keepingCapacity: true)
+        roadLabelGlyphBounds.removeAll(keepingCapacity: true)
+        roadLabelGlyphBoundRanges.removeAll(keepingCapacity: true)
         roadLabelSizes.removeAll(keepingCapacity: true)
         roadGlyphInputs.removeAll(keepingCapacity: true)
         roadLabelGlyphRanges.removeAll(keepingCapacity: true)
@@ -238,6 +242,12 @@ final class LabelCache {
             roadLabelBaseRanges.append(LabelVerticesRange(start: range.start + baseVertexOffset,
                                                           count: range.count))
         }
+        let glyphBoundsOffset = roadLabelGlyphBounds.count
+        roadLabelGlyphBounds.append(contentsOf: tileBuffers.roadLabelGlyphBounds)
+        for range in tileBuffers.roadLabelGlyphBoundRanges {
+            roadLabelGlyphBoundRanges.append(LabelGlyphRange(start: range.start + glyphBoundsOffset,
+                                                             count: range.count))
+        }
         roadLabelSizes.append(contentsOf: tileBuffers.roadLabelSizes)
     }
 
@@ -301,7 +311,8 @@ final class LabelCache {
 
     }
 
-    private func buildRoadLabelInstances(stateByKey: [UInt64: LabelState], tileUnitsPerPixel: Float) {
+    private func buildRoadLabelInstances(stateByKey: [UInt64: LabelState],
+                                         tileUnitsPerPixel: Float) {
         let pathCount = roadPathRanges.count
         roadLabelInstancesCount = 0
         guard pathCount > 0 else {
@@ -340,6 +351,9 @@ final class LabelCache {
                 continue
             }
             guard labelIndex < roadLabelBaseRanges.count else {
+                continue
+            }
+            guard labelIndex < roadLabelGlyphBoundRanges.count else {
                 continue
             }
             let size = roadLabelSizes[labelIndex]
@@ -384,8 +398,8 @@ final class LabelCache {
                                                limit: maxRoadLabelInstancesPerPath)
             }
 
-            var anchorSegments: [RoadLabelAnchor] = []
-            anchorSegments.reserveCapacity(anchorDistances.count)
+            var anchorSegmentsWithDistance: [(distance: Float, anchor: RoadLabelAnchor)] = []
+            anchorSegmentsWithDistance.reserveCapacity(anchorDistances.count)
             var segmentIndex = 0
             var accumulated: Float = 0.0
             var segmentLength = segmentLengths.first ?? 0.0
@@ -403,40 +417,43 @@ final class LabelCache {
                     t = (clampedDistance - accumulated) / segmentLength
                 }
                 t = min(max(t, 0.0), 1.0)
-                anchorSegments.append(RoadLabelAnchor(pathIndex: UInt32(pathIndex),
-                                                      segmentIndex: UInt32(segmentIndex),
-                                                      t: t))
+                let anchor = RoadLabelAnchor(pathIndex: UInt32(pathIndex),
+                                             segmentIndex: UInt32(segmentIndex),
+                                             t: t)
+                anchorSegmentsWithDistance.append((distance: clampedDistance, anchor: anchor))
             }
 
             let baseRange = roadLabelBaseRanges[labelIndex]
-            let baseStart = baseRange.start
-            let baseEnd = baseStart + baseRange.count
-            let baseVertices = Array(roadLabelBaseVertices[baseStart..<baseEnd])
-            let baseKey = roadPathLabels[labelIndex].key
-
-            let glyphCount = baseRange.count / 6
+            let glyphBoundsRange = roadLabelGlyphBoundRanges[labelIndex]
+            let glyphCount = min(baseRange.count / 6, glyphBoundsRange.count)
             if glyphCount == 0 {
                 continue
             }
+            let baseStart = baseRange.start
+            let boundsStart = glyphBoundsRange.start
+            let baseVerticesEnd = baseStart + glyphCount * 6
+            let boundsEnd = boundsStart + glyphCount
+            if baseVerticesEnd > roadLabelBaseVertices.count || boundsEnd > roadLabelGlyphBounds.count {
+                continue
+            }
+            let baseKey = roadPathLabels[labelIndex].key
+            let centerDistance = totalLength * 0.5
+            let anchorSegments = anchorSegmentsWithDistance.sorted {
+                abs($0.distance - centerDistance) < abs($1.distance - centerDistance)
+            }.map { $0.anchor }
 
             for (instanceIndex, anchor) in anchorSegments.enumerated() {
                 let instanceId = roadLabelInstancesCount
                 let glyphRangeStart = glyphInputs.count
 
                 for glyphIndex in 0..<glyphCount {
-                    let glyphStart = glyphIndex * 6
-                    let glyphVertices = baseVertices[glyphStart..<(glyphStart + 6)]
-
-                    var minX = Float.greatestFiniteMagnitude
-                    var maxX = -Float.greatestFiniteMagnitude
-                    var minY = Float.greatestFiniteMagnitude
-                    var maxY = -Float.greatestFiniteMagnitude
-                    for vertex in glyphVertices {
-                        minX = min(minX, vertex.position.x)
-                        maxX = max(maxX, vertex.position.x)
-                        minY = min(minY, vertex.position.y)
-                        maxY = max(maxY, vertex.position.y)
-                    }
+                    let glyphStart = baseStart + glyphIndex * 6
+                    let glyphVertices = roadLabelBaseVertices[glyphStart..<(glyphStart + 6)]
+                    let bounds = roadLabelGlyphBounds[boundsStart + glyphIndex]
+                    let minX = bounds.x
+                    let maxX = bounds.y
+                    let minY = bounds.z
+                    let maxY = bounds.w
                     let glyphCenter = (minX + maxX) * 0.5
                     let glyphHalfSize = SIMD2<Float>((maxX - minX) * 0.5, (maxY - minY) * 0.5)
 
@@ -446,7 +463,7 @@ final class LabelCache {
                                                       labelInstanceIndex: UInt32(instanceId),
                                                       glyphCenter: glyphCenter,
                                                       labelWidth: size.x,
-                                                      spacing: 0.0,
+                                                      spacing: roadLabelRepeatDistancePx,
                                                       minLength: minLengthPx))
 
                     collisionInputs.append(ScreenCollisionInput(halfSize: glyphHalfSize,

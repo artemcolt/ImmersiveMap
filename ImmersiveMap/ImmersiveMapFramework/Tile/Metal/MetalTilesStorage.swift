@@ -115,6 +115,8 @@ class MetalTilesStorage {
         var roadPathLabels: [RoadPathLabel] = []
         var roadLabelBaseVertices: [LabelVertex] = []
         var roadLabelVertexRanges: [LabelVerticesRange] = []
+        var roadLabelGlyphBounds: [SIMD4<Float>] = []
+        var roadLabelGlyphBoundRanges: [LabelGlyphRange] = []
         var roadLabelSizes: [SIMD2<Float>] = []
         roadPathInputs.reserveCapacity(roadTextLabels.count * 4)
         for i in roadTextLabels.indices {
@@ -144,6 +146,28 @@ class MetalTilesStorage {
                 roadLabelBaseVertices.append(contentsOf: textMetrics.vertices)
                 roadLabelVertexRanges.append(LabelVerticesRange(start: vertexStart, count: textMetrics.vertices.count))
                 roadLabelSizes.append(SIMD2<Float>(textMetrics.size.width, textMetrics.size.height))
+
+                let glyphStart = roadLabelGlyphBounds.count
+                let glyphCount = textMetrics.vertices.count / 6
+                if glyphCount > 0 {
+                    roadLabelGlyphBounds.reserveCapacity(glyphStart + glyphCount)
+                    for glyphIndex in 0..<glyphCount {
+                        let glyphVertexStart = glyphIndex * 6
+                        let glyphVertices = textMetrics.vertices[glyphVertexStart..<(glyphVertexStart + 6)]
+                        var minX = Float.greatestFiniteMagnitude
+                        var maxX = -Float.greatestFiniteMagnitude
+                        var minY = Float.greatestFiniteMagnitude
+                        var maxY = -Float.greatestFiniteMagnitude
+                        for vertex in glyphVertices {
+                            minX = min(minX, vertex.position.x)
+                            maxX = max(maxX, vertex.position.x)
+                            minY = min(minY, vertex.position.y)
+                            maxY = max(maxY, vertex.position.y)
+                        }
+                        roadLabelGlyphBounds.append(SIMD4<Float>(minX, maxX, minY, maxY))
+                    }
+                }
+                roadLabelGlyphBoundRanges.append(LabelGlyphRange(start: glyphStart, count: glyphCount))
             }
         }
         
@@ -183,6 +207,8 @@ class MetalTilesStorage {
             roadPathLabels: roadPathLabels,
             roadLabelBaseVertices: roadLabelBaseVertices,
             roadLabelVertexRanges: roadLabelVertexRanges,
+            roadLabelGlyphBounds: roadLabelGlyphBounds,
+            roadLabelGlyphBoundRanges: roadLabelGlyphBoundRanges,
             roadLabelSizes: roadLabelSizes
         )
         

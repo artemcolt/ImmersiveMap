@@ -39,11 +39,11 @@ class Renderer {
     private var lastDrawableSize: CGSize = .zero
     private let maxLatitude = 2.0 * atan(exp(Double.pi)) - Double.pi / 2.0
     
-    private let semaphore = DispatchSemaphore(value: 3)
+    private let semaphore = DispatchSemaphore(value: 1)
     private var currentIndex = 0
     
     private let startDate = Date()
-    private var previousSeeTilesHash: Int = 0
+    private var previousSeeTiles: Set<Tile> = []
     private var savedSeeTiles: [Tile] = []
     private var placeTilesContext = PlaceTilesContext.empty
     private var previousZoom: Int
@@ -211,8 +211,6 @@ class Renderer {
         }
         
         
-        // Не используем tripple buffering
-        // На моем телефоне и без него хорошо работает
         currentIndex = 0
         
         // Движение камеры
@@ -256,20 +254,19 @@ class Renderer {
             center = getFlatMapCenter(targetZoom: zoom)
             seeTiles = tileCulling.iSeeTilesFlat(targetZoom: zoom, center: center, pan: cameraControl.flatPan, mapSize: mapSize)
         }
-        let seeTilesHash = seeTiles.hashValue
         if config.debugRenderLogging {
             print("Center = \(center)")
         }
         
         // Если мы видим такие же тайлы, что и на предыдущем кадре, то тогда нету смысла обрабатывать их опять
         // Использовать тайлы с предыдущего кадра
-        if previousSeeTilesHash != seeTilesHash {
+        if previousSeeTiles != seeTiles {
             if config.debugRenderLogging {
-                print("Previous see tiles hash changed")
+                print("Previous see tiles changed")
             }
             // Сортируем тайлы для правильной, последовательной отрисовки
             savedSeeTiles = TileSorter.sortForRendering(seeTiles, center: center)
-            previousSeeTilesHash = seeTilesHash
+            previousSeeTiles = seeTiles
         }
         
         if config.debugRenderLogging {
@@ -330,22 +327,23 @@ class Renderer {
         let detailTrackedTiles = trackedTiles.filter { $0.tile.isCoarseTile == false }
         
         let shouldRebuildLabels = trackedTilesHash != previousTrackedTilesHash
-        
-        // Квантование. Каждые 0.25 единиц зума будет меняться бакет
+
+        // Layout scale for anchors: use unpitched camera to avoid pitch-driven density changes.
         let zoomBucket = Int((cameraControl.zoom * 4.0).rounded(.down))
-        var tileUnitsPerPixel = calculateTileUnitsPerPixel(cameraMatrix: cameraMatrix,
-                                                           drawSize: drawSize,
-                                                           mapSize: mapSize,
-                                                           zoom: zoom)
-        if tileUnitsPerPixel <= 0.0 {
-            tileUnitsPerPixel = previousRoadLabelTileUnitsPerPixel
+        var tileUnitsPerPixel = previousRoadLabelTileUnitsPerPixel
+        if let layoutMatrix = layoutCameraMatrix() {
+            let calculated = calculateTileUnitsPerPixel(cameraMatrix: layoutMatrix,
+                                                        drawSize: drawSize,
+                                                        mapSize: mapSize,
+                                                        zoom: zoom)
+            if calculated > 0.0 {
+                tileUnitsPerPixel = calculated
+            }
         }
         let placementScaleDelta = abs(tileUnitsPerPixel - previousRoadLabelTileUnitsPerPixel)
-        
-        // Должны ли мы пересчитать текст дорожных лейблов
-        let shouldUpdateRoadPlacements = shouldRebuildLabels || // если тайлы изменились
-            zoomBucket != previousRoadLabelZoomBucket || // если перешли порог зума
-            placementScaleDelta > 0.0001 // если есть серьезные изменения в tile units per pixel
+        let shouldUpdateRoadPlacements = shouldRebuildLabels ||
+            zoomBucket != previousRoadLabelZoomBucket ||
+            placementScaleDelta > 0.0001
 
         if shouldRebuildLabels {
             previousTrackedTilesHash = trackedTilesHash
@@ -669,6 +667,27 @@ class Renderer {
         renderEncoder.setVertexBytes(&matrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
         renderEncoder.setVertexBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 2)
         renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: pointsCount)
+    }
+
+    private func layoutCameraMatrix() -> matrix_float4x4? {
+        guard let projection = camera.projection else {
+            return nil
+        }
+
+        let yaw = cameraControl.yaw
+        let pitch: Float = 0.0
+        let zRemains = cameraControl.zoom.truncatingRemainder(dividingBy: 1.0)
+        let camUp = SIMD3<Float>(0, 1, 0)
+        let camPosition = SIMD3<Float>(0, 0, (1.0 - Float(zRemains) * 0.5))
+        let camRight = SIMD3<Float>(1, 0, 0)
+
+        let pitchQuat = simd_quatf(angle: pitch, axis: camRight)
+        let yawQuat = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 0, 1))
+
+        let eye = simd_act(yawQuat * pitchQuat, camPosition)
+        let up = simd_act(yawQuat * pitchQuat, camUp)
+        let view = Matrix.lookAt(eye: eye, center: camera.center, up: up)
+        return projection * view
     }
 
     private func calculateTileUnitsPerPixel(cameraMatrix: matrix_float4x4,

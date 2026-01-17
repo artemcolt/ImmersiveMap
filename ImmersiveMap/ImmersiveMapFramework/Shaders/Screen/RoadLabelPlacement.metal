@@ -76,6 +76,15 @@ kernel void roadLabelPlacementKernel(const device ScreenPointOutput* pathPoints 
         return;
     }
 
+    float minCenterSpacing = max(1.0, input.labelWidth + input.spacing);
+    float usableLength = max(0.0, totalLength - input.labelWidth);
+    uint maxInstances = (uint)(floor(usableLength / minCenterSpacing)) + 1;
+    if (input.instanceIndex >= maxInstances) {
+        placements[gid] = placement;
+        screenPoints[gid] = screenPoint;
+        return;
+    }
+
     if (anchorDistance < 0.0) {
         anchorDistance = totalLength * 0.5;
     }

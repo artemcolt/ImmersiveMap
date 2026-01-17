@@ -55,10 +55,12 @@ class CameraControl {
     }
     
     func setLatLonDeg(latDeg: Double, lonDeg: Double) {
+        precondition(latDeg.isFinite && lonDeg.isFinite, "Latitude/longitude must be finite.")
+        let maxLatitudeDeg = maxLatitude * (180.0 / .pi)
+        precondition(abs(latDeg) <= maxLatitudeDeg, "Latitude out of range for Mercator: \(latDeg)")
         // Для глобусного представления
         globePan.x = -(lonDeg / 180)
-        
-        let maxLatitudeDeg = maxLatitude * (180.0 / .pi)
+
         globePan.y = (latDeg / maxLatitudeDeg)
         
         // Для плоского представления

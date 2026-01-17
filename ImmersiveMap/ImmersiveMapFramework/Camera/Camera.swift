@@ -45,10 +45,19 @@ class Camera {
     }
     
     func recalculateMatrix() {
-        view = Matrix.lookAt(eye: eye, center: center, up: up)
-        cameraMatrix = projection! * view!
+        guard let projection else {
+            assertionFailure("Camera projection must be set before recalculating matrices.")
+            return
+        }
+        let view = Matrix.lookAt(eye: eye, center: center, up: up)
+        self.view = view
+        cameraMatrix = projection * view
         
-        frustrum = Frustum(pv: cameraMatrix!)
+        if let cameraMatrix {
+            frustrum = Frustum(pv: cameraMatrix)
+        } else {
+            frustrum = nil
+        }
     }
     
     func aproximateTileGlobe(tx: Int, ty: Int, tz: Int, radius: Float,
@@ -120,7 +129,10 @@ class Camera {
         let boundingBox = boundingBox(for: points)
         //testPoints.append(boundingBox.min)
         //testPoints.append(boundingBox.max)
-        let isVisibleBox = frustrum!.isBoxVisible(min: boundingBox.min, max: boundingBox.max)
+        guard let frustrum else {
+            return
+        }
+        let isVisibleBox = frustrum.isBoxVisible(min: boundingBox.min, max: boundingBox.max)
         if isVisibleBox == false {
             return
         }
@@ -216,7 +228,10 @@ class Camera {
         let boundingBox = boundingBox(for: points)
         //testPoints.append(boundingBox.min)
         //testPoints.append(boundingBox.max)
-        let isVisibleBox = frustrum!.isBoxVisible(min: boundingBox.min, max: boundingBox.max)
+        guard let frustrum else {
+            return
+        }
+        let isVisibleBox = frustrum.isBoxVisible(min: boundingBox.min, max: boundingBox.max)
         if isVisibleBox == false {
             return
         }
