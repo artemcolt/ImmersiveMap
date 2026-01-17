@@ -1,3 +1,0 @@
-Остановились на: унификация шейдеров вычисления экранной позиции точки тайла (flat/globe).
-Сделано: вынес общую логику в TilePointCommon.h (tile UV -> clip) и ScreenPoint.h (clip -> screen), обновил FlatLabelToScreen.metal и GlobeLabelToScreen.metal на использование этих функций.
-Следующий шаг: переводить координаты дорог в координаты на экране.

@@ -23,6 +23,15 @@ struct TileBuffers {
     let labelsCount: Int
     let labelsVerticesCount: Int
     let labelsMeta: [GlobeLabelMeta]
+
+    // road label paths
+    let roadPathInputs: [TilePointInput]
+    let roadPathRanges: [RoadPathRange]
+    let roadPathLabels: [RoadPathLabel]
+
+    let roadLabelBaseVertices: [LabelVertex]
+    let roadLabelVertexRanges: [LabelVerticesRange]
+    let roadLabelSizes: [SIMD2<Float>]
 }
 
 struct LabelVerticesRange {

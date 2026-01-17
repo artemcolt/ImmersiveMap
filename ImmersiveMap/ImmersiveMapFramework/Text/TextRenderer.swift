@@ -92,6 +92,7 @@ class TextRenderer {
     var atlasData: AtlasData!
     var pipelineState: MTLRenderPipelineState!
     var labelPipelineState: MTLRenderPipelineState!
+    var roadLabelPipelineState: MTLRenderPipelineState!
     private var library: MTLLibrary
     
     init(device: MTLDevice, library: MTLLibrary) {
@@ -297,6 +298,7 @@ class TextRenderer {
     private func createPipelines() {
         guard let textVertexFn = library.makeFunction(name: "textVertex"),
               let labelVertexFn = library.makeFunction(name: "labelTextVertex"),
+              let roadLabelVertexFn = library.makeFunction(name: "roadLabelTextVertex"),
               let fragmentFn = library.makeFunction(name: "textFragment") else { fatalError("Functions not found") }
         
         let textVertexDescriptor = MTLVertexDescriptor()
@@ -327,6 +329,9 @@ class TextRenderer {
             labelPipelineState = try makePipelineState(vertexFunction: labelVertexFn,
                                                        vertexDescriptor: labelVertexDescriptor,
                                                        fragmentFunction: fragmentFn)
+            roadLabelPipelineState = try makePipelineState(vertexFunction: roadLabelVertexFn,
+                                                           vertexDescriptor: labelVertexDescriptor,
+                                                           fragmentFunction: fragmentFn)
         } catch {
             fatalError("Pipeline creation failed: \(error)")
         }

@@ -20,6 +20,7 @@ class Renderer {
     let polygonPipeline: PolygonsPipeline
     let tilePipeline: TilePipeline
     let globePipeline: GlobePipeline
+    private let screenPointDebugPipeline: ScreenPointDebugPipeline
     let globeCapRenderer: GlobeCapRenderer
     let starfield: Starfield
     let camera: Camera
@@ -52,10 +53,14 @@ class Renderer {
     private var radius: Double = 0.0
     private let screenMatrix: ScreenMatrix = ScreenMatrix()
     private let tilePointScreenCompute: TilePointScreenCompute
+    private let roadPathScreenCompute: TilePointScreenCompute
     private let labelCache: LabelCache
     private let flatTileOriginCalculator: FlatTileOriginCalculator
     private let screenCollisionCalculator: ScreenCollisionCalculator
     private let labelStateUpdateCalculator: LabelStateUpdateCalculator
+    private let roadLabelPlacementCalculator: RoadLabelPlacementCalculator
+    private let roadLabelCollisionCalculator: RoadLabelCollisionCalculator
+    private let roadLabelVisibilityCalculator: RoadLabelVisibilityCalculator
     private let tileRetentionTracker: TileRetentionTracker
     private var trackedTiles: [TileRetentionTracker.TrackedTile] = []
     private var previousTrackedTilesHash: Int = 0
@@ -101,6 +106,7 @@ class Renderer {
         polygonPipeline = PolygonsPipeline(metalDevice: metalDevice, layer: layer, library: library)
         tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
+        screenPointDebugPipeline = ScreenPointDebugPipeline(metalDevice: metalDevice, layer: layer, library: library)
         starfield = Starfield(metalDevice: metalDevice,
                               layer: layer,
                               library: library,
@@ -113,9 +119,20 @@ class Renderer {
                                                                     metalDevice: metalDevice)
         let labelStateUpdatePipeline = LabelStateUpdatePipeline(metalDevice: metalDevice, library: library)
         self.labelStateUpdateCalculator = LabelStateUpdateCalculator(pipeline: labelStateUpdatePipeline)
+        let roadLabelPlacementPipeline = RoadLabelPlacementPipeline(metalDevice: metalDevice, library: library)
+        self.roadLabelPlacementCalculator = RoadLabelPlacementCalculator(pipeline: roadLabelPlacementPipeline)
+        let roadLabelCollisionPipeline = RoadLabelCollisionPipeline(metalDevice: metalDevice, library: library)
+        self.roadLabelCollisionCalculator = RoadLabelCollisionCalculator(pipeline: roadLabelCollisionPipeline,
+                                                                          metalDevice: metalDevice)
+        let roadLabelVisibilityPipeline = RoadLabelVisibilityPipeline(metalDevice: metalDevice, library: library)
+        self.roadLabelVisibilityCalculator = RoadLabelVisibilityCalculator(pipeline: roadLabelVisibilityPipeline,
+                                                                           metalDevice: metalDevice)
         tilePointScreenCompute = TilePointScreenCompute(globeComputePipeline: globeComputePipeline,
                                                         flatComputePipeline: flatComputePipeline,
                                                         metalDevice: metalDevice)
+        roadPathScreenCompute = TilePointScreenCompute(globeComputePipeline: globeComputePipeline,
+                                                       flatComputePipeline: flatComputePipeline,
+                                                       metalDevice: metalDevice)
         
         textRenderer = TextRenderer(device: metalDevice, library: library)
         tilesTexture = TilesTexture(metalDevice: metalDevice, tilePipeline: tilePipeline)
@@ -123,8 +140,8 @@ class Renderer {
         camera = Camera()
         tileCulling = TileCulling(camera: camera, debugLogging: config.debugRenderLogging)
         cameraControl = CameraControl(config: config)
-        cameraControl.setZoom(zoom: 0)
-        //cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
+        cameraControl.setZoom(zoom: 13)
+        cameraControl.setLatLonDeg(latDeg: 55.751244, lonDeg: 37.618423)
         previousZoom = Int(cameraControl.zoom)
         
         let baseGrid = SphereGeometry.createGrid(stacks: 50, slices: 50)
@@ -315,6 +332,7 @@ class Renderer {
             previousTrackedTilesHash = trackedTilesHash
             previousDetailTrackedTilesHash = detailTrackedTilesHash
             labelCache.rebuild(placeTilesContext: placeTilesContext, trackedTiles: detailTrackedTiles)
+            labelCache.updateRoadPathCompute(roadPathScreenCompute)
         }
         
         var tileOriginDataBuffer: MTLBuffer?
@@ -338,13 +356,31 @@ class Renderer {
                                             cameraUniform: cameraUniform,
                                             globe: globe,
                                             commandBuffer: commandBuffer)
+            roadPathScreenCompute.runGlobe(drawSize: drawSize,
+                                           cameraUniform: cameraUniform,
+                                           globe: globe,
+                                           commandBuffer: commandBuffer)
         } else if viewMode == .flat {
             if let tileOriginDataBuffer {
                 tilePointScreenCompute.runFlat(drawSize: drawSize,
                                                cameraUniform: cameraUniform,
                                                tileOriginDataBuffer: tileOriginDataBuffer,
                                                commandBuffer: commandBuffer)
+                roadPathScreenCompute.runFlat(drawSize: drawSize,
+                                              cameraUniform: cameraUniform,
+                                              tileOriginDataBuffer: tileOriginDataBuffer,
+                                              commandBuffer: commandBuffer)
             }
+        }
+
+        if labelCache.roadLabelGlyphCount > 0 {
+            roadLabelPlacementCalculator.run(commandBuffer: commandBuffer,
+                                             pathPointsBuffer: roadPathScreenCompute.pointOutputBuffer,
+                                             pathRangesBuffer: labelCache.roadPathRangesBuffer,
+                                             glyphInputsBuffer: labelCache.roadGlyphInputBuffer,
+                                             placementsBuffer: labelCache.roadLabelPlacementBuffer,
+                                             screenPointsBuffer: labelCache.roadLabelScreenPointsBuffer,
+                                             glyphCount: labelCache.roadLabelGlyphCount)
         }
         
         if tilePointScreenCompute.pointsCount > 0 {
@@ -361,6 +397,38 @@ class Renderer {
                 inputsCount: tilePointScreenCompute.pointsCount,
                 visibilityBuffer: screenCollisionCalculator.outputBuffer,
                 labelRuntimeBuffer: labelCache.labelRuntimeBuffer,
+                now: Float(nowTime),
+                duration: labelFadeDuration
+            )
+        }
+
+        if labelCache.roadLabelGlyphCount > 0 {
+            roadLabelCollisionCalculator.run(
+                commandBuffer: commandBuffer,
+                roadCount: labelCache.roadLabelGlyphCount,
+                labelCount: tilePointScreenCompute.pointsCount,
+                roadPointsBuffer: labelCache.roadLabelScreenPointsBuffer,
+                roadCollisionInputsBuffer: labelCache.roadLabelCollisionInputBuffer,
+                roadGlyphInputsBuffer: labelCache.roadGlyphInputBuffer,
+                labelPointsBuffer: tilePointScreenCompute.pointOutputBuffer,
+                labelCollisionInputsBuffer: labelCache.collisionInputBuffer,
+                labelVisibilityBuffer: screenCollisionCalculator.outputBuffer
+            )
+        }
+
+        if labelCache.roadLabelInstancesCount > 0 {
+            roadLabelVisibilityCalculator.run(
+                commandBuffer: commandBuffer,
+                glyphVisibilityBuffer: roadLabelCollisionCalculator.outputBuffer,
+                glyphRangesBuffer: labelCache.roadLabelGlyphRangesBuffer,
+                instanceCount: labelCache.roadLabelInstancesCount
+            )
+
+            labelStateUpdateCalculator.run(
+                commandBuffer: commandBuffer,
+                inputsCount: labelCache.roadLabelInstancesCount,
+                visibilityBuffer: roadLabelVisibilityCalculator.outputBuffer,
+                labelRuntimeBuffer: labelCache.roadLabelRuntimeBuffer,
                 now: Float(nowTime),
                 duration: labelFadeDuration
             )
@@ -486,6 +554,23 @@ class Renderer {
             globalTextShift += simd_int1(labelsCount)
         }
 
+        drawRoadPathPointsDebug(renderEncoder: renderEncoder, screenMatrix: screenMatrix)
+
+        if let roadLabelVerticesBuffer = labelCache.roadLabelVerticesBuffer,
+           labelCache.roadLabelVerticesCount > 0 {
+            renderEncoder.setRenderPipelineState(textRenderer.roadLabelPipelineState)
+            renderEncoder.setVertexBuffer(roadLabelVerticesBuffer, offset: 0, index: 0)
+            renderEncoder.setVertexBytes(&screenMatrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+            renderEncoder.setVertexBuffer(labelCache.roadLabelPlacementBuffer, offset: 0, index: 2)
+            renderEncoder.setVertexBuffer(labelCache.roadGlyphInputBuffer, offset: 0, index: 3)
+            renderEncoder.setVertexBuffer(labelCache.roadLabelRuntimeBuffer, offset: 0, index: 4)
+            renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
+            renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
+            renderEncoder.drawPrimitives(type: .triangle,
+                                         vertexStart: 0,
+                                         vertexCount: labelCache.roadLabelVerticesCount)
+        }
+
         
         
         drawDebugOverlay(renderEncoder: renderEncoder,
@@ -529,6 +614,22 @@ class Renderer {
         let tileX = ((-pan.x + 1.0) / 2.0) * Double(tilesCount)
         let tileY = ((-pan.y + 1.0) / 2.0) * Double(tilesCount)
         return Center(tileX: tileX, tileY: tileY)
+    }
+
+    private func drawRoadPathPointsDebug(renderEncoder: MTLRenderCommandEncoder,
+                                         screenMatrix: matrix_float4x4) {
+        let pointsCount = roadPathScreenCompute.pointsCount
+        guard pointsCount > 0 else {
+            return
+        }
+
+        screenPointDebugPipeline.setPipelineState(renderEncoder: renderEncoder)
+        renderEncoder.setVertexBuffer(roadPathScreenCompute.pointOutputBuffer, offset: 0, index: 0)
+        var matrix = screenMatrix
+        var color = SIMD4<Float>(1.0, 0.6, 0.0, 1.0)
+        renderEncoder.setVertexBytes(&matrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
+        renderEncoder.setVertexBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 2)
+        renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: pointsCount)
     }
 
     

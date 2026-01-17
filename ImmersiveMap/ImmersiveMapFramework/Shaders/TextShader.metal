@@ -8,6 +8,7 @@
 #include <metal_stdlib>
 using namespace metal;
 #include "Common.h"
+#include "Label/RoadLabelCommon.h"
 
 struct VertexIn {
     float4 position [[attribute(0)]];
@@ -59,6 +60,29 @@ vertex VertexOut labelTextVertex(LabelVertexIn in [[stage_in]],
     out.position = matrix * float4(pixelPosition, 0.0, 1.0);
     out.uv = in.uv;
     out.alpha = labelStates[screenIndex].state.alpha;
+    return out;
+}
+
+vertex VertexOut roadLabelTextVertex(LabelVertexIn in [[stage_in]],
+                                     constant float4x4& matrix [[buffer(1)]],
+                                     const device RoadGlyphPlacementOutput* placements [[buffer(2)]],
+                                     const device RoadGlyphInput* glyphInputs [[buffer(3)]],
+                                     const device LabelRuntimeState* labelStates [[buffer(4)]]) {
+    VertexOut out;
+    int glyphIndex = in.labelIndex;
+    RoadGlyphPlacementOutput placement = placements[glyphIndex];
+    RoadGlyphInput glyphInput = glyphInputs[glyphIndex];
+    uint instanceIndex = glyphInput.labelInstanceIndex;
+
+    float2 local = in.position - float2(glyphInput.glyphCenter, 0.0);
+    float s = sin(placement.angle);
+    float c = cos(placement.angle);
+    float2 rotated = float2(local.x * c - local.y * s, local.x * s + local.y * c);
+    float2 pixelPosition = placement.position + rotated;
+
+    out.position = matrix * float4(pixelPosition, 0.0, 1.0);
+    out.uv = in.uv;
+    out.alpha = (placement.visible == 0) ? 0.0 : labelStates[instanceIndex].state.alpha;
     return out;
 }
 
