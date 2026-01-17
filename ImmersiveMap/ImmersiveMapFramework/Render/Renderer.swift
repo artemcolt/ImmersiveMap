@@ -64,7 +64,8 @@ class Renderer {
     private let tileRetentionTracker: TileRetentionTracker
     private var trackedTiles: [TileRetentionTracker.TrackedTile] = []
     private var previousTrackedTilesHash: Int = 0
-    private var previousDetailTrackedTilesHash: Int = 0
+    private var previousRoadLabelZoomBucket: Int = -1
+    private var previousRoadLabelTileUnitsPerPixel: Float = 0.0
     
     private var tileTextVerticesBuffer: MTLBuffer
     private var previousTilesTextKey: String = ""
@@ -225,6 +226,7 @@ class Renderer {
         
         let commandBuffer = commandQueue.makeCommandBuffer()!
         
+        // Какой режим рендринга сейчас (глобус или плоскость)
         let viewResult = ViewModeCalculator.calculate(zoom: cameraControl.zoom,
                                                       globePan: cameraControl.globePan)
         transition = viewResult.transition
@@ -252,12 +254,12 @@ class Renderer {
                                                   pan: SIMD2<Float>(Float(cameraControl.globePan.x), Float(cameraControl.globePan.y)))
         } else if viewMode == .flat {
             center = getFlatMapCenter(targetZoom: zoom)
-            if config.debugRenderLogging {
-                print("Center = \(center)")
-            }
             seeTiles = tileCulling.iSeeTilesFlat(targetZoom: zoom, center: center, pan: cameraControl.flatPan, mapSize: mapSize)
         }
         let seeTilesHash = seeTiles.hashValue
+        if config.debugRenderLogging {
+            print("Center = \(center)")
+        }
         
         // Если мы видим такие же тайлы, что и на предыдущем кадре, то тогда нету смысла обрабатывать их опять
         // Использовать тайлы с предыдущего кадра
@@ -320,19 +322,43 @@ class Renderer {
         let nowTime = Date().timeIntervalSince(startDate)
         let visibleTiles = placeTilesContext.visibleTiles
         
+        // Каждый раз проверяет какие тайлы в retain состоянии, а какие нужно удалить
+        // Добавляет новые тайлы, которые стали видимы. Пропавшие тайлы удаляет с задержкой, чтобы не сломать анимацию
         trackedTiles = tileRetentionTracker.update(visibleTiles: visibleTiles, now: nowTime)
         let trackedTilesHash = hashTrackedTiles(trackedTiles)
+        // Тайлы, которые не заменены для оптимизации
         let detailTrackedTiles = trackedTiles.filter { $0.tile.isCoarseTile == false }
-        let detailTrackedTilesHash = hashTrackedTiles(detailTrackedTiles)
         
-        let shouldRebuildLabels = trackedTilesHash != previousTrackedTilesHash ||
-            detailTrackedTilesHash != previousDetailTrackedTilesHash
+        let shouldRebuildLabels = trackedTilesHash != previousTrackedTilesHash
         
+        // Квантование. Каждые 0.25 единиц зума будет меняться бакет
+        let zoomBucket = Int((cameraControl.zoom * 4.0).rounded(.down))
+        var tileUnitsPerPixel = calculateTileUnitsPerPixel(cameraMatrix: cameraMatrix,
+                                                           drawSize: drawSize,
+                                                           mapSize: mapSize,
+                                                           zoom: zoom)
+        if tileUnitsPerPixel <= 0.0 {
+            tileUnitsPerPixel = previousRoadLabelTileUnitsPerPixel
+        }
+        let placementScaleDelta = abs(tileUnitsPerPixel - previousRoadLabelTileUnitsPerPixel)
+        
+        // Должны ли мы пересчитать текст дорожных лейблов
+        let shouldUpdateRoadPlacements = shouldRebuildLabels || // если тайлы изменились
+            zoomBucket != previousRoadLabelZoomBucket || // если перешли порог зума
+            placementScaleDelta > 0.0001 // если есть серьезные изменения в tile units per pixel
+
         if shouldRebuildLabels {
             previousTrackedTilesHash = trackedTilesHash
-            previousDetailTrackedTilesHash = detailTrackedTilesHash
-            labelCache.rebuild(placeTilesContext: placeTilesContext, trackedTiles: detailTrackedTiles)
+            labelCache.rebuild(placeTilesContext: placeTilesContext,
+                               trackedTiles: detailTrackedTiles,
+                               tileUnitsPerPixel: tileUnitsPerPixel)
             labelCache.updateRoadPathCompute(roadPathScreenCompute)
+            previousRoadLabelZoomBucket = zoomBucket
+            previousRoadLabelTileUnitsPerPixel = tileUnitsPerPixel
+        } else if shouldUpdateRoadPlacements {
+            labelCache.rebuildRoadLabelInstances(tileUnitsPerPixel: tileUnitsPerPixel)
+            previousRoadLabelZoomBucket = zoomBucket
+            previousRoadLabelTileUnitsPerPixel = tileUnitsPerPixel
         }
         
         var tileOriginDataBuffer: MTLBuffer?
@@ -374,9 +400,14 @@ class Renderer {
         }
 
         if labelCache.roadLabelGlyphCount > 0 {
+            // Вычисляет на GPU экранные позиции и угол поворота каждого глифа дорожного лейбла
+            // Берёт screen‑points пути (уже пересчитанные из тайловых координат).
+            // Для каждого глифа берёт его anchor (центр лейбла на пути) и смещение внутри текста.
+            // Находит точку на пути на нужной дистанции и вычисляет тангент (направление).
             roadLabelPlacementCalculator.run(commandBuffer: commandBuffer,
                                              pathPointsBuffer: roadPathScreenCompute.pointOutputBuffer,
                                              pathRangesBuffer: labelCache.roadPathRangesBuffer,
+                                             anchorsBuffer: labelCache.roadLabelAnchorBuffer,
                                              glyphInputsBuffer: labelCache.roadGlyphInputBuffer,
                                              placementsBuffer: labelCache.roadLabelPlacementBuffer,
                                              screenPointsBuffer: labelCache.roadLabelScreenPointsBuffer,
@@ -384,6 +415,7 @@ class Renderer {
         }
         
         if tilePointScreenCompute.pointsCount > 0 {
+            // вычситывает коллизии обычных лейблов
             screenCollisionCalculator.ensureOutputCapacity(count: tilePointScreenCompute.pointsCount)
             screenCollisionCalculator.run(
                 commandBuffer: commandBuffer,
@@ -392,6 +424,7 @@ class Renderer {
                 inputsBuffer: labelCache.collisionInputBuffer
             )
 
+            // шейдер дял fade in / fade out
             labelStateUpdateCalculator.run(
                 commandBuffer: commandBuffer,
                 inputsCount: tilePointScreenCompute.pointsCount,
@@ -403,6 +436,7 @@ class Renderer {
         }
 
         if labelCache.roadLabelGlyphCount > 0 {
+            // высчитывает коллизии между дорогами и лейблами
             roadLabelCollisionCalculator.run(
                 commandBuffer: commandBuffer,
                 roadCount: labelCache.roadLabelGlyphCount,
@@ -417,6 +451,8 @@ class Renderer {
         }
 
         if labelCache.roadLabelInstancesCount > 0 {
+            // проверяет наличие хотя бы одного скрытого глифа в дорожном лейбле
+            // если хотя бы один скрыт -> то значит весь дорожный лейбл нужно прятать
             roadLabelVisibilityCalculator.run(
                 commandBuffer: commandBuffer,
                 glyphVisibilityBuffer: roadLabelCollisionCalculator.outputBuffer,
@@ -424,6 +460,7 @@ class Renderer {
                 instanceCount: labelCache.roadLabelInstancesCount
             )
 
+            // анимация fade in / fade out
             labelStateUpdateCalculator.run(
                 commandBuffer: commandBuffer,
                 inputsCount: labelCache.roadLabelInstancesCount,
@@ -449,6 +486,7 @@ class Renderer {
         
         let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
         if viewMode == .spherical {
+            // Рисуем космос
             starfield.draw(renderEncoder: renderEncoder,
                            globe: globe,
                            cameraView: cameraView,
@@ -459,6 +497,7 @@ class Renderer {
         
         
         if viewMode == .spherical {
+            // Рисуем крышки глобуса
             globeCapRenderer.draw(renderEncoder: renderEncoder,
                                   cameraUniform: cameraUniform,
                                   globe: globe)
@@ -523,7 +562,7 @@ class Renderer {
         }
         
         
-        // Draw labels
+        // Рисуем лейблы
         renderEncoder.setRenderPipelineState(textRenderer.labelPipelineState)
         var color = SIMD3<Float>(1.0, 0.0, 0.0)
         var globalTextShift: simd_int1 = 0
@@ -556,6 +595,7 @@ class Renderer {
 
         drawRoadPathPointsDebug(renderEncoder: renderEncoder, screenMatrix: screenMatrix)
 
+        // Рисуем дорожные лейблы
         if let roadLabelVerticesBuffer = labelCache.roadLabelVerticesBuffer,
            labelCache.roadLabelVerticesCount > 0 {
             renderEncoder.setRenderPipelineState(textRenderer.roadLabelPipelineState)
@@ -593,7 +633,6 @@ class Renderer {
         let tileX: Int
         let tileY: Int
     }
-
     
     private func getGlobeMapCenter(targetZoom: Int) -> Center {
         let pan = cameraControl.globePan
@@ -630,6 +669,53 @@ class Renderer {
         renderEncoder.setVertexBytes(&matrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
         renderEncoder.setVertexBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 2)
         renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: pointsCount)
+    }
+
+    private func calculateTileUnitsPerPixel(cameraMatrix: matrix_float4x4,
+                                            drawSize: CGSize,
+                                            mapSize: Double,
+                                            zoom: Int) -> Float {
+        guard drawSize.width > 0.0, drawSize.height > 0.0 else {
+            return 0.0
+        }
+
+        func project(_ point: SIMD3<Float>) -> SIMD2<Float>? {
+            let clip = cameraMatrix * SIMD4<Float>(point, 1.0)
+            if clip.w <= 0.0 {
+                return nil
+            }
+            let ndc = SIMD2<Float>(clip.x / clip.w, clip.y / clip.w)
+            let viewport = SIMD2<Float>(Float(drawSize.width), Float(drawSize.height))
+            return (ndc * 0.5 + SIMD2<Float>(repeating: 0.5)) * viewport
+        }
+
+        guard let p0 = project(SIMD3<Float>(0.0, 0.0, 0.0)),
+              let p1 = project(SIMD3<Float>(1.0, 0.0, 0.0)) else {
+            return 0.0
+        }
+
+        let pixelsPerWorldUnit = simd_length(p1 - p0)
+        if pixelsPerWorldUnit <= 0.0 {
+            return 0.0
+        }
+
+        let tilesCount = 1 << zoom
+        guard tilesCount > 0 else {
+            return 0.0
+        }
+
+        let tileWorldSize = Float(mapSize / Double(tilesCount))
+        if tileWorldSize <= 0.0 {
+            return 0.0
+        }
+
+        let tileUnitsPerWorld = Float(4096.0) / tileWorldSize
+        let pixelsPerTileUnit = pixelsPerWorldUnit / tileUnitsPerWorld
+        if pixelsPerTileUnit <= 0.0 {
+            return 0.0
+        }
+
+        return 1.0 / pixelsPerTileUnit
     }
 
     

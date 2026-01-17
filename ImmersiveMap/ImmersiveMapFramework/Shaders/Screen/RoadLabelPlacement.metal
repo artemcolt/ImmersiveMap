@@ -13,10 +13,11 @@ using namespace metal;
 
 kernel void roadLabelPlacementKernel(const device ScreenPointOutput* pathPoints [[buffer(0)]],
                                      const device RoadPathRange* pathRanges [[buffer(1)]],
-                                     const device RoadGlyphInput* glyphInputs [[buffer(2)]],
-                                     device RoadGlyphPlacementOutput* placements [[buffer(3)]],
-                                     device ScreenPointOutput* screenPoints [[buffer(4)]],
-                                     constant uint& glyphCount [[buffer(5)]],
+                                     const device RoadLabelAnchor* anchors [[buffer(2)]],
+                                     const device RoadGlyphInput* glyphInputs [[buffer(3)]],
+                                     device RoadGlyphPlacementOutput* placements [[buffer(4)]],
+                                     device ScreenPointOutput* screenPoints [[buffer(5)]],
+                                     constant uint& glyphCount [[buffer(6)]],
                                      uint gid [[thread_position_in_grid]]) {
     if (gid >= glyphCount) {
         return;
@@ -24,6 +25,7 @@ kernel void roadLabelPlacementKernel(const device ScreenPointOutput* pathPoints 
 
     RoadGlyphInput input = glyphInputs[gid];
     RoadPathRange pathRange = pathRanges[input.pathIndex];
+    RoadLabelAnchor anchor = anchors[input.labelInstanceIndex];
 
     RoadGlyphPlacementOutput placement;
     placement.position = float2(0.0);
@@ -46,8 +48,8 @@ kernel void roadLabelPlacementKernel(const device ScreenPointOutput* pathPoints 
     bool hasInvisible = false;
     uint start = pathRange.start;
     uint end = start + pathRange.count;
-    uint anchorSegmentIndex = min(pathRange.anchorSegmentIndex, pathRange.count - 2);
-    float anchorT = clamp(pathRange.anchorT, 0.0, 1.0);
+    uint anchorSegmentIndex = min(anchor.segmentIndex, pathRange.count - 2);
+    float anchorT = clamp(anchor.t, 0.0, 1.0);
     float2 prev = pathPoints[start].position;
     if (pathPoints[start].visible == 0) {
         hasInvisible = true;
@@ -78,9 +80,7 @@ kernel void roadLabelPlacementKernel(const device ScreenPointOutput* pathPoints 
         anchorDistance = totalLength * 0.5;
     }
 
-    float baseDistance = (input.spacing > 0.0)
-        ? (input.spacing * (float(input.instanceIndex) + 0.5))
-        : anchorDistance;
+    float baseDistance = anchorDistance;
 
     float2 startPos = pathPoints[start].position;
     float2 endPos = pathPoints[end - 1].position;

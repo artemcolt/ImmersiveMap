@@ -17,6 +17,7 @@ final class RoadLabelPlacementCalculator {
     func run(commandBuffer: MTLCommandBuffer,
              pathPointsBuffer: MTLBuffer,
              pathRangesBuffer: MTLBuffer,
+             anchorsBuffer: MTLBuffer,
              glyphInputsBuffer: MTLBuffer,
              placementsBuffer: MTLBuffer,
              screenPointsBuffer: MTLBuffer,
@@ -33,10 +34,11 @@ final class RoadLabelPlacementCalculator {
 
         encoder.setBuffer(pathPointsBuffer, offset: 0, index: 0)
         encoder.setBuffer(pathRangesBuffer, offset: 0, index: 1)
-        encoder.setBuffer(glyphInputsBuffer, offset: 0, index: 2)
-        encoder.setBuffer(placementsBuffer, offset: 0, index: 3)
-        encoder.setBuffer(screenPointsBuffer, offset: 0, index: 4)
-        encoder.setBytes(&count, length: MemoryLayout<UInt32>.stride, index: 5)
+        encoder.setBuffer(anchorsBuffer, offset: 0, index: 2)
+        encoder.setBuffer(glyphInputsBuffer, offset: 0, index: 3)
+        encoder.setBuffer(placementsBuffer, offset: 0, index: 4)
+        encoder.setBuffer(screenPointsBuffer, offset: 0, index: 5)
+        encoder.setBytes(&count, length: MemoryLayout<UInt32>.stride, index: 6)
 
         let threadsPerThreadgroup = MTLSize(
             width: max(1, pipeline.pipelineState.threadExecutionWidth),

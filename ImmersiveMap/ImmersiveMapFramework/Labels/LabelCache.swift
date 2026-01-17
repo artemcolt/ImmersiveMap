@@ -13,8 +13,9 @@ final class LabelCache {
     private let metalDevice: MTLDevice
     private let tilePointScreenCompute: TilePointScreenCompute
 
-    private let roadLabelPadding: Float = 40.0
-    private let maxRoadLabelInstancesPerPath: Int = 1
+    private let roadLabelRepeatDistancePx: Float = 100.0
+    private let maxRoadLabelInstancesPerPath: Int = 12
+    private let roadLabelTileExtent: Float = 4096.0
     
     // позиции лейблов на карте
     private var tilePointInputs: [TilePointInput] = []
@@ -27,6 +28,7 @@ final class LabelCache {
     private var roadGlyphInputs: [RoadGlyphInput] = []
     private var roadLabelGlyphRanges: [RoadLabelGlyphRange] = []
     private var roadLabelVertices: [LabelVertex] = []
+    private var roadLabelAnchors: [RoadLabelAnchor] = []
     private var roadLabelRuntimeKeys: [UInt64] = []
 
     // Для отрисовки текста лейблов
@@ -43,6 +45,7 @@ final class LabelCache {
     private(set) var roadGlyphInputBuffer: MTLBuffer
     private(set) var roadLabelGlyphRangesBuffer: MTLBuffer
     private(set) var roadPathRangesBuffer: MTLBuffer
+    private(set) var roadLabelAnchorBuffer: MTLBuffer
     private(set) var roadLabelVerticesBuffer: MTLBuffer?
     
     
@@ -97,13 +100,19 @@ final class LabelCache {
             length: MemoryLayout<RoadPathRangeGpu>.stride,
             options: [.storageModeShared]
         )!
+        self.roadLabelAnchorBuffer = metalDevice.makeBuffer(
+            length: MemoryLayout<RoadLabelAnchor>.stride,
+            options: [.storageModeShared]
+        )!
         self.roadLabelGlyphRangesBuffer = metalDevice.makeBuffer(
             length: MemoryLayout<RoadLabelGlyphRange>.stride,
             options: [.storageModeShared]
         )!
     }
 
-    func rebuild(placeTilesContext: PlaceTilesContext, trackedTiles: [TileRetentionTracker.TrackedTile]) {
+    func rebuild(placeTilesContext: PlaceTilesContext,
+                 trackedTiles: [TileRetentionTracker.TrackedTile],
+                 tileUnitsPerPixel: Float) {
         let stateByKey = captureLabelStates()
         let roadStateByKey = captureRoadLabelStates()
         tilePointInputs.removeAll(keepingCapacity: true)
@@ -116,6 +125,7 @@ final class LabelCache {
         roadGlyphInputs.removeAll(keepingCapacity: true)
         roadLabelGlyphRanges.removeAll(keepingCapacity: true)
         roadLabelVertices.removeAll(keepingCapacity: true)
+        roadLabelAnchors.removeAll(keepingCapacity: true)
         drawLabels.removeAll(keepingCapacity: true)
         labelTilesList.removeAll(keepingCapacity: true)
         tileIndexByTile.removeAll(keepingCapacity: true)
@@ -177,11 +187,21 @@ final class LabelCache {
         roadPathInputsCount = roadPathInputs.count
         updateCollisionInputBuffer(inputs: tilePointInputs)
         updateLabelRuntimeBuffer(runtimeStates: runtimeStates)
-        buildRoadLabelInstances(stateByKey: roadStateByKey)
+        buildRoadLabelInstances(stateByKey: roadStateByKey, tileUnitsPerPixel: tileUnitsPerPixel)
     }
 
     func updateRoadPathCompute(_ compute: TilePointScreenCompute) {
         compute.copyDataToBuffer(inputs: roadPathInputs, tileIndices: roadPathTileIndices)
+    }
+
+    func rebuildRoadLabelInstances(tileUnitsPerPixel: Float) {
+        let roadStateByKey = captureRoadLabelStates()
+        roadGlyphInputs.removeAll(keepingCapacity: true)
+        roadLabelGlyphRanges.removeAll(keepingCapacity: true)
+        roadLabelVertices.removeAll(keepingCapacity: true)
+        roadLabelAnchors.removeAll(keepingCapacity: true)
+        roadLabelRuntimeKeys.removeAll(keepingCapacity: true)
+        buildRoadLabelInstances(stateByKey: roadStateByKey, tileUnitsPerPixel: tileUnitsPerPixel)
     }
 
     private func tileIndex(for tile: Tile) -> UInt32 {
@@ -209,9 +229,7 @@ final class LabelCache {
         for range in tileBuffers.roadPathRanges {
             roadPathRanges.append(RoadPathRange(start: range.start + startOffset,
                                                 count: range.count,
-                                                labelIndex: range.labelIndex + labelOffset,
-                                                anchorSegmentIndex: range.anchorSegmentIndex,
-                                                anchorT: range.anchorT))
+                                                labelIndex: range.labelIndex + labelOffset))
         }
 
         let baseVertexOffset = roadLabelBaseVertices.count
@@ -283,7 +301,7 @@ final class LabelCache {
 
     }
 
-    private func buildRoadLabelInstances(stateByKey: [UInt64: LabelState]) {
+    private func buildRoadLabelInstances(stateByKey: [UInt64: LabelState], tileUnitsPerPixel: Float) {
         let pathCount = roadPathRanges.count
         roadLabelInstancesCount = 0
         guard pathCount > 0 else {
@@ -294,6 +312,9 @@ final class LabelCache {
             return
         }
 
+        let safeTileUnitsPerPixel = max(0.0001, tileUnitsPerPixel)
+        let repeatDistanceTile = max(0.0, roadLabelRepeatDistancePx * safeTileUnitsPerPixel)
+
         var runtimeStates: [LabelRuntimeState] = []
         var seenKeys: Set<UInt64> = []
         var glyphInputs: [RoadGlyphInput] = []
@@ -301,21 +322,90 @@ final class LabelCache {
         var vertices: [LabelVertex] = []
         var collisionInputs: [ScreenCollisionInput] = []
         var runtimeKeys: [UInt64] = []
+        var anchors: [RoadLabelAnchor] = []
 
         let estimatedInstances = pathCount * maxRoadLabelInstancesPerPath
         glyphRanges.reserveCapacity(estimatedInstances)
         runtimeStates.reserveCapacity(estimatedInstances)
+        anchors.reserveCapacity(estimatedInstances)
+
+        func tilePoint(at index: Int) -> SIMD2<Float> {
+            let uv = roadPathInputs[index].uv
+            return uv * roadLabelTileExtent
+        }
 
         for (pathIndex, pathRange) in roadPathRanges.enumerated() {
             let labelIndex = pathRange.labelIndex
             if labelIndex < 0 || labelIndex >= roadLabelSizes.count {
                 continue
             }
-
-            let size = roadLabelSizes[labelIndex]
-            let minLength = max(size.x + roadLabelPadding, size.x)
             guard labelIndex < roadLabelBaseRanges.count else {
                 continue
+            }
+            let size = roadLabelSizes[labelIndex]
+            let labelWidthTile = size.x * safeTileUnitsPerPixel
+            guard labelWidthTile > 0.0 else {
+                continue
+            }
+            let minLengthPx = size.x
+
+            let start = pathRange.start
+            let count = pathRange.count
+            if count < 2 {
+                continue
+            }
+
+            var segmentLengths: [Float] = []
+            segmentLengths.reserveCapacity(count - 1)
+            var totalLength: Float = 0.0
+            var prev = tilePoint(at: start)
+            for i in 1..<count {
+                let current = tilePoint(at: start + i)
+                let length = simd_length(current - prev)
+                segmentLengths.append(length)
+                totalLength += length
+                prev = current
+            }
+
+            guard totalLength >= labelWidthTile else {
+                continue
+            }
+
+            var anchorDistances = buildRoadLabelAnchors(totalLength: totalLength,
+                                                        labelWidth: labelWidthTile,
+                                                        repeatDistance: repeatDistanceTile)
+            if anchorDistances.isEmpty {
+                continue
+            }
+            anchorDistances.sort()
+            if anchorDistances.count > maxRoadLabelInstancesPerPath {
+                anchorDistances = limitAnchors(anchorDistances,
+                                               totalLength: totalLength,
+                                               limit: maxRoadLabelInstancesPerPath)
+            }
+
+            var anchorSegments: [RoadLabelAnchor] = []
+            anchorSegments.reserveCapacity(anchorDistances.count)
+            var segmentIndex = 0
+            var accumulated: Float = 0.0
+            var segmentLength = segmentLengths.first ?? 0.0
+            for distance in anchorDistances {
+                let clampedDistance = min(max(distance, 0.0), totalLength)
+                while segmentIndex < segmentLengths.count - 1,
+                      accumulated + segmentLength < clampedDistance {
+                    accumulated += segmentLength
+                    segmentIndex += 1
+                    segmentLength = segmentLengths[segmentIndex]
+                }
+
+                var t: Float = 0.0
+                if segmentLength > 0.0 {
+                    t = (clampedDistance - accumulated) / segmentLength
+                }
+                t = min(max(t, 0.0), 1.0)
+                anchorSegments.append(RoadLabelAnchor(pathIndex: UInt32(pathIndex),
+                                                      segmentIndex: UInt32(segmentIndex),
+                                                      t: t))
             }
 
             let baseRange = roadLabelBaseRanges[labelIndex]
@@ -329,8 +419,7 @@ final class LabelCache {
                 continue
             }
 
-            let instanceLimit = maxRoadLabelInstancesPerPath
-            for instanceIndex in 0..<instanceLimit {
+            for (instanceIndex, anchor) in anchorSegments.enumerated() {
                 let instanceId = roadLabelInstancesCount
                 let glyphRangeStart = glyphInputs.count
 
@@ -358,7 +447,7 @@ final class LabelCache {
                                                       glyphCenter: glyphCenter,
                                                       labelWidth: size.x,
                                                       spacing: 0.0,
-                                                      minLength: minLength))
+                                                      minLength: minLengthPx))
 
                     collisionInputs.append(ScreenCollisionInput(halfSize: glyphHalfSize,
                                                                 radius: 0.0,
@@ -384,6 +473,7 @@ final class LabelCache {
                                                        tileIndex: 0))
                 runtimeKeys.append(instanceKey)
                 seenKeys.insert(instanceKey)
+                anchors.append(anchor)
                 roadLabelInstancesCount += 1
             }
         }
@@ -391,6 +481,7 @@ final class LabelCache {
         roadGlyphInputs = glyphInputs
         roadLabelGlyphRanges = glyphRanges
         roadLabelVertices = vertices
+        roadLabelAnchors = anchors
         roadLabelGlyphCount = glyphInputs.count
         roadLabelVerticesCount = vertices.count
         roadLabelRuntimeKeys = runtimeKeys
@@ -477,6 +568,14 @@ final class LabelCache {
             )!
         }
 
+        let anchorsNeeded = max(1, roadLabelInstancesCount) * MemoryLayout<RoadLabelAnchor>.stride
+        if roadLabelAnchorBuffer.length < anchorsNeeded {
+            roadLabelAnchorBuffer = metalDevice.makeBuffer(
+                length: anchorsNeeded,
+                options: [.storageModeShared]
+            )!
+        }
+
         let glyphRangesNeeded = max(1, roadLabelInstancesCount) * MemoryLayout<RoadLabelGlyphRange>.stride
         if roadLabelGlyphRangesBuffer.length < glyphRangesNeeded {
             roadLabelGlyphRangesBuffer = metalDevice.makeBuffer(
@@ -495,23 +594,28 @@ final class LabelCache {
         var gpuRanges: [RoadPathRangeGpu] = []
         if roadPathRanges.isEmpty {
             gpuRanges = [RoadPathRangeGpu(start: 0,
-                                          count: 0,
-                                          labelIndex: 0,
-                                          anchorSegmentIndex: 0,
-                                          anchorT: 0.0)]
+                                          count: 0)]
         } else {
             gpuRanges.reserveCapacity(roadPathRanges.count)
             for range in roadPathRanges {
                 gpuRanges.append(RoadPathRangeGpu(start: UInt32(range.start),
-                                                  count: UInt32(range.count),
-                                                  labelIndex: UInt32(range.labelIndex),
-                                                  anchorSegmentIndex: UInt32(range.anchorSegmentIndex),
-                                                  anchorT: range.anchorT))
+                                                  count: UInt32(range.count)))
             }
         }
         gpuRanges.withUnsafeBytes { bytes in
             roadPathRangesBuffer.contents().copyMemory(from: bytes.baseAddress!,
                                                        byteCount: gpuRanges.count * MemoryLayout<RoadPathRangeGpu>.stride)
+        }
+
+        var anchorData: [RoadLabelAnchor] = []
+        if roadLabelAnchors.isEmpty {
+            anchorData = [RoadLabelAnchor(pathIndex: 0, segmentIndex: 0, t: 0.0)]
+        } else {
+            anchorData = roadLabelAnchors
+        }
+        anchorData.withUnsafeBytes { bytes in
+            roadLabelAnchorBuffer.contents().copyMemory(from: bytes.baseAddress!,
+                                                        byteCount: anchorData.count * MemoryLayout<RoadLabelAnchor>.stride)
         }
 
         var glyphRanges: [RoadLabelGlyphRange] = []
@@ -534,6 +638,53 @@ final class LabelCache {
         } else {
             roadLabelVerticesBuffer = nil
         }
+    }
+
+    private func buildRoadLabelAnchors(totalLength: Float,
+                                       labelWidth: Float,
+                                       repeatDistance: Float) -> [Float] {
+        guard totalLength >= labelWidth else {
+            return []
+        }
+
+        let minCenterSpacing = labelWidth + repeatDistance
+        var anchors: [Float] = []
+        var stack: [(Float, Float)] = [(0.0, totalLength)]
+
+        while let segment = stack.popLast() {
+            let start = segment.0
+            let end = segment.1
+            let length = end - start
+            if length < labelWidth {
+                continue
+            }
+
+            let mid = (start + end) * 0.5
+            anchors.append(mid)
+
+            let leftEnd = mid - minCenterSpacing
+            if leftEnd - start >= labelWidth {
+                stack.append((start, leftEnd))
+            }
+
+            let rightStart = mid + minCenterSpacing
+            if end - rightStart >= labelWidth {
+                stack.append((rightStart, end))
+            }
+        }
+
+        return anchors
+    }
+
+    private func limitAnchors(_ anchors: [Float], totalLength: Float, limit: Int) -> [Float] {
+        guard anchors.count > limit else {
+            return anchors
+        }
+
+        let center = totalLength * 0.5
+        let prioritized = anchors.sorted { abs($0 - center) < abs($1 - center) }
+        let selected = prioritized.prefix(limit)
+        return Array(selected).sorted()
     }
 
     private func roadLabelInstanceKey(baseKey: UInt64, instanceIndex: UInt32) -> UInt64 {

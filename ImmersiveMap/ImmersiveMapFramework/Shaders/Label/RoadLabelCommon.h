@@ -14,12 +14,8 @@ using namespace metal;
 struct RoadPathRange {
     uint start;
     uint count;
-    uint labelIndex;
-    uint anchorSegmentIndex;
-    float anchorT;
-    float _padding0;
-    float _padding1;
-    float _padding2;
+    uint _padding0;
+    uint _padding1;
 };
 
 struct RoadGlyphInput {
@@ -45,6 +41,13 @@ struct RoadLabelGlyphRange {
     uint count;
     uint _padding0;
     uint _padding1;
+};
+
+struct RoadLabelAnchor {
+    uint pathIndex;
+    uint segmentIndex;
+    float t;
+    float _padding;
 };
 
 #endif

@@ -14,19 +14,13 @@ struct RoadPathRange {
     let start: Int
     let count: Int
     let labelIndex: Int
-    let anchorSegmentIndex: Int
-    let anchorT: Float
 }
 
 struct RoadPathRangeGpu {
     let start: UInt32
     let count: UInt32
-    let labelIndex: UInt32
-    let anchorSegmentIndex: UInt32
-    let anchorT: Float
-    let _padding0: Float = 0
-    let _padding1: Float = 0
-    let _padding2: Float = 0
+    let _padding0: UInt32 = 0
+    let _padding1: UInt32 = 0
 }
 
 struct RoadGlyphInput {
@@ -52,4 +46,11 @@ struct RoadLabelGlyphRange {
     let count: UInt32
     let _padding0: UInt32 = 0
     let _padding1: UInt32 = 0
+}
+
+struct RoadLabelAnchor {
+    let pathIndex: UInt32
+    let segmentIndex: UInt32
+    let t: Float
+    let _padding: Float = 0
 }
