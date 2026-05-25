@@ -14,7 +14,7 @@ struct ImmersiveMapDemoApp: App {
 struct DemoMapScreen: View {
     @State private var camera = MapCameraController()
     @State private var avatars = AvatarsController()
-    @State private var mode: DemoMode = .city
+    @State private var mode: DemoMode = .initial
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -33,7 +33,7 @@ struct DemoMapScreen: View {
         }
         .task {
             await seedDemoMarkers()
-            await cycleCameraForScreenshots()
+            await cycleCameraForScreenshotsIfNeeded()
         }
     }
 
@@ -80,7 +80,11 @@ struct DemoMapScreen: View {
     }
 
     @MainActor
-    private func cycleCameraForScreenshots() async {
+    private func cycleCameraForScreenshotsIfNeeded() async {
+        guard DemoMode.shouldAutoCycle else {
+            return
+        }
+
         try? await Task.sleep(for: .seconds(5))
         mode = .globe
         camera.fly(to: DemoMode.globe.cameraPosition, options: CameraFlightOptions(duration: 1.2))
@@ -88,6 +92,10 @@ struct DemoMapScreen: View {
         try? await Task.sleep(for: .seconds(5))
         mode = .city
         camera.fly(to: DemoMode.city.cameraPosition, options: CameraFlightOptions(duration: 1.0))
+
+        try? await Task.sleep(for: .seconds(5))
+        mode = .moscowCloseup
+        camera.fly(to: DemoMode.moscowCloseup.cameraPosition, options: CameraFlightOptions(duration: 1.0))
     }
 
     private static func markerImage(fill: UIColor) -> UIImage {
@@ -103,9 +111,19 @@ struct DemoMapScreen: View {
     }
 }
 
-private enum DemoMode {
+private enum DemoMode: String {
     case city
     case globe
+    case moscowCloseup
+
+    static var initial: DemoMode {
+        let rawValue = ProcessInfo.processInfo.environment["IMMERSIVE_MAP_DEMO_MODE"]
+        return rawValue.flatMap(DemoMode.init(rawValue:)) ?? .city
+    }
+
+    static var shouldAutoCycle: Bool {
+        ProcessInfo.processInfo.environment["IMMERSIVE_MAP_DEMO_MODE"] == nil
+    }
 
     var title: String {
         switch self {
@@ -113,12 +131,14 @@ private enum DemoMode {
             return "ImmersiveMap city view"
         case .globe:
             return "ImmersiveMap globe view"
+        case .moscowCloseup:
+            return "ImmersiveMap Moscow close-up"
         }
     }
 
     var visibilityPolicy: VisibilityPolicy {
         switch self {
-        case .city:
+        case .city, .moscowCloseup:
             return .preferFlat
         case .globe:
             return .preferGlobe
@@ -142,6 +162,14 @@ private enum DemoMode {
                 zoom: 1.35,
                 bearing: 0,
                 pitch: 0
+            )
+        case .moscowCloseup:
+            return ImmersiveMapCameraPosition(
+                latitudeDegrees: 55.7520,
+                longitudeDegrees: 37.6175,
+                zoom: 16.6,
+                bearing: -.pi / 7,
+                pitch: .pi / 4
             )
         }
     }

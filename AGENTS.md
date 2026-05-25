@@ -19,7 +19,7 @@ The current in-progress work is adding runnable screenshots and README documenta
 Uncommitted work expected in this handoff:
 
 - `README.md` includes a new `Screenshots` section and `Demo App` section.
-- `Docs/Screenshots/immersive-map-city.png` and `Docs/Screenshots/immersive-map-globe.png` contain verified simulator screenshots.
+- `Docs/Screenshots/immersive-map-city.png`, `Docs/Screenshots/immersive-map-globe.png`, and `Docs/Screenshots/immersive-map-moscow-closeup.png` contain verified simulator screenshots.
 - `Examples/ImmersiveMapDemo/` contains a small SwiftUI demo app used to run the map.
 - `.gitignore` was updated to ignore nested `DerivedData/`.
 
@@ -56,6 +56,7 @@ The demo reads optional launch environment variables:
 ```text
 IMMERSIVE_MAP_TILE_BASE_URL=https://example.com/api/v1/map/tiles
 IMMERSIVE_MAP_AUTH_TOKEN=your-token
+IMMERSIVE_MAP_DEMO_MODE=city|globe|moscowCloseup
 ```
 
 Never commit real bearer tokens, stand secrets, database credentials, Mapbox tokens, or generated secret files.
@@ -90,12 +91,14 @@ After screenshots are captured, place final README images here:
 ```text
 Docs/Screenshots/immersive-map-city.png
 Docs/Screenshots/immersive-map-globe.png
+Docs/Screenshots/immersive-map-moscow-closeup.png
 ```
 
 The existing screenshots were visually checked:
 
 - `immersive-map-city.png`: Moscow city/flat map view with avatar marker.
 - `immersive-map-globe.png`: globe view with starfield/background and avatar marker.
+- `immersive-map-moscow-closeup.png`: high-zoom angled Moscow view with 3D buildings.
 
 ## Validation
 

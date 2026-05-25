@@ -16,6 +16,7 @@ It provides:
 <p>
   <img src="Docs/Screenshots/immersive-map-city.png" alt="ImmersiveMap city view" width="260">
   <img src="Docs/Screenshots/immersive-map-globe.png" alt="ImmersiveMap globe view" width="260">
+  <img src="Docs/Screenshots/immersive-map-moscow-closeup.png" alt="ImmersiveMap Moscow close-up angled view" width="260">
 </p>
 
 ## Requirements
@@ -83,6 +84,7 @@ The demo reads optional launch environment variables:
 ```text
 IMMERSIVE_MAP_TILE_BASE_URL=https://example.com/api/v1/map/tiles
 IMMERSIVE_MAP_AUTH_TOKEN=your-token
+IMMERSIVE_MAP_DEMO_MODE=city|globe|moscowCloseup
 ```
 
 Do not commit bearer tokens. Use Xcode scheme environment variables, or launch the installed simulator app with `SIMCTL_CHILD_IMMERSIVE_MAP_AUTH_TOKEN` when you need to test a protected tile server.
