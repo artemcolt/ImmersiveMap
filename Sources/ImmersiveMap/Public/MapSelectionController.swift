@@ -81,7 +81,7 @@ public final class MapSelectionController {
                                    screenPoint: nil) ?? false
     }
 
-    func attach(mapView: ImmersiveMapUIView?) {
+    public func attach(mapView: ImmersiveMapUIView?) {
         self.mapView?.attach(selectionController: nil)
         self.mapView = mapView
         mapView?.attach(selectionController: self)

@@ -54,9 +54,6 @@ class TileDownloader {
     }
 
     func downloadResult(tile: Tile) async -> DownloadResult {
-        guard let authorizationToken else {
-            return .failure(.missingAuthorizationToken)
-        }
         let zoom = tile.z
         let x = tile.x
         let y = tile.y
@@ -67,7 +64,9 @@ class TileDownloader {
         
         let tileURL = mapTileDownloader.get(tileX: x, tileY: y, tileZ: zoom)
         var request = URLRequest(url: tileURL)
-        request.setValue("Bearer \(authorizationToken)", forHTTPHeaderField: "Authorization")
+        if let authorizationToken {
+            request.setValue("Bearer \(authorizationToken)", forHTTPHeaderField: "Authorization")
+        }
         do {
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {

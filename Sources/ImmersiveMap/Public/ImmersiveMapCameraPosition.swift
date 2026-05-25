@@ -123,7 +123,7 @@ public final class MapCameraController {
         }
     }
 
-    func attach(mapView: ImmersiveMapUIView?) {
+    public func attach(mapView: ImmersiveMapUIView?) {
         if Thread.isMainThread {
             self.mapView?.attach(cameraController: nil)
             self.mapView = mapView
