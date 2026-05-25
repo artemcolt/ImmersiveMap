@@ -164,11 +164,11 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
         setup()
     }
     
-    init(frame: CGRect,
-         settings: MapSettings,
-         avatarsController: AvatarsController = AvatarsController(),
-         cameraPosition: ImmersiveMapCameraPosition? = nil,
-         visibilityPolicy: VisibilityPolicy = .followPresentation) {
+    public init(frame: CGRect,
+                settings: MapSettings,
+                avatarsController: AvatarsController = AvatarsController(),
+                cameraPosition: ImmersiveMapCameraPosition? = nil,
+                visibilityPolicy: VisibilityPolicy = .followPresentation) {
         self.settings = settings
         self.initialCameraPosition = cameraPosition
         self.initialVisibilityPolicy = visibilityPolicy
