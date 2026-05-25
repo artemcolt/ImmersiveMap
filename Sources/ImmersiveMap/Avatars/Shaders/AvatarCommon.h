@@ -1,0 +1,72 @@
+//
+//  AvatarCommon.h
+//  ImmersiveMapFramework
+//  Created by Artem on 1/26/26.
+//
+
+#include <metal_stdlib>
+using namespace metal;
+
+#ifndef AVATAR_COMMON
+#define AVATAR_COMMON
+
+struct AvatarGeoInput {
+    float latitude;
+    float longitude;
+    float sizePx;
+    uint idHash;
+};
+
+struct AvatarInstanceGPU {
+    float4 uvRect;
+    float4 borderColor;
+    float2 squashScale;
+    uint atlasIndex;
+    uint flags;
+};
+
+struct AvatarBatteryBadgeInstanceGPU {
+    float4 uvRect;
+    uint flags;
+    float3 _padding;
+};
+
+struct AvatarSpeedBadgeInstanceGPU {
+    float4 uvRect;
+    uint flags;
+    float3 _padding;
+};
+
+struct AvatarOffset {
+    float2 value;
+    float scale;
+    float _padding;
+};
+
+struct AvatarMarkerStyleGPU {
+    float2 bodySizePx;
+    float2 totalSizePx;
+    float cornerRadiusPx;
+    float pointerHeightPx;
+    float pointerHalfWidthPx;
+    float outlineWidthPx;
+    float contentInsetPx;
+};
+
+struct AvatarBatteryBadgeStyleGPU {
+    float2 sizePx;
+    float gapPx;
+    float cornerRadiusPx;
+};
+
+struct AvatarSpeedBadgeStyleGPU {
+    float2 sizePx;
+    float originXPx;
+    float originYPx;
+};
+
+struct AvatarMarkerSDFParams {
+    float distanceRangeTexels;
+};
+
+#endif

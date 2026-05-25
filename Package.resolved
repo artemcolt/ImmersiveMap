@@ -1,0 +1,24 @@
+{
+  "originHash" : "e133fdc8058711fd121f87635db72c8ab1b06d527df0cff933078675fcbe561a",
+  "pins" : [
+    {
+      "identity" : "swift-protobuf",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-protobuf.git",
+      "state" : {
+        "revision" : "f6506eaa86ed2e01cb0ae14a75035b7fdbf0918f",
+        "version" : "1.38.0"
+      }
+    },
+    {
+      "identity" : "swiftearcut",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/measuredweighed/SwiftEarcut.git",
+      "state" : {
+        "revision" : "f72356da8b873da27d869120c08d4a3009b6bf12",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}
