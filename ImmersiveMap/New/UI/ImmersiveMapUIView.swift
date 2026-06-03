@@ -128,8 +128,6 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
 
     private func setup() {
         metalLayer.contentsScale = UIScreen.main.scale
-        createRenderer(settings: settings,
-                       cameraPosition: initialCameraPosition)
         memoryWarningObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
@@ -171,6 +169,9 @@ public class ImmersiveMapUIView: UIView, UIGestureRecognizerDelegate {
         attributionBadge = AttributionBadgeView()
         attributionBadge.apply(settings.attribution)
         addSubview(attributionBadge)
+
+        createRenderer(settings: settings,
+                       cameraPosition: initialCameraPosition)
         syncPitchControlValue()
 
         mapRenderLoop.start()
