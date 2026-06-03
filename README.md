@@ -1,6 +1,6 @@
 # ImmersiveMap
 
-ImmersiveMap is a standalone iOS Metal map engine extracted from the Tucik iOS app.
+ImmersiveMap is a standalone iOS and Mac Catalyst Metal map engine.
 
 It provides:
 
@@ -22,6 +22,7 @@ It provides:
 ## Requirements
 
 - iOS 18.0+
+- Mac Catalyst 18.0+
 - Xcode with Metal support
 - Swift Package Manager
 
@@ -73,13 +74,19 @@ https://example.com/api/v1/map/tiles/12/2411/1539.mvt
 
 If your tile server requires a bearer token, set `authorizationToken`. If it does not require authentication, leave the token as `nil`.
 
-## Demo App
+## Xcode Workspace
 
-This repository includes a small runnable demo at `Examples/ImmersiveMapDemo`.
+Open `ImmersiveMap.xcworkspace` when you want to work on the map engine and run a test app from the same Xcode window.
 
-Open `Examples/ImmersiveMapDemo/ImmersiveMapDemo.xcodeproj` in Xcode and run the `ImmersiveMapDemo` scheme on an iOS Simulator.
+The workspace contains:
 
-The demo reads optional launch environment variables:
+- `ImmersiveMap`: the local Swift Package target under `ImmersiveMap/`.
+- `ImmersiveMapIOS`: an iOS host app for Simulator/device testing.
+- `ImmersiveMapMac`: a Mac Catalyst host app for running on Mac.
+
+Both host apps link the local package checkout, so changes under `ImmersiveMap/` are built directly into the app.
+
+The host apps read optional launch environment variables:
 
 ```text
 IMMERSIVE_MAP_TILE_BASE_URL=https://example.com/api/v1/map/tiles
@@ -89,6 +96,16 @@ IMMERSIVE_MAP_DEMO_MODE=city|globe|moscowCloseup
 
 Do not commit bearer tokens. Use Xcode scheme environment variables, or launch the installed simulator app with `SIMCTL_CHILD_IMMERSIVE_MAP_AUTH_TOKEN` when you need to test a protected tile server.
 
+For Mapbox-hosted vector tiles, set these Xcode scheme environment variables instead:
+
+```text
+IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN=your-mapbox-public-token
+IMMERSIVE_MAP_MAPBOX_TILESET_ID=mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2
+IMMERSIVE_MAP_DEMO_MODE=city|globe|moscowCloseup
+```
+
+When `IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN` is present, the host apps request tiles from `https://api.mapbox.com/v4/{tileset_id}/{z}/{x}/{y}.mvt?access_token=...`. The default Mapbox tileset ID is `mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2`.
+
 ## SwiftUI Quick Start
 
 ```swift
@@ -97,7 +114,7 @@ import ImmersiveMap
 
 struct MapScreen: View {
     private let camera = MapCameraController()
-    private let avatars = AvatarsController()
+    private let avatars = ImmersiveMapAvatarsController()
 
     var body: some View {
         ImmersiveMapView(
@@ -132,7 +149,7 @@ import ImmersiveMap
 
 final class MapViewController: UIViewController {
     private let camera = MapCameraController()
-    private let avatars = AvatarsController()
+    private let avatars = ImmersiveMapAvatarsController()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -184,13 +201,13 @@ camera.fly(to: .init(
 
 ## Avatar Markers
 
-Use `AvatarsController` to show moving people, vehicles, or other live objects on the map.
+Use `ImmersiveMapAvatarsController` to show moving people, vehicles, or other live objects on the map.
 
 ```swift
 import UIKit
 import ImmersiveMap
 
-let avatars = AvatarsController()
+let avatars = ImmersiveMapAvatarsController()
 
 avatars.set([
     AvatarMarker(
@@ -244,6 +261,11 @@ settings.tiles.network.tileBaseURL = URL(string: "https://example.com/api/v1/map
 settings.tiles.network.authorizationToken = "your-token"
 settings.tiles.network.maxConcurrentFetches = 6
 
+// Mapbox-style query token auth:
+settings.tiles.network.tileBaseURL = URL(string: "https://api.mapbox.com/v4/mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2")!
+settings.tiles.network.authorizationToken = "your-mapbox-public-token"
+settings.tiles.network.authorizationMode = .accessTokenQuery(parameterName: "access_token")
+
 settings.renderLoop.forceContinuousRendering = false
 settings.camera.maximumZoom = 18
 settings.camera.maximumPitch = Float.pi * 65 / 180
@@ -256,6 +278,16 @@ settings.debug.overlayEnabled = false
 xcodebuild \
   -scheme ImmersiveMap \
   -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath DerivedData \
+  build
+```
+
+For Mac Catalyst:
+
+```bash
+xcodebuild \
+  -scheme ImmersiveMap \
+  -destination 'platform=macOS,variant=Mac Catalyst' \
   -derivedDataPath DerivedData \
   build
 ```

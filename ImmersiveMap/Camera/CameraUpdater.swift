@@ -1,0 +1,33 @@
+// Copyright (c) 2025-2026 Artem Bobkin.
+// SPDX-License-Identifier: MIT
+
+import Foundation
+import simd
+
+struct CameraUpdater {
+    static func updateIfNeeded(camera: Camera, cameraControl: CameraControl) {
+        guard cameraControl.update else {
+            return
+        }
+
+        let yaw = cameraControl.yaw
+        let pitch = cameraControl.pitch
+
+        let zRemains = cameraControl.zoom.truncatingRemainder(dividingBy: 1.0)
+        let camUp = SIMD3<Float>(0, 1, 0)
+        let camPosition = SIMD3<Float>(0, 0, (1.0 - Float(zRemains) * 0.5))
+        let camRight = SIMD3<Float>(1, 0, 0)
+
+        let pitchQuat = simd_quatf(angle: pitch, axis: camRight)
+        let yawQuat = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 0, 1))
+
+        camera.eye = simd_act(yawQuat * pitchQuat, camPosition)
+        camera.up = simd_act(yawQuat * pitchQuat, camUp)
+
+        camera.recalculateMatrix()
+
+        // Camera updated; reset the flag to the default state
+        // When something changes in the camera, this flag becomes true
+        cameraControl.update = false
+    }
+}

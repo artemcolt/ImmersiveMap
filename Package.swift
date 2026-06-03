@@ -5,7 +5,8 @@ import PackageDescription
 let package = Package(
     name: "ImmersiveMap",
     platforms: [
-        .iOS(.v18)
+        .iOS(.v18),
+        .macCatalyst(.v18)
     ],
     products: [
         .library(
@@ -24,13 +25,16 @@ let package = Package(
                 "SwiftEarcut",
                 .product(name: "SwiftProtobuf", package: "swift-protobuf")
             ],
+            path: "ImmersiveMap",
             resources: [
                 .process("Avatars/Shaders"),
                 .process("Avatars/resources"),
                 .process("Globe/Shaders"),
                 .process("Labels/Shaders"),
                 .process("Labels/Text/resources"),
+                .process("Rendering/Compute/TilePoints/TilePointToScreen.metal"),
                 .process("Rendering/Debug/Shaders"),
+                .process("Rendering/Shaders/Shared/GeoMath.metal"),
                 .process("Tile/Shaders"),
                 .process("Trees/Shaders"),
                 .process("Trees/resources"),

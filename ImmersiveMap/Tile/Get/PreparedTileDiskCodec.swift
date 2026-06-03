@@ -1,0 +1,585 @@
+// Copyright (c) 2025-2026 Artem Bobkin.
+// SPDX-License-Identifier: MIT
+
+import Foundation
+import simd
+
+enum PreparedTileDiskCodecError: Error {
+    case invalidField(String)
+    case invalidMetadata
+    case corruptedPayload(String)
+}
+
+enum PreparedTileDiskCodec {
+    struct Entry: Codable {
+        let preparedFormatVersion: UInt32
+        let styleRevision: UInt32
+        let tileSourceRevision: UInt64
+        let flatSeparateRoadRenderingMinimumZoom: UInt32
+        let textRevision: UInt32
+        let tileX: Int32
+        let tileY: Int32
+        let tileZ: Int32
+        let labelLanguage: LabelLanguageValue
+        let houseNumbersEnabled: Bool
+        let houseNumbersMinimumZoom: UInt32
+        let addTestBorders: Bool
+        let groundVertices: Data
+        let groundVertexCount: UInt32
+        let groundIndices: Data
+        let groundIndexCount: UInt32
+        let groundStyles: Data
+        let groundStyleCount: UInt32
+        let groundOverviewStyleMasks: Data
+        let groundOverviewStyleMaskCount: UInt32
+        let roads: RoadStructureBucketsValue
+        let bridgeVertices: Data
+        let bridgeVertexCount: UInt32
+        let bridgeIndices: Data
+        let bridgeIndexCount: UInt32
+        let bridgeStyles: Data
+        let bridgeStyleCount: UInt32
+        let bridgeOverviewStyleMasks: Data
+        let bridgeOverviewStyleMaskCount: UInt32
+        let extrudedVertices: Data
+        let extrudedVertexCount: UInt32
+        let extrudedIndices: Data
+        let extrudedIndexCount: UInt32
+        let extrudedStyles: Data
+        let extrudedStyleCount: UInt32
+        let textPlacementInputs: [TextPlacementInputValue]
+        let textGlyphRuns: [TextGlyphRunValue]
+        let textPoiIconRuns: [TextPoiIconRunValue]
+        let roadPathInputs: Data
+        let roadPathInputCount: UInt32
+        let roadPathRanges: [RoadPathRangeValue]
+        let roadPathLabels: [RoadPathLabelValue]
+        let roadLabelStyle: LabelTextStyleValue?
+        let roadGlyphVertices: Data
+        let roadGlyphVertexCount: UInt32
+        let roadGlyphBounds: Data
+        let roadGlyphBoundsCount: UInt32
+        let roadGlyphBoundRanges: [LabelGlyphRangeValue]
+        let roadSizes: Data
+        let roadSizeCount: UInt32
+        let roadAnchorRanges: [RoadLabelAnchorRangeValue]
+        let roadAnchors: [RoadLabelAnchorValue]
+    }
+
+    struct GeometryLayerValue: Codable {
+        let vertices: Data
+        let vertexCount: UInt32
+        let indices: Data
+        let indexCount: UInt32
+        let styles: Data
+        let styleCount: UInt32
+        let overviewStyleMasks: Data
+        let overviewStyleMaskCount: UInt32
+
+        init(vertices: Data,
+             vertexCount: UInt32,
+             indices: Data,
+             indexCount: UInt32,
+             styles: Data,
+             styleCount: UInt32,
+             overviewStyleMasks: Data,
+             overviewStyleMaskCount: UInt32) {
+            self.vertices = vertices
+            self.vertexCount = vertexCount
+            self.indices = indices
+            self.indexCount = indexCount
+            self.styles = styles
+            self.styleCount = styleCount
+            self.overviewStyleMasks = overviewStyleMasks
+            self.overviewStyleMaskCount = overviewStyleMaskCount
+        }
+
+        init(_ layer: PreparedTileCPU.GeometryLayer, fieldPrefix: String) throws {
+            vertices = encodePODArray(layer.vertices)
+            vertexCount = try encodeUInt32(layer.vertices.count, field: "\(fieldPrefix).vertices.count")
+            indices = encodePODArray(layer.indices)
+            indexCount = try encodeUInt32(layer.indices.count, field: "\(fieldPrefix).indices.count")
+            styles = encodePODArray(layer.styles)
+            styleCount = try encodeUInt32(layer.styles.count, field: "\(fieldPrefix).styles.count")
+            overviewStyleMasks = encodePODArray(layer.overviewStyleMasks)
+            overviewStyleMaskCount = try encodeUInt32(layer.overviewStyleMasks.count,
+                                                      field: "\(fieldPrefix).overviewStyleMasks.count")
+        }
+
+        func runtimeValue(fieldPrefix: String) throws -> PreparedTileCPU.GeometryLayer {
+            PreparedTileCPU.GeometryLayer(
+                vertices: try decodePODArray(vertices,
+                                             count: Int(vertexCount),
+                                             as: TilePipeline.VertexIn.self,
+                                             field: "\(fieldPrefix).vertices"),
+                indices: try decodePODArray(indices,
+                                            count: Int(indexCount),
+                                            as: UInt32.self,
+                                            field: "\(fieldPrefix).indices"),
+                styles: try decodePODArray(styles,
+                                           count: Int(styleCount),
+                                           as: TilePolygonStyle.self,
+                                           field: "\(fieldPrefix).styles"),
+                overviewStyleMasks: try decodePODArray(overviewStyleMasks,
+                                                       count: Int(overviewStyleMaskCount),
+                                                       as: Float.self,
+                                                       field: "\(fieldPrefix).overviewStyleMasks")
+            )
+        }
+    }
+
+    struct RoadGeometryPhasesValue: Codable {
+        let shadow: GeometryLayerValue
+        let casing: GeometryLayerValue
+        let fill: GeometryLayerValue
+        let detail: GeometryLayerValue
+        let overlay: GeometryLayerValue
+
+        init(_ phases: RoadGeometryPhases<PreparedTileCPU.GeometryLayer>) throws {
+            shadow = try GeometryLayerValue(phases.shadow, fieldPrefix: "Roads.shadow")
+            casing = try GeometryLayerValue(phases.casing, fieldPrefix: "Roads.casing")
+            fill = try GeometryLayerValue(phases.fill, fieldPrefix: "Roads.fill")
+            detail = try GeometryLayerValue(phases.detail, fieldPrefix: "Roads.detail")
+            overlay = try GeometryLayerValue(phases.overlay, fieldPrefix: "Roads.overlay")
+        }
+
+        func runtimeValue() throws -> RoadGeometryPhases<PreparedTileCPU.GeometryLayer> {
+            RoadGeometryPhases(
+                shadow: try shadow.runtimeValue(fieldPrefix: "Entry.roads.shadow"),
+                casing: try casing.runtimeValue(fieldPrefix: "Entry.roads.casing"),
+                fill: try fill.runtimeValue(fieldPrefix: "Entry.roads.fill"),
+                detail: try detail.runtimeValue(fieldPrefix: "Entry.roads.detail"),
+                overlay: try overlay.runtimeValue(fieldPrefix: "Entry.roads.overlay")
+            )
+        }
+    }
+
+    struct RoadStructureBucketsValue: Codable {
+        let tunnel: RoadGeometryPhasesValue
+        let ground: RoadGeometryPhasesValue
+        let bridge: RoadGeometryPhasesValue
+
+        init(_ buckets: RoadStructureBuckets<RoadGeometryPhases<PreparedTileCPU.GeometryLayer>>) throws {
+            tunnel = try RoadGeometryPhasesValue(buckets.tunnel)
+            ground = try RoadGeometryPhasesValue(buckets.ground)
+            bridge = try RoadGeometryPhasesValue(buckets.bridge)
+        }
+
+        func runtimeValue() throws -> RoadStructureBuckets<RoadGeometryPhases<PreparedTileCPU.GeometryLayer>> {
+            RoadStructureBuckets(
+                tunnel: try tunnel.runtimeValue(),
+                ground: try ground.runtimeValue(),
+                bridge: try bridge.runtimeValue()
+            )
+        }
+    }
+
+    enum LabelLanguageValue: String, Codable {
+        case english
+        case russian
+
+        init(_ value: ImmersiveMapSettings.LabelLanguage) {
+            switch value {
+            case .english:
+                self = .english
+            case .russian:
+                self = .russian
+            }
+        }
+
+        var runtimeValue: ImmersiveMapSettings.LabelLanguage {
+            switch self {
+            case .english:
+                return .english
+            case .russian:
+                return .russian
+            }
+        }
+    }
+
+    struct LabelTextStyleValue: Codable {
+        let key: Int32
+        let fillColor: [Float]
+        let strokeColor: [Float]
+        let strokeWidthPx: Float
+        let sizePx: Float
+        let weightRawValue: UInt8
+
+        init(_ style: LabelTextStyle) throws {
+            self.key = try encodeInt32(style.key, field: "LabelTextStyle.key")
+            self.fillColor = [style.fillColor.x, style.fillColor.y, style.fillColor.z]
+            self.strokeColor = [style.strokeColor.x, style.strokeColor.y, style.strokeColor.z]
+            self.strokeWidthPx = style.strokeWidthPx
+            self.sizePx = style.sizePx
+            self.weightRawValue = style.weight.rawValue
+        }
+
+        func runtimeValue() throws -> LabelTextStyle {
+            guard fillColor.count == 3, strokeColor.count == 3 else {
+                throw PreparedTileDiskCodecError.corruptedPayload("Invalid LabelTextStyle color component count.")
+            }
+            guard let weight = LabelFontWeight(rawValue: weightRawValue) else {
+                throw PreparedTileDiskCodecError.corruptedPayload("Invalid LabelFontWeight raw value.")
+            }
+            return LabelTextStyle(key: Int(key),
+                                  fillColor: SIMD3<Float>(fillColor[0], fillColor[1], fillColor[2]),
+                                  strokeColor: SIMD3<Float>(strokeColor[0], strokeColor[1], strokeColor[2]),
+                                  strokeWidthPx: strokeWidthPx,
+                                  sizePx: sizePx,
+                                  weight: weight)
+        }
+    }
+
+    struct TextPlacementInputValue: Codable {
+        let uvX: Float
+        let uvY: Float
+        let tileX: Int32
+        let tileY: Int32
+        let tileZ: Int32
+        let tileSlotIndex: UInt32
+        let key: UInt64
+        let sortKey: Int32
+        let collisionPriority: Int32
+        let labelWidthPx: Float
+        let labelHeightPx: Float
+
+        init(_ input: TextLabelPlacementInput) throws {
+            uvX = input.pointInput.uv.x
+            uvY = input.pointInput.uv.y
+            tileX = input.pointInput.tile.x
+            tileY = input.pointInput.tile.y
+            tileZ = input.pointInput.tile.z
+            tileSlotIndex = input.pointInput.tileSlotIndex
+            key = input.placementMeta.key
+            sortKey = try encodeInt32(input.placementMeta.sortKey, field: "LabelPlacementMeta.sortKey")
+            collisionPriority = try encodeInt32(input.placementMeta.collisionPriority, field: "LabelPlacementMeta.collisionPriority")
+            labelWidthPx = input.placementMeta.labelSizePx.x
+            labelHeightPx = input.placementMeta.labelSizePx.y
+        }
+
+        func runtimeValue() -> TextLabelPlacementInput {
+            TextLabelPlacementInput(
+                pointInput: TilePointInput(uv: SIMD2<Float>(uvX, uvY),
+                                           tile: SIMD3<Int32>(tileX, tileY, tileZ),
+                                           tileSlotIndex: tileSlotIndex),
+                placementMeta: LabelPlacementMeta(key: key,
+                                                  sortKey: Int(sortKey),
+                                                  collisionPriority: Int(collisionPriority),
+                                                  labelSizePx: SIMD2<Float>(labelWidthPx, labelHeightPx))
+            )
+        }
+    }
+
+    struct TextGlyphRunValue: Codable {
+        let style: LabelTextStyleValue
+        let localGlyphVertices: Data
+        let localGlyphVertexCount: UInt32
+
+        init(_ run: PreparedTileCPU.TextGlyphRun) throws {
+            style = try LabelTextStyleValue(run.style)
+            localGlyphVertices = encodePODArray(run.localGlyphVertices)
+            localGlyphVertexCount = try encodeUInt32(run.localGlyphVertices.count, field: "TextGlyphRun.localGlyphVertices.count")
+        }
+
+        func runtimeValue() throws -> PreparedTileCPU.TextGlyphRun {
+            PreparedTileCPU.TextGlyphRun(style: try style.runtimeValue(),
+                                         localGlyphVertices: try decodePODArray(localGlyphVertices,
+                                                                                count: Int(localGlyphVertexCount),
+                                                                                as: LabelVertex.self,
+                                                                                field: "TextGlyphRun.localGlyphVertices"))
+        }
+    }
+
+    struct TextPoiIconRunValue: Codable {
+        let style: LabelTextStyleValue
+        let localIconVertices: Data
+        let localIconVertexCount: UInt32
+
+        init(_ run: PreparedTileCPU.PoiIconRun) throws {
+            style = try LabelTextStyleValue(run.style)
+            localIconVertices = encodePODArray(run.localIconVertices)
+            localIconVertexCount = try encodeUInt32(run.localIconVertices.count, field: "TextPoiIconRun.localIconVertices.count")
+        }
+
+        func runtimeValue() throws -> PreparedTileCPU.PoiIconRun {
+            PreparedTileCPU.PoiIconRun(style: try style.runtimeValue(),
+                                       localIconVertices: try decodePODArray(localIconVertices,
+                                                                             count: Int(localIconVertexCount),
+                                                                             as: LabelVertex.self,
+                                                                             field: "TextPoiIconRun.localIconVertices"))
+        }
+    }
+
+    struct RoadPathRangeValue: Codable {
+        let start: UInt32
+        let count: UInt32
+        let labelIndex: UInt32
+
+        init(_ value: RoadPathRange) throws {
+            start = try encodeUInt32(value.start, field: "RoadPathRange.start")
+            count = try encodeUInt32(value.count, field: "RoadPathRange.count")
+            labelIndex = try encodeUInt32(value.labelIndex, field: "RoadPathRange.labelIndex")
+        }
+
+        func runtimeValue() -> RoadPathRange {
+            RoadPathRange(start: Int(start), count: Int(count), labelIndex: Int(labelIndex))
+        }
+    }
+
+    struct RoadPathLabelValue: Codable {
+        let text: String
+        let key: UInt64
+
+        init(_ value: RoadPathLabel) {
+            text = value.text
+            key = value.key
+        }
+
+        func runtimeValue() -> RoadPathLabel {
+            RoadPathLabel(text: text, key: key)
+        }
+    }
+
+    struct LabelGlyphRangeValue: Codable {
+        let start: UInt32
+        let count: UInt32
+
+        init(_ value: LabelGlyphRange) throws {
+            start = try encodeUInt32(value.start, field: "LabelGlyphRange.start")
+            count = try encodeUInt32(value.count, field: "LabelGlyphRange.count")
+        }
+
+        func runtimeValue() -> LabelGlyphRange {
+            LabelGlyphRange(start: Int(start), count: Int(count))
+        }
+    }
+
+    struct RoadLabelAnchorRangeValue: Codable {
+        let start: UInt32
+        let count: UInt32
+
+        init(_ value: RoadLabelAnchorRange) throws {
+            start = try encodeUInt32(value.start, field: "RoadLabelAnchorRange.start")
+            count = try encodeUInt32(value.count, field: "RoadLabelAnchorRange.count")
+        }
+
+        func runtimeValue() -> RoadLabelAnchorRange {
+            RoadLabelAnchorRange(start: Int(start), count: Int(count))
+        }
+    }
+
+    struct RoadLabelAnchorValue: Codable {
+        let pathIndex: UInt32
+        let segmentIndex: UInt32
+        let t: Float
+        let distanceAlongPath: Float
+        let anchorOrdinal: UInt32
+
+        init(_ value: RoadLabelAnchor) {
+            pathIndex = value.pathIndex
+            segmentIndex = value.segmentIndex
+            t = value.t
+            distanceAlongPath = value.distanceAlongPath
+            anchorOrdinal = value.anchorOrdinal
+        }
+
+        func runtimeValue() -> RoadLabelAnchor {
+            RoadLabelAnchor(pathIndex: pathIndex,
+                            segmentIndex: segmentIndex,
+                            t: t,
+                            distanceAlongPath: distanceAlongPath,
+                            anchorOrdinal: anchorOrdinal)
+        }
+    }
+
+    static func encode(preparedTile: PreparedTileCPU,
+                       cacheIdentity: PreparedTileCacheIdentity) throws -> Data {
+        let entry = try Entry(
+            preparedFormatVersion: cacheIdentity.preparedFormatVersion,
+            styleRevision: cacheIdentity.styleRevision,
+            tileSourceRevision: cacheIdentity.tileSourceRevision,
+            flatSeparateRoadRenderingMinimumZoom: cacheIdentity.flatSeparateRoadRenderingMinimumZoom,
+            textRevision: cacheIdentity.textRevision,
+            tileX: encodeInt32(preparedTile.tile.x, field: "Tile.x"),
+            tileY: encodeInt32(preparedTile.tile.y, field: "Tile.y"),
+            tileZ: encodeInt32(preparedTile.tile.z, field: "Tile.z"),
+            labelLanguage: LabelLanguageValue(cacheIdentity.labelLanguage),
+            houseNumbersEnabled: cacheIdentity.houseNumbersEnabled,
+            houseNumbersMinimumZoom: cacheIdentity.houseNumbersMinimumZoom,
+            addTestBorders: cacheIdentity.addTestBorders,
+            groundVertices: encodePODArray(preparedTile.ground.vertices),
+            groundVertexCount: encodeUInt32(preparedTile.ground.vertices.count, field: "Ground.vertices.count"),
+            groundIndices: encodePODArray(preparedTile.ground.indices),
+            groundIndexCount: encodeUInt32(preparedTile.ground.indices.count, field: "Ground.indices.count"),
+            groundStyles: encodePODArray(preparedTile.ground.styles),
+            groundStyleCount: encodeUInt32(preparedTile.ground.styles.count, field: "Ground.styles.count"),
+            groundOverviewStyleMasks: encodePODArray(preparedTile.ground.overviewStyleMasks),
+            groundOverviewStyleMaskCount: encodeUInt32(preparedTile.ground.overviewStyleMasks.count,
+                                                       field: "Ground.overviewStyleMasks.count"),
+            roads: try RoadStructureBucketsValue(preparedTile.roads),
+            bridgeVertices: encodePODArray(preparedTile.bridgeOverlay.vertices),
+            bridgeVertexCount: encodeUInt32(preparedTile.bridgeOverlay.vertices.count, field: "BridgeOverlay.vertices.count"),
+            bridgeIndices: encodePODArray(preparedTile.bridgeOverlay.indices),
+            bridgeIndexCount: encodeUInt32(preparedTile.bridgeOverlay.indices.count, field: "BridgeOverlay.indices.count"),
+            bridgeStyles: encodePODArray(preparedTile.bridgeOverlay.styles),
+            bridgeStyleCount: encodeUInt32(preparedTile.bridgeOverlay.styles.count, field: "BridgeOverlay.styles.count"),
+            bridgeOverviewStyleMasks: encodePODArray(preparedTile.bridgeOverlay.overviewStyleMasks),
+            bridgeOverviewStyleMaskCount: encodeUInt32(preparedTile.bridgeOverlay.overviewStyleMasks.count,
+                                                       field: "BridgeOverlay.overviewStyleMasks.count"),
+            extrudedVertices: encodePODArray(preparedTile.extruded.vertices),
+            extrudedVertexCount: encodeUInt32(preparedTile.extruded.vertices.count, field: "Extruded.vertices.count"),
+            extrudedIndices: encodePODArray(preparedTile.extruded.indices),
+            extrudedIndexCount: encodeUInt32(preparedTile.extruded.indices.count, field: "Extruded.indices.count"),
+            extrudedStyles: encodePODArray(preparedTile.extruded.styles),
+            extrudedStyleCount: encodeUInt32(preparedTile.extruded.styles.count, field: "Extruded.styles.count"),
+            textPlacementInputs: try preparedTile.textLabels.placementInputs.map(TextPlacementInputValue.init),
+            textGlyphRuns: try preparedTile.textLabels.glyphRuns.map(TextGlyphRunValue.init),
+            textPoiIconRuns: try preparedTile.textLabels.poiIconRuns.map(TextPoiIconRunValue.init),
+            roadPathInputs: encodePODArray(preparedTile.roadLabels.pathInputs),
+            roadPathInputCount: encodeUInt32(preparedTile.roadLabels.pathInputs.count, field: "RoadLabels.pathInputs.count"),
+            roadPathRanges: try preparedTile.roadLabels.pathRanges.map(RoadPathRangeValue.init),
+            roadPathLabels: preparedTile.roadLabels.pathLabels.map(RoadPathLabelValue.init),
+            roadLabelStyle: try preparedTile.roadLabels.labelStyle.map(LabelTextStyleValue.init),
+            roadGlyphVertices: encodePODArray(preparedTile.roadLabels.localGlyphVertices),
+            roadGlyphVertexCount: encodeUInt32(preparedTile.roadLabels.localGlyphVertices.count, field: "RoadLabels.localGlyphVertices.count"),
+            roadGlyphBounds: encodePODArray(preparedTile.roadLabels.glyphBounds),
+            roadGlyphBoundsCount: encodeUInt32(preparedTile.roadLabels.glyphBounds.count, field: "RoadLabels.glyphBounds.count"),
+            roadGlyphBoundRanges: try preparedTile.roadLabels.glyphBoundRanges.map(LabelGlyphRangeValue.init),
+            roadSizes: encodePODArray(preparedTile.roadLabels.sizes),
+            roadSizeCount: encodeUInt32(preparedTile.roadLabels.sizes.count, field: "RoadLabels.sizes.count"),
+            roadAnchorRanges: try preparedTile.roadLabels.anchorRanges.map(RoadLabelAnchorRangeValue.init),
+            roadAnchors: preparedTile.roadLabels.anchors.map(RoadLabelAnchorValue.init)
+        )
+
+        let encoder = PropertyListEncoder()
+        encoder.outputFormat = .binary
+        return try encoder.encode(entry)
+    }
+
+    static func decode(data: Data,
+                       expectedTile: Tile,
+                       cacheIdentity: PreparedTileCacheIdentity) throws -> PreparedTileCPU {
+        let decoder = PropertyListDecoder()
+        let entry = try decoder.decode(Entry.self, from: data)
+
+        guard entry.preparedFormatVersion == cacheIdentity.preparedFormatVersion,
+              entry.styleRevision == cacheIdentity.styleRevision,
+              entry.tileSourceRevision == cacheIdentity.tileSourceRevision,
+              entry.flatSeparateRoadRenderingMinimumZoom == cacheIdentity.flatSeparateRoadRenderingMinimumZoom,
+              entry.textRevision == cacheIdentity.textRevision,
+              entry.tileX == Int32(expectedTile.x),
+              entry.tileY == Int32(expectedTile.y),
+              entry.tileZ == Int32(expectedTile.z),
+              entry.labelLanguage.runtimeValue == cacheIdentity.labelLanguage,
+              entry.houseNumbersEnabled == cacheIdentity.houseNumbersEnabled,
+              entry.houseNumbersMinimumZoom == cacheIdentity.houseNumbersMinimumZoom,
+              entry.addTestBorders == cacheIdentity.addTestBorders else {
+            throw PreparedTileDiskCodecError.invalidMetadata
+        }
+
+        return PreparedTileCPU(
+            tile: expectedTile,
+            ground: try GeometryLayerValue(vertices: entry.groundVertices,
+                                           vertexCount: entry.groundVertexCount,
+                                           indices: entry.groundIndices,
+                                           indexCount: entry.groundIndexCount,
+                                           styles: entry.groundStyles,
+                                           styleCount: entry.groundStyleCount,
+                                           overviewStyleMasks: entry.groundOverviewStyleMasks,
+                                           overviewStyleMaskCount: entry.groundOverviewStyleMaskCount)
+                .runtimeValue(fieldPrefix: "Entry.ground"),
+            roads: try entry.roads.runtimeValue(),
+            bridgeOverlay: try GeometryLayerValue(vertices: entry.bridgeVertices,
+                                                  vertexCount: entry.bridgeVertexCount,
+                                                  indices: entry.bridgeIndices,
+                                                  indexCount: entry.bridgeIndexCount,
+                                                  styles: entry.bridgeStyles,
+                                                  styleCount: entry.bridgeStyleCount,
+                                                  overviewStyleMasks: entry.bridgeOverviewStyleMasks,
+                                                  overviewStyleMaskCount: entry.bridgeOverviewStyleMaskCount)
+                .runtimeValue(fieldPrefix: "Entry.bridgeOverlay"),
+            extruded: PreparedTileCPU.Extruded(
+                vertices: try decodePODArray(entry.extrudedVertices,
+                                             count: Int(entry.extrudedVertexCount),
+                                             as: TileMvtParser.ExtrudedVertexIn.self,
+                                             field: "Entry.extrudedVertices"),
+                indices: try decodePODArray(entry.extrudedIndices,
+                                            count: Int(entry.extrudedIndexCount),
+                                            as: UInt32.self,
+                                            field: "Entry.extrudedIndices"),
+                styles: try decodePODArray(entry.extrudedStyles,
+                                           count: Int(entry.extrudedStyleCount),
+                                           as: TilePolygonStyle.self,
+                                           field: "Entry.extrudedStyles")
+            ),
+            textLabels: PreparedTileCPU.TextLabels(
+                placementInputs: entry.textPlacementInputs.map { $0.runtimeValue() },
+                glyphRuns: try entry.textGlyphRuns.map { try $0.runtimeValue() },
+                poiIconRuns: try entry.textPoiIconRuns.map { try $0.runtimeValue() }
+            ),
+            roadLabels: PreparedTileCPU.RoadLabels(
+                pathInputs: try decodePODArray(entry.roadPathInputs,
+                                               count: Int(entry.roadPathInputCount),
+                                               as: TilePointInput.self,
+                                               field: "Entry.roadPathInputs"),
+                pathRanges: entry.roadPathRanges.map { $0.runtimeValue() },
+                pathLabels: entry.roadPathLabels.map { $0.runtimeValue() },
+                labelStyle: try entry.roadLabelStyle?.runtimeValue(),
+                localGlyphVertices: try decodePODArray(entry.roadGlyphVertices,
+                                                       count: Int(entry.roadGlyphVertexCount),
+                                                       as: LabelVertex.self,
+                                                       field: "Entry.roadGlyphVertices"),
+                glyphBounds: try decodePODArray(entry.roadGlyphBounds,
+                                                count: Int(entry.roadGlyphBoundsCount),
+                                                as: SIMD4<Float>.self,
+                                                field: "Entry.roadGlyphBounds"),
+                glyphBoundRanges: entry.roadGlyphBoundRanges.map { $0.runtimeValue() },
+                sizes: try decodePODArray(entry.roadSizes,
+                                          count: Int(entry.roadSizeCount),
+                                          as: SIMD2<Float>.self,
+                                          field: "Entry.roadSizes"),
+                anchorRanges: entry.roadAnchorRanges.map { $0.runtimeValue() },
+                anchors: entry.roadAnchors.map { $0.runtimeValue() }
+            )
+        )
+    }
+
+    private static func encodePODArray<T>(_ values: [T]) -> Data {
+        values.withUnsafeBytes { Data($0) }
+    }
+
+    private static func decodePODArray<T>(_ data: Data,
+                                          count: Int,
+                                          as _: T.Type,
+                                          field: String) throws -> [T] {
+        let stride = MemoryLayout<T>.stride
+        guard count >= 0, data.count == count * stride else {
+            throw PreparedTileDiskCodecError.corruptedPayload("Invalid byte count for \(field).")
+        }
+        guard count > 0 else {
+            return []
+        }
+
+        return data.withUnsafeBytes { sourceBytes in
+            Array<T>(unsafeUninitializedCapacity: count) { buffer, initializedCount in
+                let destination = UnsafeMutableRawBufferPointer(buffer)
+                destination.copyBytes(from: sourceBytes)
+                initializedCount = count
+            }
+        }
+    }
+
+    private static func encodeInt32(_ value: Int, field: String) throws -> Int32 {
+        guard let encoded = Int32(exactly: value) else {
+            throw PreparedTileDiskCodecError.invalidField(field)
+        }
+        return encoded
+    }
+
+    private static func encodeUInt32(_ value: Int, field: String) throws -> UInt32 {
+        guard let encoded = UInt32(exactly: value) else {
+            throw PreparedTileDiskCodecError.invalidField(field)
+        }
+        return encoded
+    }
+}

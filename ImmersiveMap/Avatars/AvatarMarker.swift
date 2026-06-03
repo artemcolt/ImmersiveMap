@@ -1,0 +1,119 @@
+// Copyright (c) 2025-2026 Artem Bobkin.
+// SPDX-License-Identifier: MIT
+
+import Foundation
+import CoreGraphics
+import simd
+#if canImport(UIKit)
+import UIKit
+#endif
+
+public struct GeoCoordinate: Hashable {
+    public var latitude: Double
+    public var longitude: Double
+
+    public init(latitude: Double, longitude: Double) {
+        self.latitude = latitude
+        self.longitude = longitude
+    }
+}
+
+public struct AvatarBatteryBadge: Equatable, Hashable {
+    public let levelPct: Int
+    public let isPlaceholder: Bool
+
+    public init(levelPct: Int) {
+        self.levelPct = max(0, min(100, levelPct))
+        self.isPlaceholder = false
+    }
+
+    private init(levelPct: Int, isPlaceholder: Bool) {
+        self.levelPct = max(0, min(100, levelPct))
+        self.isPlaceholder = isPlaceholder
+    }
+
+    public static var unavailable: AvatarBatteryBadge {
+        AvatarBatteryBadge(levelPct: 0, isPlaceholder: true)
+    }
+}
+
+public struct AvatarSpeedBadge: Equatable, Hashable {
+    public let kilometersPerHour: Int
+    public let isPlaceholder: Bool
+
+    public init(kilometersPerHour: Int) {
+        self.kilometersPerHour = max(0, min(999, kilometersPerHour))
+        self.isPlaceholder = false
+    }
+
+    private init(kilometersPerHour: Int, isPlaceholder: Bool) {
+        self.kilometersPerHour = max(0, min(999, kilometersPerHour))
+        self.isPlaceholder = isPlaceholder
+    }
+
+    public static var unavailable: AvatarSpeedBadge {
+        AvatarSpeedBadge(kilometersPerHour: 0, isPlaceholder: true)
+    }
+}
+
+public enum AvatarClusterPolicy: Equatable, Hashable {
+    case none
+    case event
+}
+
+public struct AvatarMarker {
+    public let id: UInt64
+    public var coordinate: GeoCoordinate
+    public var image: CGImage
+    public var batteryBadge: AvatarBatteryBadge?
+    public var speedBadge: AvatarSpeedBadge?
+    public var borderColor: SIMD4<Float>?
+    public var isSelected: Bool
+    public var drawPriority: Int
+    public var clusterPolicy: AvatarClusterPolicy
+
+    public init(id: UInt64,
+                coordinate: GeoCoordinate,
+                image: CGImage,
+                batteryBadge: AvatarBatteryBadge? = nil,
+                speedBadge: AvatarSpeedBadge? = nil,
+                borderColor: SIMD4<Float>? = nil,
+                isSelected: Bool = false,
+                drawPriority: Int = 0,
+                clusterPolicy: AvatarClusterPolicy = .none) {
+        self.id = id
+        self.coordinate = coordinate
+        self.image = image
+        self.batteryBadge = batteryBadge
+        self.speedBadge = speedBadge
+        self.borderColor = borderColor
+        self.isSelected = isSelected
+        self.drawPriority = drawPriority
+        self.clusterPolicy = clusterPolicy
+    }
+
+#if canImport(UIKit)
+    public init(id: UInt64,
+                coordinate: GeoCoordinate,
+                image: UIImage,
+                batteryBadge: AvatarBatteryBadge? = nil,
+                speedBadge: AvatarSpeedBadge? = nil,
+                borderColor: SIMD4<Float>? = nil,
+                isSelected: Bool = false,
+                drawPriority: Int = 0,
+                clusterPolicy: AvatarClusterPolicy = .none) {
+        guard let cgImage = image.cgImage else {
+            preconditionFailure("UIImage must have CGImage backing.")
+        }
+        self.init(id: id,
+                  coordinate: coordinate,
+                  image: cgImage,
+                  batteryBadge: batteryBadge,
+                  speedBadge: speedBadge,
+                  borderColor: borderColor,
+                  isSelected: isSelected,
+                  drawPriority: drawPriority,
+                  clusterPolicy: clusterPolicy)
+    }
+#endif
+}

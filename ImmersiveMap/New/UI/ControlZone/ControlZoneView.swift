@@ -1,0 +1,16 @@
+// Copyright (c) 2025-2026 Artem Bobkin.
+// SPDX-License-Identifier: MIT
+
+import UIKit
+
+final class ControlZoneView: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
