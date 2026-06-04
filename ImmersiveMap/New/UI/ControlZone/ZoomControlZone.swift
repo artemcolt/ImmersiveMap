@@ -4,6 +4,8 @@
 import CoreGraphics
 import UIKit
 
+/// Владеет zoom control zone, включая drag zoom и scroll zoom gestures.
+/// Переводит движение control в camera zoom commands и сообщает состояние zoom interaction.
 final class ZoomControlZone {
     private enum Layout {
         static let size = CGSize(width: 132, height: 240)
@@ -60,7 +62,7 @@ final class ZoomControlZone {
             gesture.setTranslation(.zero, in: mapView)
             setScrollInteractionActive(true)
         case .changed:
-            let settings = mapView.settings
+            let settings = mapView.cameraRuntime.currentSettings
             let translation = gesture.translation(in: mapView)
             let velocity = gesture.velocity(in: mapView)
             let delta = -ZoomControlMath.zoomDelta(forVerticalTranslation: translation.y,
@@ -96,7 +98,7 @@ final class ZoomControlZone {
             gesture.setTranslation(.zero, in: view)
             setControlInteractionActive(true)
         case .changed:
-            let settings = mapView.settings
+            let settings = mapView.cameraRuntime.currentSettings
             let translation = gesture.translation(in: view)
             let velocity = gesture.velocity(in: view)
             let delta = ZoomControlMath.zoomDelta(forVerticalTranslation: translation.y,

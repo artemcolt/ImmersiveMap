@@ -4,6 +4,8 @@
 import CoreGraphics
 import UIKit
 
+/// Владеет pitch control zone и ее pan gesture.
+/// Переводит vertical drag в изменение camera pitch и сообщает состояние control interaction.
 final class PitchControlZone {
     private enum Layout {
         static let size = CGSize(width: 88, height: 188)

@@ -4,6 +4,8 @@
 import CoreGraphics
 import Foundation
 
+/// Владеет mutable camera state одного map view.
+/// Оборачивает `ImmersiveMapCameraCoordinator`, применяет camera changes, хранит settings и запрашивает frames.
 final class ImmersiveMapCameraRuntime {
     private let initialCameraPosition: ImmersiveMapCameraPosition?
     private let renderRuntime: ImmersiveMapRenderRuntime

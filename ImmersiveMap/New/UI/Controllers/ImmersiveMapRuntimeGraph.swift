@@ -3,6 +3,8 @@
 
 import QuartzCore
 
+/// Composition root для runtime collaborators `ImmersiveMapUIView`.
+/// Создает и владеет feature runtimes/controllers, затем отдает view прямые зависимости.
 @MainActor
 final class ImmersiveMapRuntimeGraph {
     let gestureController: MapGestureController

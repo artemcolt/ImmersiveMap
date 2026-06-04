@@ -5,12 +5,11 @@ import Metal
 import QuartzCore
 import UIKit
 
+/// UIKit/Metal host view для ImmersiveMap.
+/// Владеет `CAMetalLayer`, UIKit lifecycle, layout и мостом обновлений из SwiftUI;
+/// состояние и поведение отдельных функций живут в runtime-объектах из `ImmersiveMapRuntimeGraph`.
 public class ImmersiveMapUIView: UIView {
     public override class var layerClass: AnyClass { return CAMetalLayer.self }
-
-    // MARK: - Configuration
-
-    var settings: ImmersiveMapSettings
 
     // MARK: - Rendering
 
@@ -40,15 +39,15 @@ public class ImmersiveMapUIView: UIView {
     // MARK: - Initialization
 
     override init(frame: CGRect) {
-        self.settings = .default
         super.init(frame: frame)
-        setup(initialCameraPosition: nil)
+        setup(settings: .default,
+              initialCameraPosition: nil)
     }
 
     required init?(coder: NSCoder) {
-        self.settings = .default
         super.init(coder: coder)
-        setup(initialCameraPosition: nil)
+        setup(settings: .default,
+              initialCameraPosition: nil)
     }
 
     public convenience init(frame: CGRect,
@@ -69,15 +68,16 @@ public class ImmersiveMapUIView: UIView {
          cameraPosition: ImmersiveMapCameraPosition?,
          cameraController: ImmersiveMapCameraController?,
          selectionController: ImmersiveMapSelectionController?) {
-        self.settings = settings
         super.init(frame: frame)
-        setup(initialCameraPosition: cameraPosition)
+        setup(settings: settings,
+              initialCameraPosition: cameraPosition)
         syncControllers(avatarsController: avatarsController,
                         cameraController: cameraController,
                         selectionController: selectionController)
     }
 
-    private func setup(initialCameraPosition: ImmersiveMapCameraPosition?) {
+    private func setup(settings: ImmersiveMapSettings,
+                       initialCameraPosition: ImmersiveMapCameraPosition?) {
         metalLayer.contentsScale = UIScreen.main.scale
         memoryWarningObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
@@ -140,12 +140,13 @@ public class ImmersiveMapUIView: UIView {
     /// обновить существующий renderer на лету или пересоздать его для изменений,
     /// которые затрагивают кэши, подготовленные данные или GPU-ресурсы.
     private func applySettings(_ settings: ImmersiveMapSettings) {
-        guard self.settings != settings else {
+        let currentSettings = cameraRuntime.currentSettings
+        guard currentSettings != settings else {
             return
         }
 
-        let plan = ImmersiveMapSettingsApplicationPlanner.makePlan(from: self.settings, to: settings)
-        self.settings = settings
+        let plan = ImmersiveMapSettingsApplicationPlanner.makePlan(from: currentSettings,
+                                                                   to: settings)
         cameraRuntime.updateSettings(settings)
         cameraAnimationRuntime.updateSettings()
         controlsRuntime.applyAttributionSettings(settings.attribution)

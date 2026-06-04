@@ -9,6 +9,8 @@ enum ImmersiveMapCameraCommand {
     case cancelFlight
 }
 
+/// Public command/callback surface для app-driven camera control.
+/// Копит команды до подключения к view и хранит latest camera position для callers.
 public final class ImmersiveMapCameraController {
     private let lock = NSLock()
     private var currentPosition: ImmersiveMapCameraPosition?

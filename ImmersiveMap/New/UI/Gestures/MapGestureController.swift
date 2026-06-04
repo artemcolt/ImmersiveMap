@@ -105,7 +105,8 @@ final class MapGestureController: NSObject, UIGestureRecognizerDelegate {
         updateInteractionState(for: gesture.state,
                                gestureKind: .rotation)
         let rotation = gesture.rotation
-        mapView.cameraRuntime.rotateCameraYaw(delta: Float(rotation) * mapView.settings.camera.rotationGestureSensitivity)
+        let settings = mapView.cameraRuntime.currentSettings.camera
+        mapView.cameraRuntime.rotateCameraYaw(delta: Float(rotation) * settings.rotationGestureSensitivity)
         gesture.rotation = 0
     }
 
@@ -119,8 +120,9 @@ final class MapGestureController: NSObject, UIGestureRecognizerDelegate {
                                gestureKind: .pan)
 
         let translation = gesture.translation(in: mapView)
-        mapView.cameraRuntime.panCamera(deltaX: Double(translation.x) * mapView.settings.camera.gesturePanTranslationScale,
-                                        deltaY: Double(translation.y) * mapView.settings.camera.gesturePanTranslationScale)
+        let settings = mapView.cameraRuntime.currentSettings.camera
+        mapView.cameraRuntime.panCamera(deltaX: Double(translation.x) * settings.gesturePanTranslationScale,
+                                        deltaY: Double(translation.y) * settings.gesturePanTranslationScale)
         gesture.setTranslation(.zero, in: mapView)
 
         switch gesture.state {

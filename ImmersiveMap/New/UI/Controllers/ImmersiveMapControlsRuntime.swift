@@ -4,6 +4,8 @@
 import CoreGraphics
 import UIKit
 
+/// Владеет persistent map overlay controls одного map view.
+/// Создает pitch/zoom controls и attribution badge, раскладывает их и предоставляет control hit-testing.
 final class ImmersiveMapControlsRuntime {
     private let pitchControlZone: PitchControlZone
     private let zoomControlZone: ZoomControlZone

@@ -15,6 +15,8 @@ public struct AvatarsSnapshot {
     public let version: UInt64
 }
 
+/// Public thread-safe owner для avatar markers, которые передает app code.
+/// Собирает marker mutations в snapshots для renderer и selection runtime.
 public final class ImmersiveMapAvatarsController {
     private let lock = NSLock()
     private var markersById: [UInt64: AvatarMarker] = [:]

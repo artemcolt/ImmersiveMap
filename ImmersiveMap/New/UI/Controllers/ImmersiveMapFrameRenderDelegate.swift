@@ -3,6 +3,8 @@
 
 import QuartzCore
 
+/// Display-link delegate, который готовит и рендерит один frame.
+/// Перед draw продвигает time-based camera animations и передает текущий layer в render runtime.
 final class ImmersiveMapFrameRenderDelegate: ImmersiveMapRenderDriverFrameDelegate {
     private let layer: CAMetalLayer
     private let renderRuntime: ImmersiveMapRenderRuntime

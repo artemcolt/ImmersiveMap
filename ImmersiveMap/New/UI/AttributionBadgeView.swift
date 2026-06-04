@@ -3,6 +3,8 @@
 
 import UIKit
 
+/// Рендерит компактный attribution overlay.
+/// Владеет только labels, styling и layout badge; состояние карты остается в surrounding runtimes.
 final class AttributionBadgeView: UIView {
     private enum Layout {
         static let containerInset: CGFloat = 12

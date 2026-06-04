@@ -4,6 +4,8 @@
 import Foundation
 import simd
 
+/// Чистый механизм интерполяции для camera flights.
+/// Хранит один активный flight и выдает шаги состояния камеры для заданного display-link time.
 final class CameraFlightAnimator {
     enum ResolvedRouteStyle {
         case mercatorShortestPath

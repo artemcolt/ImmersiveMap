@@ -3,6 +3,8 @@
 
 import QuartzCore
 
+/// Собирает `Renderer` из текущего runtime graph.
+/// Создает camera coordinator и связывает renderer dependencies, не раскрывая детали сборки во view.
 final class ImmersiveMapRendererBuilder {
     private let cameraRuntime: ImmersiveMapCameraRuntime
     private let avatarRuntime: ImmersiveMapAvatarRuntime

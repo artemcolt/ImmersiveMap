@@ -132,6 +132,8 @@ protocol ImmersiveMapRenderDriverFrameDelegate: AnyObject {
                              currentTime: CFTimeInterval)
 }
 
+/// Weak proxy target для `CADisplayLink`.
+/// Не дает display link удерживать render driver или frame delegate.
 private final class WeakDisplayLinkTarget: NSObject {
     private weak var driver: ImmersiveMapRenderDriver?
     private weak var frameDelegate: ImmersiveMapRenderDriverFrameDelegate?

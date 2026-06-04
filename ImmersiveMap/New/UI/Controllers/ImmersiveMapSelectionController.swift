@@ -62,6 +62,8 @@ enum ImmersiveMapSelectionCommand {
     case clear
 }
 
+/// Public command/callback surface для app-driven map selection.
+/// Держит externally visible selection state синхронизированным с attached map view runtime.
 @MainActor
 public final class ImmersiveMapSelectionController {
     private var selectedSelection: ImmersiveMapSelection?

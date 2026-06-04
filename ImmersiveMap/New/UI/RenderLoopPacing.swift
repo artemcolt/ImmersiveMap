@@ -1,10 +1,10 @@
 // Copyright (c) 2025-2026 Artem Bobkin.
 // SPDX-License-Identifier: MIT
 
-/// Хранит причины, по которым цикл отрисовки должен продолжаться, и выбирает частоту кадров для `CADisplayLink`.
-
 import Foundation
 
+/// Хранит причины, по которым цикл отрисовки должен продолжаться.
+/// Выбирает частоту кадров и pause-state для `CADisplayLink` на основе активности render loop.
 final class RenderLoopPacing {
     enum Activity: String, CaseIterable {
         case interaction = "interaction"

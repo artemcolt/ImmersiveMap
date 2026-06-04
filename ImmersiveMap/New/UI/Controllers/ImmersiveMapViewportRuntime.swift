@@ -4,6 +4,8 @@
 import CoreGraphics
 import QuartzCore
 
+/// Владеет viewport metrics, которые нужны rendering и hit-testing.
+/// Синхронизирует `CAMetalLayer` frame/drawable size и отдает scale/renderability.
 final class ImmersiveMapViewportRuntime {
     private(set) var bounds: CGRect = .zero
     private(set) var contentsScale: CGFloat = 1
