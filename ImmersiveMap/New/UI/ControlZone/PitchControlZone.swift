@@ -88,13 +88,13 @@ final class PitchControlZone {
         guard let mapView else { return }
 
         if isActive {
-            mapView.cancelCameraAnimations()
+            mapView.cameraAnimationRuntime.cancelAnimations()
         }
-        mapView.pitchInteractionActive = isActive
-        mapView.updateCombinedInteractionRenderingState()
-        if isActive {
-            mapView.requestFrame()
-        }
+
+        mapView.interactionRuntime.setActive(isActive,
+                                             source: .pitchControl,
+                                             notifiesUserInteractionBegan: false,
+                                             requestsFrameOnStart: true)
     }
 
     private func setControlValue(_ value: Float,
@@ -105,19 +105,19 @@ final class PitchControlZone {
         let clampedValue = PitchControlMath.clampedControlValue(value, maximumPitch: maximumPitch)
         controlValue = clampedValue
 
-        guard updateCamera, let cameraCoordinator = mapView.cameraCoordinator else {
+        guard updateCamera,
+              mapView.cameraRuntime.currentCameraState() != nil else {
             return
         }
 
-        cameraCoordinator.setCameraPitch(PitchControlMath.actualPitch(forControlValue: clampedValue,
-                                                                      maximumPitch: maximumPitch))
-        mapView.requestFrame()
+        mapView.cameraRuntime.setCameraPitch(PitchControlMath.actualPitch(forControlValue: clampedValue,
+                                                                          maximumPitch: maximumPitch))
     }
 
     private func currentMaximumPitch() -> Float {
         guard let mapView else {
             return 0
         }
-        return mapView.cameraCoordinator?.currentMaximumPitch() ?? mapView.settings.camera.maximumPitch
+        return mapView.cameraRuntime.currentMaximumPitch()
     }
 }

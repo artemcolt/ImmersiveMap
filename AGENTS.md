@@ -10,7 +10,7 @@ This repository is `artemcolt/ImmersiveMap`: a public standalone Swift Package f
 - Main product: Swift Package library product `ImmersiveMap`
 - Minimum platform: iOS 18.0 and Mac Catalyst 18.0
 
-The package contains the Metal renderer, vector tile pipeline, globe/flat presentation, labels, trees, and avatar markers. Keep rendering changes scoped and validate with an iOS Simulator build.
+The package contains the Metal renderer, vector tile pipeline, globe/flat presentation, labels, trees, and avatar markers. Keep rendering changes scoped.
 
 ## Source File Headers
 
@@ -34,7 +34,7 @@ The current in-progress work is adding runnable screenshots and README documenta
 Uncommitted work expected in this handoff:
 
 - `README.md` includes a new `Screenshots` section and `Xcode Workspace` section.
-- `Docs/Screenshots/immersive-map-city.png`, `Docs/Screenshots/immersive-map-globe.png`, and `Docs/Screenshots/immersive-map-moscow-closeup.png` contain verified simulator screenshots.
+- `Docs/Screenshots/immersive-map-city.png`, `Docs/Screenshots/immersive-map-globe.png`, and `Docs/Screenshots/immersive-map-moscow-closeup.png` contain verified screenshots.
 - `ImmersiveMap/` contains the Swift Package target sources and resources.
 - `ImmersiveMapIOS/` contains an iOS host app used to run the map.
 - `ImmersiveMapMac/` contains a Mac Catalyst host app used to run the map on Mac.
@@ -86,29 +86,6 @@ If `IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN` is present, the host apps use the Mapbox 
 
 ## Screenshot Workflow
 
-Use XcodeBuildMCP when available for Simulator build/run/screenshot.
-
-Known working session defaults:
-
-```text
-workspacePath=/Users/artembobkin/Desktop/ImmersiveMap/ImmersiveMap.xcworkspace
-scheme=ImmersiveMapIOS
-configuration=Debug
-simulatorName=iPhone 17 Pro
-useLatestOS=true
-derivedDataPath=/Users/artembobkin/Desktop/ImmersiveMap/DerivedData
-bundleId=com.artemcolt.ImmersiveMapIOS
-```
-
-The host app builds and launches successfully on the simulator. If the configured tile endpoint requires auth, the app still launches and renders markers without `IMMERSIVE_MAP_AUTH_TOKEN`, but protected tiles return `401`.
-
-To launch the installed simulator app with a local-only token:
-
-```bash
-SIMCTL_CHILD_IMMERSIVE_MAP_AUTH_TOKEN="$TOKEN" \
-  xcrun simctl launch booted com.artemcolt.ImmersiveMapIOS
-```
-
 After screenshots are captured, place final README images here:
 
 ```text
@@ -127,15 +104,13 @@ The existing screenshots were visually checked:
 
 Commands/run status from this handoff:
 
-- `xcodebuild -scheme ImmersiveMap -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData build` previously succeeded for the package.
-- XcodeBuildMCP `build_run_sim` succeeded for the host app after adding screenshots and workspace docs.
 - Secret scan was run with `rg` patterns for known local secret fragments and found no matches in source text outside ignored/generated artifacts.
 
 Before final handoff or push:
 
 1. Run `git status --short --ignored` and confirm build artifacts are ignored.
 2. Run a final secret scan over tracked source/docs, excluding PNGs and DerivedData.
-3. Build the package and/or host apps.
+3. Build the package and/or Mac Catalyst host app on Mac.
 4. Commit and push the public-safe changes to `main` if the user wants the README updates live on GitHub.
 
 ## Public README Notes
@@ -153,7 +128,7 @@ This repo is public. Treat anything committed here as public internet content.
 Do not commit:
 
 - Device/session bearer tokens.
-- Simulator dev auth secrets.
+- Local development auth secrets.
 - Database passwords or connection strings.
 - APNS private key data.
 - Mapbox access tokens.

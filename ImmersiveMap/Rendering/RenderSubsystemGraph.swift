@@ -30,7 +30,7 @@ final class RenderSubsystemGraph {
         let roadLabelDrawSubsystem = RoadLabelDrawSubsystem(textRenderer: resources.textRenderer,
                                                             metalDevice: resources.metalContext.device)
         let avatarSubsystem = AvatarRenderSubsystem(avatarsRenderer: resources.avatarsRenderer,
-                                                    avatarsControllerProvider: resources.avatarsControllerProvider,
+                                                    avatarSource: resources.avatarSource,
                                                     depthDisabledState: resources.depthDisabledState)
         let commonViewSceneSubsystem = CommonViewSceneRenderSubsystem(depthDisabledState: resources.depthDisabledState)
         let globeViewSceneSubsystem = GlobeViewSceneRenderSubsystem(starfield: resources.starfield,

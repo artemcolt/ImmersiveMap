@@ -10,21 +10,19 @@ final class Renderer {
     private let frameEngine: RenderFrameEngine
 
     init(layer: CAMetalLayer,
-         avatarsControllerProvider: @escaping () -> ImmersiveMapAvatarsController?,
+         avatarSource: AvatarRenderSource,
          config: ImmersiveMapSettings = .default,
          cameraCoordinator: ImmersiveMapCameraCoordinator,
-         events: RenderFrameEvents) {
+         eventSink: RenderFrameEventSink) {
         self.cameraCoordinator = cameraCoordinator
         self.resources = RenderStaticResources(layer: layer,
-                                               avatarsControllerProvider: avatarsControllerProvider,
+                                               avatarSource: avatarSource,
                                                config: config,
-                                               onTileAvailable: { _ in
-                                                   events.invalidate(.tileAvailable)
-                                               })
+                                               eventSink: eventSink)
         self.frameEngine = RenderFrameEngine(settings: config,
                                              resources: resources,
                                              cameraCoordinator: cameraCoordinator,
-                                             events: events)
+                                             eventSink: eventSink)
     }
 
     @discardableResult

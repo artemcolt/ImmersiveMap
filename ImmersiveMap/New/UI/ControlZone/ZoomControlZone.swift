@@ -51,7 +51,7 @@ final class ZoomControlZone {
 
     @objc private func handleScrollZoom(_ gesture: UIPanGestureRecognizer) {
         guard let mapView,
-              let cameraCoordinator = mapView.cameraCoordinator else {
+              mapView.cameraRuntime.currentCameraState() != nil else {
             return
         }
 
@@ -71,14 +71,11 @@ final class ZoomControlZone {
                                                    velocityLimit: settings.camera.dragZoomVelocityLimit)
             let anchorPoint = gesture.location(in: mapView)
             let scale = mapView.metalLayer.contentsScale
-            cameraCoordinator.zoomCamera(delta: delta,
-                                         anchorDrawablePoint: CGPoint(x: anchorPoint.x * scale,
-                                                                      y: anchorPoint.y * scale),
-                                         drawableSize: mapView.metalLayer.drawableSize)
-            mapView.notifyCameraPositionChanged()
+            mapView.cameraRuntime.zoomCamera(delta: delta,
+                                             anchorDrawablePoint: CGPoint(x: anchorPoint.x * scale,
+                                                                          y: anchorPoint.y * scale),
+                                             drawableSize: mapView.metalLayer.drawableSize)
             gesture.setTranslation(.zero, in: mapView)
-            mapView.syncPitchControlValue()
-            mapView.requestFrame()
         case .ended, .cancelled, .failed:
             setScrollInteractionActive(false)
         case .possible:
@@ -90,7 +87,7 @@ final class ZoomControlZone {
 
     @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
         guard let mapView,
-              let cameraCoordinator = mapView.cameraCoordinator else {
+              mapView.cameraRuntime.currentCameraState() != nil else {
             return
         }
 
@@ -108,11 +105,8 @@ final class ZoomControlZone {
                                                   zoomFactor: settings.camera.dragZoomFactor,
                                                   velocityFactor: settings.camera.dragZoomVelocityFactor,
                                                   velocityLimit: settings.camera.dragZoomVelocityLimit)
-            cameraCoordinator.zoomCamera(delta: delta)
-            mapView.notifyCameraPositionChanged()
+            mapView.cameraRuntime.zoomCamera(delta: delta)
             gesture.setTranslation(.zero, in: view)
-            mapView.syncPitchControlValue()
-            mapView.requestFrame()
         case .ended, .cancelled, .failed:
             setControlInteractionActive(false)
         case .possible:
@@ -126,31 +120,25 @@ final class ZoomControlZone {
         guard let mapView else { return }
 
         if isActive {
-            mapView.cancelCameraAnimations()
+            mapView.cameraAnimationRuntime.cancelAnimations()
         }
-        mapView.zoomControlInteractionActive = isActive
-        mapView.updateCombinedInteractionRenderingState()
-        if isActive {
-            mapView.requestFrame()
-        }
+
+        mapView.interactionRuntime.setActive(isActive,
+                                             source: .zoomControl,
+                                             notifiesUserInteractionBegan: false,
+                                             requestsFrameOnStart: true)
     }
 
     private func setScrollInteractionActive(_ isActive: Bool) {
         guard let mapView else { return }
 
-        let wasInteracting = mapView.hasActiveUserInteraction
-        if isActive && !wasInteracting {
-            mapView.cameraController?.notifyUserInteractionBegan()
+        if isActive {
+            mapView.cameraAnimationRuntime.cancelAnimations()
         }
 
-        if isActive {
-            mapView.cancelCameraAnimations()
-        }
-
-        mapView.scrollZoomInteractionActive = isActive
-        mapView.updateCombinedInteractionRenderingState()
-        if isActive {
-            mapView.requestFrame()
-        }
+        mapView.interactionRuntime.setActive(isActive,
+                                             source: .scrollZoom,
+                                             notifiesUserInteractionBegan: true,
+                                             requestsFrameOnStart: true)
     }
 }

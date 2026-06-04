@@ -12,7 +12,7 @@ final class AvatarRenderSubsystem: RenderSubsystem {
     let name: String = "Avatars"
 
     private let avatarsRenderer: AvatarsRenderer
-    private let avatarsControllerProvider: () -> ImmersiveMapAvatarsController?
+    private let avatarSource: AvatarRenderSource
     private let depthDisabledState: MTLDepthStencilState
 
     var hasRenderableAvatars: Bool {
@@ -20,15 +20,15 @@ final class AvatarRenderSubsystem: RenderSubsystem {
     }
 
     init(avatarsRenderer: AvatarsRenderer,
-         avatarsControllerProvider: @escaping () -> ImmersiveMapAvatarsController?,
+         avatarSource: AvatarRenderSource,
          depthDisabledState: MTLDepthStencilState) {
         self.avatarsRenderer = avatarsRenderer
-        self.avatarsControllerProvider = avatarsControllerProvider
+        self.avatarSource = avatarSource
         self.depthDisabledState = depthDisabledState
     }
 
     func update(frameContext: FrameContext) {
-        avatarsRenderer.update(controller: avatarsControllerProvider(),
+        avatarsRenderer.update(controller: avatarSource.currentAvatarController,
                                time: frameContext.time)
         frameContext.sharedState.avatarState.hasActiveAnimations = avatarsRenderer.hasActiveAnimations
     }

@@ -10,50 +10,38 @@ extension ImmersiveMapUIView {
                        options: CameraFlightOptions = .default,
                        completion: ((Bool) -> Void)? = nil,
                        currentTime: CFTimeInterval) {
-        startCameraFlight(to: cameraPosition,
-                          options: options,
-                          completion: completion,
-                          currentTime: currentTime)
+        cameraAnimationRuntime.startCameraFlight(to: cameraPosition,
+                                                 options: options,
+                                                 completion: completion,
+                                                 currentTime: currentTime)
     }
 
     func advanceCameraFlightForTesting(currentTime: CFTimeInterval) {
-        advanceCameraFlightIfNeeded(currentTime: currentTime)
+        cameraAnimationRuntime.advanceCameraFlightIfNeeded(currentTime: currentTime)
     }
 
     func setPanInteractionActiveForTesting(_ isActive: Bool) {
-        let wasInteracting = hasActiveUserInteraction
-        panInteractionActive = isActive
-        if isActive && !wasInteracting {
-            cameraController?.notifyUserInteractionBegan()
-        }
-        if isActive {
-            cancelCameraAnimations()
-        }
-        updateCombinedInteractionRenderingState()
+        gestureController.setPanInteractionActiveForTesting(isActive)
     }
 
     var hasActiveCameraFlightForTesting: Bool {
-        cameraFlightAnimator.isActive
+        cameraAnimationRuntime.isCameraFlightActive
     }
 
     var isCameraAnimationRenderingActiveForTesting: Bool {
-        mapRenderLoop.cameraAnimationRenderingActive
+        renderRuntime.cameraAnimationRenderingActive
     }
 
     func simulateBackgroundTapForTesting(at point: CGPoint) {
-        handleBackgroundTap(at: point)
+        tapHandler.handleBackgroundTap(at: point)
     }
 
     func simulateMapTapForTesting(at point: CGPoint) {
-        handleMapTap(at: point)
+        tapHandler.handleMapTap(at: point)
     }
 
     func setAvatarSelectionSnapshotForTesting(_ snapshot: AvatarSelectionSnapshot) {
-        avatarSelectionSnapshot = snapshot
-    }
-
-    func syncAnchoredCameraForTesting() {
-        syncAnchoredCameraToMarkerIfNeeded()
+        selectionHandler.updateAvatarSelectionSnapshot(snapshot)
     }
 }
 #endif

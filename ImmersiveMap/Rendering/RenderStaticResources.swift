@@ -26,13 +26,13 @@ final class RenderStaticResources {
     let extrudedColorPassDepthState: MTLDepthStencilState
     let globeCapDepthState: MTLDepthStencilState
     let depthDisabledState: MTLDepthStencilState
-    let avatarsControllerProvider: () -> ImmersiveMapAvatarsController?
+    let avatarSource: AvatarRenderSource
     let avatarsRenderer: AvatarsRenderer
 
     init(layer: CAMetalLayer,
-         avatarsControllerProvider: @escaping () -> ImmersiveMapAvatarsController?,
+         avatarSource: AvatarRenderSource,
          config: ImmersiveMapSettings,
-         onTileAvailable: @escaping (Tile) -> Void) {
+         eventSink: RenderFrameEventSink) {
         let metal = RendererSetup.buildMetal(layer: layer)
         self.metalContext = metal
 
@@ -69,11 +69,11 @@ final class RenderStaticResources {
                                                metalDevice: metal.device,
                                                textRenderer: textRenderer,
                                                config: config)
-        self.tileRenderStore.onTileAvailable = onTileAvailable
+        self.tileRenderStore.eventSink = eventSink
         self.baseLabelCache = BaseLabelCache(metalDevice: metal.device)
         self.roadLabelCache = RoadLabelCache(metalDevice: metal.device,
                                              textRenderer: textRenderer)
-        self.avatarsControllerProvider = avatarsControllerProvider
+        self.avatarSource = avatarSource
         self.avatarsRenderer = AvatarsRenderer(metalDevice: metal.device,
                                                layer: layer,
                                                library: metal.library,

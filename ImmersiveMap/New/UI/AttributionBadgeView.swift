@@ -5,6 +5,7 @@ import UIKit
 
 final class AttributionBadgeView: UIView {
     private enum Layout {
+        static let containerInset: CGFloat = 12
         static let horizontalInset: CGFloat = 10
         static let verticalInset: CGFloat = 7
         static let interLabelSpacing: CGFloat = 2
@@ -13,6 +14,11 @@ final class AttributionBadgeView: UIView {
 
     private let titleLabel = UILabel()
     private let copyrightLabel = UILabel()
+
+    convenience init(settings: ImmersiveMapSettings.AttributionSettings) {
+        self.init(frame: .zero)
+        apply(settings)
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -47,6 +53,18 @@ final class AttributionBadgeView: UIView {
         titleLabel.text = settings.title
         copyrightLabel.text = settings.copyright
         setNeedsLayout()
+    }
+
+    func layout(in bounds: CGRect, safeAreaInsets: UIEdgeInsets) {
+        let availableWidth = max(0, bounds.width - safeAreaInsets.left - safeAreaInsets.right - Layout.containerInset * 2)
+        let badgeSize = sizeThatFits(CGSize(width: availableWidth,
+                                            height: bounds.height))
+        frame = CGRect(
+            x: bounds.width - safeAreaInsets.right - Layout.containerInset - badgeSize.width,
+            y: bounds.height - safeAreaInsets.bottom - Layout.containerInset - badgeSize.height,
+            width: badgeSize.width,
+            height: badgeSize.height
+        )
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {

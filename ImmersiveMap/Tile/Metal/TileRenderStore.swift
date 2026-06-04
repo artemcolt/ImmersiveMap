@@ -16,7 +16,7 @@ final class TileRenderStore {
     private let preparedDataBuilder: TilePreparedDataBuilder
     private let metalTileFactory: MetalTileFactory
 
-    var onTileAvailable: ((Tile) -> Void)?
+    weak var eventSink: RenderFrameEventSink?
 
     init(
         mapStyle: ImmersiveMapStyle,
@@ -107,7 +107,7 @@ final class TileRenderStore {
                 forKey: preparedTile.tile
             )
 
-            onTileAvailable?(preparedTile.tile)
+            eventSink?.invalidate(.tileAvailable)
         }
         return true
     }

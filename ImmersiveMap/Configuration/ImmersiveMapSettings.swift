@@ -10,36 +10,6 @@ public struct ImmersiveMapSettings: Equatable {
         case russian
     }
 
-    public enum ChangeDomain: String, CaseIterable, Equatable {
-        case renderLoop
-        case camera
-        case presentation
-        case tiles
-        case labels
-        case scene
-        case style
-        case avatars
-        case attribution
-        case debug
-    }
-
-    public enum ApplyAction: String, CaseIterable, Equatable {
-        case liveApply
-        case invalidateCaches
-        case rebuildPreparedData
-        case rebuildGPUResources
-        case recreateRenderer
-    }
-
-    public struct ApplicationPlan: Equatable {
-        public let changedDomains: Set<ChangeDomain>
-        public let actions: Set<ApplyAction>
-
-        public var requiresRendererRecreation: Bool {
-            actions.contains(.recreateRenderer)
-        }
-    }
-
     public struct RenderLoopSettings: Equatable {
         public var forceContinuousRendering: Bool
         public var interactionFramesPerSecond: Int
@@ -576,66 +546,6 @@ public struct ImmersiveMapSettings: Equatable {
         self.avatars = avatars
         self.attribution = attribution
         self.debug = debug
-    }
-
-    public static func makeApplicationPlan(from oldValue: ImmersiveMapSettings,
-                                           to newValue: ImmersiveMapSettings) -> ApplicationPlan {
-        var changedDomains = Set<ChangeDomain>()
-        var actions = Set<ApplyAction>()
-
-        func mark(_ domain: ChangeDomain, actions domainActions: [ApplyAction]) {
-            changedDomains.insert(domain)
-            actions.formUnion(domainActions)
-        }
-
-        if oldValue.renderLoop != newValue.renderLoop {
-            mark(.renderLoop, actions: [.liveApply])
-        }
-        if oldValue.camera != newValue.camera {
-            mark(.camera, actions: [.liveApply])
-        }
-        if oldValue.presentation != newValue.presentation {
-            mark(.presentation, actions: [.liveApply])
-        }
-        if oldValue.debug != newValue.debug {
-            mark(.debug, actions: [.liveApply])
-        }
-
-        let sceneLiveChanged = oldValue.scene.mapClearColor != newValue.scene.mapClearColor
-            || oldValue.scene.space != newValue.scene.space
-        if sceneLiveChanged {
-            mark(.scene, actions: [.liveApply])
-        }
-        let sceneBootstrapChanged = oldValue.scene.starfield != newValue.scene.starfield
-        if sceneBootstrapChanged {
-            mark(.scene, actions: [.rebuildGPUResources, .recreateRenderer])
-        }
-
-        if oldValue.tiles.coverage != newValue.tiles.coverage {
-            mark(.tiles, actions: [.liveApply])
-        }
-        if oldValue.tiles.network != newValue.tiles.network
-            || oldValue.tiles.cache != newValue.tiles.cache {
-            mark(.tiles, actions: [.invalidateCaches, .recreateRenderer])
-        }
-        if oldValue.tiles.parsing != newValue.tiles.parsing {
-            mark(.tiles, actions: [.invalidateCaches, .rebuildPreparedData, .recreateRenderer])
-        }
-
-        if oldValue.labels != newValue.labels {
-            mark(.labels, actions: [.invalidateCaches, .rebuildPreparedData, .recreateRenderer])
-        }
-        if oldValue.style != newValue.style {
-            mark(.style, actions: [.invalidateCaches, .rebuildPreparedData, .rebuildGPUResources, .recreateRenderer])
-        }
-        if oldValue.avatars != newValue.avatars {
-            mark(.avatars, actions: [.rebuildGPUResources, .recreateRenderer])
-        }
-        if oldValue.attribution != newValue.attribution {
-            mark(.attribution, actions: [.liveApply])
-        }
-
-        return ApplicationPlan(changedDomains: changedDomains, actions: actions)
     }
 
     private static var defaultDebugOverlayEnabled: Bool {

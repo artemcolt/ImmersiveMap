@@ -6,30 +6,13 @@ import Metal
 import MetalKit
 import QuartzCore
 
-enum RenderInvalidationReason {
-    case tileAvailable
-    case externalStateChanged
-}
-
-struct RenderActivityState {
-    let labelFadeRenderingActive: Bool
-    let labelVisibilityCycleRenderingActive: Bool
-    let avatarAnimationRenderingActive: Bool
-}
-
-struct RenderFrameEvents {
-    let invalidate: (RenderInvalidationReason) -> Void
-    let activityChanged: (RenderActivityState) -> Void
-    let avatarSelectionSnapshotUpdated: (AvatarSelectionSnapshot) -> Void
-}
-
 final class RenderFrameEngine {
     private var settings: ImmersiveMapSettings
     private let resources: RenderStaticResources
     private let cameraCoordinator: ImmersiveMapCameraCoordinator
     private let attachments: FrameAttachmentStore
     private let subsystemGraph: RenderSubsystemGraph
-    private let events: RenderFrameEvents
+    private let eventSink: RenderFrameEventSink
     private let inFlightFramePool = InFlightFramePool(slotsCount: InFlightFramePool.inFlightFramesCount)
     private let startDate = Date()
     private var frameIndex: UInt64 = 0
@@ -40,12 +23,12 @@ final class RenderFrameEngine {
     init(settings: ImmersiveMapSettings,
          resources: RenderStaticResources,
          cameraCoordinator: ImmersiveMapCameraCoordinator,
-         events: RenderFrameEvents) {
+         eventSink: RenderFrameEventSink) {
         self.settings = settings
         self.resources = resources
         self.cameraCoordinator = cameraCoordinator
         self.attachments = FrameAttachmentStore(metalDevice: resources.metalContext.device)
-        self.events = events
+        self.eventSink = eventSink
         self.subsystemGraph = RenderSubsystemGraph(resources: resources,
                                                    settings: settings,
                                                    initialZoom: Int(cameraCoordinator.currentCameraState().zoom),
@@ -104,9 +87,9 @@ final class RenderFrameEngine {
             || frameContext.sharedState.roadLabelState.hasActiveFadeAnimations
         let hasActiveLabelVisibilityCycle = frameContext.sharedState.baseLabelState.hasActiveVisibilityCycle
         let hasActiveAvatarAnimations = frameContext.sharedState.avatarState.hasActiveAnimations
-        events.activityChanged(RenderActivityState(labelFadeRenderingActive: hasActiveLabelFadeAnimations,
-                                                   labelVisibilityCycleRenderingActive: hasActiveLabelVisibilityCycle,
-                                                   avatarAnimationRenderingActive: hasActiveAvatarAnimations))
+        eventSink.applyActivityState(RenderActivityState(labelFadeRenderingActive: hasActiveLabelFadeAnimations,
+                                                         labelVisibilityCycleRenderingActive: hasActiveLabelVisibilityCycle,
+                                                         avatarAnimationRenderingActive: hasActiveAvatarAnimations))
 
         currentDiagnostics = frameContext.diagnostics
         #if DEBUG
@@ -250,7 +233,7 @@ final class RenderFrameEngine {
         let avatarSelectionSnapshot = frameContext.sharedState.avatarState.selectionSnapshot
         commandBuffer.addCompletedHandler { [weak self] _ in
             self?.inFlightFramePool.release(slot: frameSlotIndex)
-            self?.events.avatarSelectionSnapshotUpdated(avatarSelectionSnapshot)
+            self?.eventSink.updateAvatarSelectionSnapshot(avatarSelectionSnapshot)
         }
         commandBuffer.present(drawable)
         commandBuffer.commit()

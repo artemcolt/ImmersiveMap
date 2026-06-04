@@ -1,15 +1,12 @@
 // Copyright (c) 2025-2026 Artem Bobkin.
 // SPDX-License-Identifier: MIT
 
-import CoreGraphics
 import Foundation
 
 enum ImmersiveMapCameraCommand {
     case jump(ImmersiveMapCameraPosition)
     case fly(ImmersiveMapCameraPosition, CameraFlightOptions, ((Bool) -> Void)?)
     case cancelFlight
-    case anchorAvatarMarker(UInt64, CGFloat)
-    case stopAnchoring
 }
 
 public final class ImmersiveMapCameraController {
@@ -43,19 +40,6 @@ public final class ImmersiveMapCameraController {
         lock.lock()
         defer { lock.unlock() }
         return currentPosition
-    }
-
-    public func anchorCamera(toAvatarMarkerWithID markerID: UInt64) {
-        enqueue(.anchorAvatarMarker(markerID, 0))
-    }
-
-    public func anchorCamera(toAvatarMarkerWithID markerID: UInt64,
-                             verticalScreenOffsetFraction: CGFloat) {
-        enqueue(.anchorAvatarMarker(markerID, verticalScreenOffsetFraction))
-    }
-
-    public func stopAnchoringCamera() {
-        enqueue(.stopAnchoring)
     }
 
     func setCommandHandler(_ handler: ((ImmersiveMapCameraCommand) -> Void)?) {
