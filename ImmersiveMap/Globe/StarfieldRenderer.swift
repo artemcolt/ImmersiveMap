@@ -10,7 +10,7 @@
 import MetalKit
 import simd
 
-final class Starfield {
+final class StarfieldRenderer {
     private struct StarVertex {
         let position: SIMD3<Float>
         let size: Float

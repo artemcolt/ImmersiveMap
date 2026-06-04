@@ -30,9 +30,9 @@ enum RendererSetup {
         }
     }
 
-    static func makeBaseGridBuffers(metalDevice: MTLDevice) -> GridBuffers {
+    static func makeMapSurfaceGridBuffers(metalDevice: MTLDevice) -> MapSurfaceGridBuffers {
         let baseGrid = SphereGeometry.createGrid(stacks: 50, slices: 50)
-        return GridBuffers(
+        return MapSurfaceGridBuffers(
             verticesBuffer: metalDevice.makeBuffer(
                 bytes: baseGrid.vertices,
                 length: MemoryLayout<SphereGeometry.Vertex>.stride * baseGrid.vertices.count

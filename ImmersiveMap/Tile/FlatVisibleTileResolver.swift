@@ -14,9 +14,9 @@ enum FlatVisibleTileResolver {
 
     static func resolveVisibleTiles(targetZoom: Int,
                                     flatRenderState: FlatRenderState,
-                                    camera: Camera) -> Set<VisibleTile> {
+                                    cameraMatrix: matrix_float4x4?) -> Set<VisibleTile> {
         guard targetZoom >= 0,
-              let coveragePolygon = makeCoveragePolygon(cameraMatrix: camera.cameraMatrix) else {
+              let coveragePolygon = makeCoveragePolygon(cameraMatrix: cameraMatrix) else {
             return []
         }
 

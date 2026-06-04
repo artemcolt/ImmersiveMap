@@ -31,8 +31,6 @@ enum PinchZoomMath {
 }
 
 class CameraControl {
-    var update: Bool = false
-
     private(set) var cameraState: ImmersiveMapCameraState = .default
     private var settings: ImmersiveMapSettings.CameraSettings
 
@@ -68,7 +66,6 @@ class CameraControl {
         self.settings = settings
         cameraState.zoom = min(max(0, cameraState.zoom), settings.maximumZoom)
         cameraState.pitch = min(max(0, cameraState.pitch), settings.maximumReachablePitch(at: cameraState.zoom))
-        update = true
     }
 
     func pan(deltaX: Double, deltaY: Double) {
@@ -89,7 +86,6 @@ class CameraControl {
         let panDelta = sensitivity * (forward * deltaY * settings.worldPanSpeed + right * deltaX * settings.worldPanSpeed)
         let worldDelta = SIMD2<Double>(-0.5 * panDelta.x, -0.5 * panDelta.y)
         setCenterWorldMercator(cameraState.centerWorldMercator + worldDelta)
-        update = true
     }
 
     func setZoom(zoom: Double) {
@@ -108,7 +104,6 @@ class CameraControl {
         let globeLat = (latDeg / 180.0) * Double.pi
         let longitude = (lonDeg / 180.0) * Double.pi
         setCenterWorldMercator(ImmersiveMapProjection.worldMercator(latitude: globeLat, longitude: longitude))
-        update = true
     }
 
     func getLatLonDegGlobe() -> (latDeg: Double, lonDeg: Double) {
@@ -154,7 +149,6 @@ class CameraControl {
 
     func rotateYaw(delta: Float) {
         cameraState.bearing += delta
-        update = true
     }
 
     func clampBearing(to constraint: CameraBearingConstraint) {
@@ -164,7 +158,6 @@ class CameraControl {
         }
 
         cameraState.bearing = constrainedBearing
-        update = true
     }
 
     func clampPitch(to constraint: CameraPitchConstraint) {
@@ -174,12 +167,10 @@ class CameraControl {
         }
 
         cameraState.pitch = constrainedPitch
-        update = true
     }
 
     func setPitch(_ pitch: Float) {
         cameraState.pitch = min(max(0, pitch), settings.maximumReachablePitch(at: cameraState.zoom))
-        update = true
     }
 
     func rotatePitch(pitch: Float) {
@@ -217,7 +208,6 @@ class CameraControl {
         cameraState.zoom = min(max(0, cameraPosition.zoom), settings.maximumZoom)
         cameraState.bearing = cameraPosition.bearing
         cameraState.pitch = min(max(0, cameraPosition.pitch), settings.maximumReachablePitch(at: cameraState.zoom))
-        update = true
     }
 
     func currentCameraState() -> ImmersiveMapCameraState {
@@ -230,7 +220,6 @@ class CameraControl {
                                           zoom: clampedZoom,
                                           bearing: cameraState.bearing,
                                           pitch: min(max(0, cameraState.pitch), settings.maximumReachablePitch(at: clampedZoom)))
-        update = true
     }
 
     private func applyZoomDelta(_ delta: Double) {
@@ -240,6 +229,5 @@ class CameraControl {
 
         cameraState.zoom += delta
         cameraState.zoom = min(max(0, cameraState.zoom), settings.maximumZoom)
-        update = true
     }
 }

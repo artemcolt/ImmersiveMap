@@ -6,15 +6,15 @@ import QuartzCore
 
 /// Управляет циклом отрисовки карты на уровне view: держит `CADisplayLink`,
 /// включает или приостанавливает его по состоянию `RenderLoopPacing`,
-/// и запускает `Renderer.render(to:)`.
-/// Не владеет `Renderer` и не управляет настройками рендера.
+/// и запускает `RenderFrameEngine.render(to:)`.
+/// Не владеет `RenderFrameEngine` и не управляет настройками рендера.
 final class ImmersiveMapRenderDriver: NSObject {
     typealias Activity = RenderLoopPacing.Activity
 
     private var pacing: RenderLoopPacing
     private var displayLink: CADisplayLink?
     private var displayLinkTarget: WeakDisplayLinkTarget?
-    private weak var renderer: Renderer?
+    private weak var renderer: RenderFrameEngine?
 
     init(configuration: ImmersiveMapSettings.RenderLoopSettings) {
         self.pacing = RenderLoopPacing(configuration: configuration)
@@ -37,7 +37,7 @@ final class ImmersiveMapRenderDriver: NSObject {
         applyDisplayLinkState()
     }
 
-    func attachRenderer(_ renderer: Renderer) {
+    func attachRenderer(_ renderer: RenderFrameEngine) {
         self.renderer = renderer
     }
 

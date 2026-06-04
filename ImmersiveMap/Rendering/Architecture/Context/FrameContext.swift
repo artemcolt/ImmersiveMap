@@ -39,8 +39,8 @@ struct FrameContext {
         resolvedPresentation.presentationState
     }
 
-    var renderBackendMode: ViewMode {
-        resolvedPresentation.renderBackendMode
+    var renderSurfaceMode: ViewMode {
+        resolvedPresentation.renderSurfaceMode
     }
 
     var screenSpaceProjectionMode: ScreenSpaceProjectionMode {
@@ -92,7 +92,7 @@ struct FrameContext {
          visibleContent: VisibleContentState = .empty,
          sharedState: FrameContextSharedState = FrameContextSharedState(),
          diagnostics: FrameDiagnostics) {
-        let fallbackResolvedPresentation = resolvedPresentation ?? ViewModeCalculator.resolve(cameraState: mapCameraState,
+        let fallbackResolvedPresentation = resolvedPresentation ?? PresentationStateResolver.resolve(cameraState: mapCameraState,
                                                                                               settings: ImmersiveMapSettings.default.presentation,
                                                                                               projectionPolicy: .automatic)
         self.frameIndex = frameIndex

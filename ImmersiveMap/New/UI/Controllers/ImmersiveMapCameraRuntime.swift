@@ -5,13 +5,14 @@ import CoreGraphics
 import Foundation
 
 /// Владеет mutable camera state одного map view.
-/// Оборачивает `ImmersiveMapCameraCoordinator`, применяет camera changes, хранит settings и запрашивает frames.
+/// Оборачивает `ImmersiveMapRenderCamera`, применяет camera changes, хранит settings и запрашивает frames.
 final class ImmersiveMapCameraRuntime {
     private let initialCameraPosition: ImmersiveMapCameraPosition?
+    let presentationCoordinator: RenderPresentationCoordinator
     private let renderRuntime: ImmersiveMapRenderRuntime
     private let controlsRuntime: ImmersiveMapControlsRuntime
     private weak var controller: ImmersiveMapCameraController?
-    private(set) var coordinator: ImmersiveMapCameraCoordinator?
+    private(set) var renderCamera: ImmersiveMapRenderCamera?
     private var settings: ImmersiveMapSettings
     private var appliedCameraPosition: ImmersiveMapCameraPosition?
 
@@ -21,6 +22,7 @@ final class ImmersiveMapCameraRuntime {
          controlsRuntime: ImmersiveMapControlsRuntime) {
         self.settings = settings
         self.initialCameraPosition = initialCameraPosition
+        self.presentationCoordinator = RenderPresentationCoordinator(settings: settings)
         self.renderRuntime = renderRuntime
         self.controlsRuntime = controlsRuntime
     }
@@ -35,6 +37,9 @@ final class ImmersiveMapCameraRuntime {
 
     func updateSettings(_ settings: ImmersiveMapSettings) {
         self.settings = settings
+        presentationCoordinator.applySettings(settings)
+        renderCamera?.applyCameraSettings(settings.camera)
+        applyCurrentCameraConstraints()
     }
 
     @MainActor
@@ -60,22 +65,23 @@ final class ImmersiveMapCameraRuntime {
         controller = nil
     }
 
-    func makeCoordinator(settings: ImmersiveMapSettings,
-                         cameraPosition: ImmersiveMapCameraPosition?) -> ImmersiveMapCameraCoordinator {
+    func makeRenderCamera(settings: ImmersiveMapSettings,
+                          cameraPosition: ImmersiveMapCameraPosition?) -> ImmersiveMapRenderCamera {
         self.settings = settings
-        let coordinator = ImmersiveMapCameraCoordinator(settings: settings)
-        self.coordinator = coordinator
+        let renderCamera = ImmersiveMapRenderCamera(settings: settings)
+        self.renderCamera = renderCamera
         if let cameraPosition {
-            coordinator.setCameraPosition(cameraPosition)
+            renderCamera.setCameraPosition(cameraPosition)
             appliedCameraPosition = cameraPosition
         }
+        applyCurrentCameraConstraints()
         syncPitchControlValue(fallbackCameraPosition: cameraPosition)
         notifyCameraPositionChanged()
-        return coordinator
+        return renderCamera
     }
 
-    func clearCoordinator() {
-        coordinator = nil
+    func clearRenderCamera() {
+        renderCamera = nil
     }
 
     func cameraPositionForRendererRecreation() -> ImmersiveMapCameraPosition? {
@@ -83,21 +89,29 @@ final class ImmersiveMapCameraRuntime {
     }
 
     func currentCameraPosition() -> ImmersiveMapCameraPosition? {
-        coordinator?.currentCameraPosition()
+        renderCamera?.currentCameraPosition()
             ?? appliedCameraPosition
             ?? initialCameraPosition
     }
 
     func currentCameraState() -> ImmersiveMapCameraState? {
-        coordinator?.currentCameraState()
+        renderCamera?.currentCameraState()
     }
 
     func currentMaximumPitch() -> Float {
-        coordinator?.currentMaximumPitch() ?? settings.camera.maximumPitch
+        guard let cameraState = renderCamera?.currentCameraState() else {
+            return settings.camera.maximumPitch
+        }
+
+        return presentationCoordinator.cameraPitchConstraint(cameraState: cameraState).maximumPitch
     }
 
-    func isSphericalRenderBackendActive() -> Bool {
-        coordinator?.isSphericalRenderBackendActive() ?? false
+    func isSphericalRenderSurfaceActive() -> Bool {
+        guard let cameraState = renderCamera?.currentCameraState() else {
+            return false
+        }
+
+        return presentationCoordinator.isSphericalSurfaceActive(cameraState: cameraState)
     }
 
     func needsCameraPositionUpdate(_ cameraPosition: ImmersiveMapCameraPosition?) -> Bool {
@@ -114,7 +128,8 @@ final class ImmersiveMapCameraRuntime {
             return
         }
 
-        coordinator?.setCameraPosition(cameraPosition)
+        renderCamera?.setCameraPosition(cameraPosition)
+        applyCurrentCameraConstraints()
         syncPitchControlValue(fallbackCameraPosition: cameraPosition)
         notifyCameraPositionChanged()
         renderRuntime.requestFrame()
@@ -123,7 +138,8 @@ final class ImmersiveMapCameraRuntime {
     func setCameraPosition(_ cameraPosition: ImmersiveMapCameraPosition,
                            requestRenderFrame: Bool = true) {
         appliedCameraPosition = cameraPosition
-        coordinator?.setCameraPosition(cameraPosition)
+        renderCamera?.setCameraPosition(cameraPosition)
+        applyCurrentCameraConstraints()
         syncPitchControlValue(fallbackCameraPosition: cameraPosition)
         notifyCameraPositionChanged()
         if requestRenderFrame {
@@ -132,43 +148,52 @@ final class ImmersiveMapCameraRuntime {
     }
 
     func setCameraState(_ cameraState: ImmersiveMapCameraState) {
-        coordinator?.setCameraState(cameraState)
+        renderCamera?.setCameraState(cameraState)
+        applyCurrentCameraConstraints()
         syncPitchControlValue()
         notifyCameraPositionChanged()
         renderRuntime.requestFrame()
     }
 
     func switchRenderMode() {
-        coordinator?.switchRenderMode()
+        guard let cameraState = renderCamera?.currentCameraState() else {
+            return
+        }
+
+        presentationCoordinator.switchProjectionPolicy(cameraState: cameraState)
+        applyCurrentCameraConstraints()
         syncPitchControlValue()
         renderRuntime.requestFrame()
     }
 
     func rotateCameraYaw(delta: Float) {
-        coordinator?.rotateCameraYaw(delta: delta)
+        renderCamera?.rotateCameraYaw(delta: delta)
+        applyCurrentCameraConstraints()
         notifyCameraPositionChanged()
         renderRuntime.requestFrame()
     }
 
     func panCamera(deltaX: Double,
                    deltaY: Double) {
-        coordinator?.panCamera(deltaX: deltaX,
-                               deltaY: deltaY)
+        renderCamera?.panCamera(deltaX: deltaX,
+                                deltaY: deltaY)
         notifyCameraPositionChanged()
         renderRuntime.requestFrame()
     }
 
     func zoomCamera(scale: CGFloat,
                     velocity: CGFloat) {
-        coordinator?.zoomCamera(scale: scale,
-                                velocity: velocity)
+        renderCamera?.zoomCamera(scale: scale,
+                                 velocity: velocity)
+        applyCurrentCameraConstraints()
         notifyCameraPositionChanged()
         syncPitchControlValue()
         renderRuntime.requestFrame()
     }
 
     func zoomCamera(delta: Double) {
-        coordinator?.zoomCamera(delta: delta)
+        renderCamera?.zoomCamera(delta: delta)
+        applyCurrentCameraConstraints()
         notifyCameraPositionChanged()
         syncPitchControlValue()
         renderRuntime.requestFrame()
@@ -177,16 +202,22 @@ final class ImmersiveMapCameraRuntime {
     func zoomCamera(delta: Double,
                     anchorDrawablePoint: CGPoint,
                     drawableSize: CGSize) {
-        coordinator?.zoomCamera(delta: delta,
-                                anchorDrawablePoint: anchorDrawablePoint,
-                                drawableSize: drawableSize)
+        guard let renderCamera else {
+            return
+        }
+
+        presentationCoordinator.zoomCamera(renderCamera,
+                                           delta: delta,
+                                           anchorDrawablePoint: anchorDrawablePoint,
+                                           drawableSize: drawableSize)
         notifyCameraPositionChanged()
         syncPitchControlValue()
         renderRuntime.requestFrame()
     }
 
     func setCameraPitch(_ pitch: Float) {
-        coordinator?.setCameraPitch(pitch)
+        renderCamera?.setCameraPitch(pitch)
+        applyCurrentCameraConstraints()
         notifyCameraPositionChanged()
         renderRuntime.requestFrame()
     }
@@ -208,11 +239,19 @@ final class ImmersiveMapCameraRuntime {
     }
 
     func syncPitchControlValue(fallbackCameraPosition: ImmersiveMapCameraPosition? = nil) {
-        let currentCameraPosition = coordinator?.currentCameraPosition()
+        let currentCameraPosition = renderCamera?.currentCameraPosition()
             ?? fallbackCameraPosition
             ?? appliedCameraPosition
             ?? initialCameraPosition
         controlsRuntime.syncPitch(cameraPosition: currentCameraPosition,
                                   maximumPitch: currentMaximumPitch())
+    }
+
+    private func applyCurrentCameraConstraints() {
+        guard let renderCamera else {
+            return
+        }
+
+        presentationCoordinator.applyCameraConstraints(to: renderCamera)
     }
 }

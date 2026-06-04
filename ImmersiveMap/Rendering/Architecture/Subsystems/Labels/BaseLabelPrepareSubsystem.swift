@@ -540,7 +540,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         hasher.combine(cameraState.pitch.bitPattern)
         hasher.combine(Int(frameContext.drawSize.width.rounded()))
         hasher.combine(Int(frameContext.drawSize.height.rounded()))
-        hasher.combine(frameContext.renderBackendMode == .flat)
+        hasher.combine(frameContext.renderSurfaceMode == .flat)
         hasher.combine(frameContext.screenSpaceProjectionMode == .flat)
         return hasher.finalize()
     }
@@ -548,7 +548,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
     private func prepareRoadInstances(frameContext: FrameContext,
                                       projectionIndexState: TileProjectionIndexState) -> RoadPreparation {
         guard let roadLabelCache,
-              frameContext.renderBackendMode == .flat,
+              frameContext.renderSurfaceMode == .flat,
               roadLabelCache.orderedTileRecords.isEmpty == false else {
             return RoadPreparation(instances: [])
         }
@@ -714,7 +714,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
     private func buildRoadLabelState(frameContext: FrameContext,
                                      roadVisibility: [Bool]) -> RoadLabelState {
         guard let roadLabelCache,
-              frameContext.renderBackendMode == .flat,
+              frameContext.renderSurfaceMode == .flat,
               roadLabelCache.instanceKeys.isEmpty == false else {
             return .empty
         }

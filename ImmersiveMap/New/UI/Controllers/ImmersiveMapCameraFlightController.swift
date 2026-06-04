@@ -131,7 +131,7 @@ final class ImmersiveMapCameraFlightController {
             return .greatCircle
         case .automatic:
             let automaticTransitionStartZoom = cameraRuntime.currentSettings.presentation.automaticTransitionStartZoom
-            let useGreatCircle = cameraRuntime.isSphericalRenderBackendActive()
+            let useGreatCircle = cameraRuntime.isSphericalRenderSurfaceActive()
                 || min(startState.zoom, targetState.zoom) < automaticTransitionStartZoom
             return useGreatCircle ? .greatCircle : .mercatorShortestPath
         }

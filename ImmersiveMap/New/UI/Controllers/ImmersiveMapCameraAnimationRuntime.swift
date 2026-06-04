@@ -57,7 +57,7 @@ final class ImmersiveMapCameraAnimationRuntime {
 
     func startGlobeCameraPanInertiaIfNeeded(initialVelocity: CGPoint,
                                             currentTime: CFTimeInterval = CACurrentMediaTime()) {
-        guard cameraRuntime.isSphericalRenderBackendActive() else {
+        guard cameraRuntime.isSphericalRenderSurfaceActive() else {
             cancelGlobeCameraPanInertia()
             return
         }
@@ -110,7 +110,7 @@ final class ImmersiveMapCameraAnimationRuntime {
         }
 
         guard interactionRuntime.hasActiveUserInteraction == false,
-              cameraRuntime.isSphericalRenderBackendActive() else {
+              cameraRuntime.isSphericalRenderSurfaceActive() else {
             cancelGlobeCameraPanInertia()
             return
         }

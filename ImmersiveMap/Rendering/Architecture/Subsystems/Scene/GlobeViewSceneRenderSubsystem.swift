@@ -13,13 +13,13 @@ final class GlobeViewSceneRenderSubsystem: RenderSubsystem {
 
     private let encodeGlobeScene: (MTLRenderCommandEncoder, FrameContext) -> Void
 
-    init(starfield: Starfield,
+    init(starfieldRenderer: StarfieldRenderer,
          globeDepthState: MTLDepthStencilState,
          globeCapDepthState: MTLDepthStencilState,
          depthDisabledState: MTLDepthStencilState,
          globeCapRenderer: GlobeCapRenderer,
          globePipeline: GlobePipeline,
-         baseGridBuffers: GridBuffers,
+         mapSurfaceGridBuffers: MapSurfaceGridBuffers,
          tilesTexture: TilesTexture) {
         encodeGlobeScene = { renderEncoder, frameContext in
             RendererSceneDrawer.drawSphericalScene(renderEncoder: renderEncoder,
@@ -29,13 +29,13 @@ final class GlobeViewSceneRenderSubsystem: RenderSubsystem {
                                                    cameraView: frameContext.cameraMatrices.view,
                                                    cameraEye: frameContext.cameraEye,
                                                    globe: frameContext.globeRenderUniform,
-                                                   starfield: starfield,
+                                                   starfieldRenderer: starfieldRenderer,
                                                    globeDepthState: globeDepthState,
                                                    globeCapDepthState: globeCapDepthState,
                                                    depthDisabledState: depthDisabledState,
                                                    globeCapRenderer: globeCapRenderer,
                                                    globePipeline: globePipeline,
-                                                   baseGridBuffers: baseGridBuffers,
+                                                   mapSurfaceGridBuffers: mapSurfaceGridBuffers,
                                                    tilesTexture: tilesTexture)
         }
     }
@@ -49,7 +49,7 @@ final class GlobeViewSceneRenderSubsystem: RenderSubsystem {
     func prepareGPU(frameContext: FrameContext, resourceRegistry: RenderResourceRegistry) {}
 
     func encode(pass: RenderPass, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
-        guard pass == .scene, frameContext.renderBackendMode == .spherical else { return }
+        guard pass == .scene, frameContext.renderSurfaceMode == .spherical else { return }
         encodeGlobeScene(encoder, frameContext)
     }
 

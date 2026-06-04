@@ -37,10 +37,10 @@ final class VisibleTilesPreprocessor {
     /// 4) deterministic output sort.
     func preprocess(visibleTiles: [VisibleTile],
                     center: Center,
-                    renderBackendMode: ViewMode) -> [VisibleTile] {
+                    renderSurfaceMode: ViewMode) -> [VisibleTile] {
         let stagedInputs = buildStageInputs(visibleTiles: visibleTiles,
                                             center: center,
-                                            renderBackendMode: renderBackendMode)
+                                            renderSurfaceMode: renderSurfaceMode)
         let sortedInputs = sortInputsForSelection(stagedInputs)
         let selectedTargets = selectCoverageTargets(from: sortedInputs)
         return sortTargetsForOutput(selectedTargets)
@@ -53,14 +53,14 @@ final class VisibleTilesPreprocessor {
     /// - `preferredZoom` is clamped to `[0...visibleTile.z]`.
     private func buildStageInputs(visibleTiles: [VisibleTile],
                                   center: Center,
-                                  renderBackendMode: ViewMode) -> [InputTile] {
+                                  renderSurfaceMode: ViewMode) -> [InputTile] {
         var inputs: [InputTile] = []
         inputs.reserveCapacity(visibleTiles.count)
 
         for visibleTile in visibleTiles {
             let distance = maxRelativeDistance(tile: visibleTile,
                                                center: center,
-                                               renderBackendMode: renderBackendMode)
+                                               renderSurfaceMode: renderSurfaceMode)
             guard distance <= maxVisibleRelativeDistance else {
                 continue
             }
@@ -266,11 +266,11 @@ final class VisibleTilesPreprocessor {
     /// - `flat`: linear world x with explicit loop shift.
     private func maxRelativeDistance(tile: VisibleTile,
                                      center: Center,
-                                     renderBackendMode: ViewMode) -> Int {
+                                     renderSurfaceMode: ViewMode) -> Int {
         let centerX = Int(center.tileX)
         let centerY = Int(center.tileY)
 
-        switch renderBackendMode {
+        switch renderSurfaceMode {
         case .spherical:
             let tilesCount = 1 << tile.z
             let normalizedCenterX = normalizeWrappedIndex(centerX, modulo: tilesCount)

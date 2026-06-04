@@ -3,8 +3,8 @@
 
 import QuartzCore
 
-/// Собирает `Renderer` из текущего runtime graph.
-/// Создает camera coordinator и связывает renderer dependencies, не раскрывая детали сборки во view.
+/// Собирает `RenderFrameEngine` из текущего runtime graph.
+/// Создает render camera и связывает renderer dependencies, не раскрывая детали сборки во view.
 final class ImmersiveMapRendererBuilder {
     private let cameraRuntime: ImmersiveMapCameraRuntime
     private let avatarRuntime: ImmersiveMapAvatarRuntime
@@ -23,15 +23,16 @@ final class ImmersiveMapRendererBuilder {
 
     func makeRenderer(layer: CAMetalLayer,
                       settings: ImmersiveMapSettings,
-                      cameraPosition: ImmersiveMapCameraPosition?) -> Renderer {
-        let cameraCoordinator = cameraRuntime.makeCoordinator(settings: settings,
-                                                              cameraPosition: cameraPosition)
+                      cameraPosition: ImmersiveMapCameraPosition?) -> RenderFrameEngine {
+        let renderCamera = cameraRuntime.makeRenderCamera(settings: settings,
+                                                          cameraPosition: cameraPosition)
         let eventSink = ImmersiveMapRenderEventSink(renderRuntime: renderRuntime,
                                                     selectionHandler: selectionHandler)
-        return Renderer(layer: layer,
-                        avatarSource: avatarRuntime,
-                        config: settings,
-                        cameraCoordinator: cameraCoordinator,
-                        eventSink: eventSink)
+        return RenderFrameEngine(layer: layer,
+                                 avatarSource: avatarRuntime,
+                                 settings: settings,
+                                 renderCamera: renderCamera,
+                                 presentationCoordinator: cameraRuntime.presentationCoordinator,
+                                 eventSink: eventSink)
     }
 }

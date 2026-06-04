@@ -13,7 +13,7 @@ public class ImmersiveMapUIView: UIView {
 
     // MARK: - Rendering
 
-    private var renderer: Renderer?
+    private var renderer: RenderFrameEngine?
     private var memoryWarningObserver: NSObjectProtocol?
 
     var metalLayer: CAMetalLayer {
@@ -192,7 +192,7 @@ public class ImmersiveMapUIView: UIView {
         selectionHandler.syncController(newSelectionController)
     }
 
-    // MARK: - Renderer
+    // MARK: - Render Engine
 
     private func createRenderer(settings: ImmersiveMapSettings,
                                 cameraPosition: ImmersiveMapCameraPosition?) {
@@ -210,7 +210,7 @@ public class ImmersiveMapUIView: UIView {
         let cameraPosition = cameraRuntime.cameraPositionForRendererRecreation()
         renderRuntime.detachRenderer()
         renderer = nil
-        cameraRuntime.clearCoordinator()
+        cameraRuntime.clearRenderCamera()
         createRenderer(settings: settings,
                        cameraPosition: cameraPosition)
     }

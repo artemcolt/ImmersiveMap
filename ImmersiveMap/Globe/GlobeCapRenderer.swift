@@ -20,8 +20,8 @@ struct GlobeCapPalette {
 
 final class GlobeCapRenderer {
     private let pipeline: GlobeCapPipeline
-    private let northCapBuffers: GridBuffers
-    private let southCapBuffers: GridBuffers
+    private let northCapBuffers: MapSurfaceGridBuffers
+    private let southCapBuffers: MapSurfaceGridBuffers
     private let palette: GlobeCapPalette
 
     init(metalDevice: MTLDevice,
@@ -43,7 +43,7 @@ final class GlobeCapRenderer {
                                                  isNorth: false,
                                                  maxLatitude: maxLatitude)
 
-        northCapBuffers = GridBuffers(
+        northCapBuffers = MapSurfaceGridBuffers(
             verticesBuffer: metalDevice.makeBuffer(
                 bytes: northCap.vertices,
                 length: MemoryLayout<CapGeometry.Vertex>.stride * northCap.vertices.count
@@ -54,7 +54,7 @@ final class GlobeCapRenderer {
             )!,
             indicesCount: northCap.indices.count
         )
-        southCapBuffers = GridBuffers(
+        southCapBuffers = MapSurfaceGridBuffers(
             verticesBuffer: metalDevice.makeBuffer(
                 bytes: southCap.vertices,
                 length: MemoryLayout<CapGeometry.Vertex>.stride * southCap.vertices.count

@@ -11,46 +11,46 @@ final class RenderSubsystemGraph {
     private weak var roadLabelDrawSubsystem: RoadLabelDrawSubsystem?
     private weak var avatarSubsystem: AvatarRenderSubsystem?
 
-    init(resources: RenderStaticResources,
+    init(context: RenderPersistentContext,
          settings: ImmersiveMapSettings,
          initialZoom: Int,
          buildingWinnerIDTextureProvider: @escaping () -> MTLTexture?) {
-        let tileDemandPlacementSubsystem = TileDemandPlacementSubsystem(tileRenderStore: resources.tileRenderStore,
+        let tileDemandPlacementSubsystem = TileDemandPlacementSubsystem(tileRenderStore: context.tileRenderStore,
                                                                         initialZoom: initialZoom)
-        let tileProjectionIndexSubsystem = TileProjectionIndexSubsystem(flatTileOriginCalculator: resources.flatTileOriginCalculator)
-        let tileGlobeTextureSubsystem = TileGlobeTextureSubsystem(tilesTexture: resources.tilesTexture)
-        let baseLabelSubsystem = BaseLabelPrepareSubsystem(baseLabelCache: resources.baseLabelCache,
-                                                           roadLabelCache: resources.roadLabelCache,
-                                                           metalDevice: resources.metalContext.device,
-                                                           library: resources.metalContext.library,
+        let tileProjectionIndexSubsystem = TileProjectionIndexSubsystem(flatTileOriginCalculator: context.flatTileOriginCalculator)
+        let tileGlobeTextureSubsystem = TileGlobeTextureSubsystem(tilesTexture: context.tilesTexture)
+        let baseLabelSubsystem = BaseLabelPrepareSubsystem(baseLabelCache: context.baseLabelCache,
+                                                           roadLabelCache: context.roadLabelCache,
+                                                           metalDevice: context.metalContext.device,
+                                                           library: context.metalContext.library,
                                                            settings: settings.labels)
-        let baseLabelDrawSubsystem = BaseLabelDrawSubsystem(textRenderer: resources.textRenderer,
-                                                            poiSpriteAtlas: resources.poiSpriteAtlas,
-                                                            metalDevice: resources.metalContext.device)
-        let roadLabelDrawSubsystem = RoadLabelDrawSubsystem(textRenderer: resources.textRenderer,
-                                                            metalDevice: resources.metalContext.device)
-        let avatarSubsystem = AvatarRenderSubsystem(avatarsRenderer: resources.avatarsRenderer,
-                                                    avatarSource: resources.avatarSource,
-                                                    depthDisabledState: resources.depthDisabledState)
-        let commonViewSceneSubsystem = CommonViewSceneRenderSubsystem(depthDisabledState: resources.depthDisabledState)
-        let globeViewSceneSubsystem = GlobeViewSceneRenderSubsystem(starfield: resources.starfield,
-                                                                    globeDepthState: resources.extrudedDepthState,
-                                                                    globeCapDepthState: resources.globeCapDepthState,
-                                                                    depthDisabledState: resources.depthDisabledState,
-                                                                    globeCapRenderer: resources.globeCapRenderer,
-                                                                    globePipeline: resources.globePipeline,
-                                                                    baseGridBuffers: resources.baseGridBuffers,
-                                                                    tilesTexture: resources.tilesTexture)
-        let flatViewSceneSubsystem = FlatViewSceneRenderSubsystem(tilePipeline: resources.tilePipeline,
+        let baseLabelDrawSubsystem = BaseLabelDrawSubsystem(textRenderer: context.textRenderer,
+                                                            poiSpriteAtlas: context.poiSpriteAtlas,
+                                                            metalDevice: context.metalContext.device)
+        let roadLabelDrawSubsystem = RoadLabelDrawSubsystem(textRenderer: context.textRenderer,
+                                                            metalDevice: context.metalContext.device)
+        let avatarSubsystem = AvatarRenderSubsystem(avatarsRenderer: context.avatarsRenderer,
+                                                    avatarSource: context.avatarSource,
+                                                    depthDisabledState: context.depthDisabledState)
+        let commonViewSceneSubsystem = CommonViewSceneRenderSubsystem(depthDisabledState: context.depthDisabledState)
+        let globeViewSceneSubsystem = GlobeViewSceneRenderSubsystem(starfieldRenderer: context.starfieldRenderer,
+                                                                    globeDepthState: context.extrudedDepthState,
+                                                                    globeCapDepthState: context.globeCapDepthState,
+                                                                    depthDisabledState: context.depthDisabledState,
+                                                                    globeCapRenderer: context.globeCapRenderer,
+                                                                    globePipeline: context.globePipeline,
+                                                                    mapSurfaceGridBuffers: context.mapSurfaceGridBuffers,
+                                                                    tilesTexture: context.tilesTexture)
+        let flatViewSceneSubsystem = FlatViewSceneRenderSubsystem(tilePipeline: context.tilePipeline,
                                                                   separateRoadRenderingMinimumZoom: settings.style.flatSeparateRoadRenderingMinimumZoom,
                                                                   buildingExtrusionAlpha: settings.style.buildingExtrusionAlpha,
                                                                   buildingWinnerIDTextureProvider: buildingWinnerIDTextureProvider,
-                                                                  extrudedTilePipeline: resources.extrudedTilePipeline,
-                                                                  extrudedColorPassDepthState: resources.extrudedColorPassDepthState,
-                                                                  depthDisabledState: resources.depthDisabledState)
-        let debugSubsystem = DebugOverlayRenderSubsystem(polygonPipeline: resources.polygonPipeline,
-                                                         debugOverlayRenderer: resources.debugOverlayRenderer,
-                                                         textRenderer: resources.textRenderer)
+                                                                  extrudedTilePipeline: context.extrudedTilePipeline,
+                                                                  extrudedColorPassDepthState: context.extrudedColorPassDepthState,
+                                                                  depthDisabledState: context.depthDisabledState)
+        let debugSubsystem = DebugOverlayRenderSubsystem(polygonPipeline: context.polygonPipeline,
+                                                         debugOverlayRenderer: context.debugOverlayRenderer,
+                                                         textRenderer: context.textRenderer)
 
         self.baseLabelDrawSubsystem = baseLabelDrawSubsystem
         self.roadLabelDrawSubsystem = roadLabelDrawSubsystem

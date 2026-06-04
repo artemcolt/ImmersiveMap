@@ -63,7 +63,7 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
 
     private func renderGlobeTilesTextureIfNeeded(commandBuffer: MTLCommandBuffer,
                                                  frameContext: FrameContext) {
-        guard frameContext.renderBackendMode == .spherical else { return }
+        guard frameContext.renderSurfaceMode == .spherical else { return }
 
         tilesTexture.activateEncoder(commandBuffer: commandBuffer)
         tilesTexture.setOverviewFadeAlphas(overviewAlpha: overviewFadeAlpha,

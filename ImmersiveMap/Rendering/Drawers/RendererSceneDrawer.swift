@@ -63,20 +63,20 @@ final class RendererSceneDrawer {
                                    cameraView: matrix_float4x4,
                                    cameraEye: SIMD3<Float>,
                                    globe: Globe,
-                                   starfield: Starfield,
+                                   starfieldRenderer: StarfieldRenderer,
                                    globeDepthState: MTLDepthStencilState,
                                    globeCapDepthState: MTLDepthStencilState,
                                    depthDisabledState: MTLDepthStencilState,
                                    globeCapRenderer: GlobeCapRenderer,
                                    globePipeline: GlobePipeline,
-                                   baseGridBuffers: GridBuffers,
+                                   mapSurfaceGridBuffers: MapSurfaceGridBuffers,
                                    tilesTexture: TilesTexture) {
-        starfield.draw(renderEncoder: renderEncoder,
-                       globe: globe,
-                       cameraView: cameraView,
-                       cameraEye: cameraEye,
-                       drawSize: drawSize,
-                       nowTime: Float(nowTime))
+        starfieldRenderer.draw(renderEncoder: renderEncoder,
+                               globe: globe,
+                               cameraView: cameraView,
+                               cameraEye: cameraEye,
+                               drawSize: drawSize,
+                               nowTime: Float(nowTime))
 
         renderEncoder.setDepthStencilState(globeDepthState)
 
@@ -89,7 +89,7 @@ final class RendererSceneDrawer {
         renderEncoder.setVertexBytes(&globeValue, length: MemoryLayout<Globe>.stride, index: 2)
         renderEncoder.setFragmentTexture(tilesTexture.texture, index: 0)
         renderEncoder.setFragmentBytes(&cameraUniformValue, length: MemoryLayout<CameraUniform>.stride, index: 1)
-        renderEncoder.setVertexBuffer(baseGridBuffers.verticesBuffer, offset: 0, index: 0)
+        renderEncoder.setVertexBuffer(mapSurfaceGridBuffers.verticesBuffer, offset: 0, index: 0)
 
         for mapping in tilesTexture.tileData {
             var mappingValue = mapping
@@ -97,9 +97,9 @@ final class RendererSceneDrawer {
                                          length: MemoryLayout<TilesTexture.TileData>.stride,
                                          index: 3)
             renderEncoder.drawIndexedPrimitives(type: .triangle,
-                                                indexCount: baseGridBuffers.indicesCount,
+                                                indexCount: mapSurfaceGridBuffers.indicesCount,
                                                 indexType: .uint32,
-                                                indexBuffer: baseGridBuffers.indicesBuffer,
+                                                indexBuffer: mapSurfaceGridBuffers.indicesBuffer,
                                                 indexBufferOffset: 0)
         }
 

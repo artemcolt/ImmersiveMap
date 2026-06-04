@@ -1,12 +1,18 @@
 // Copyright (c) 2025-2026 Artem Bobkin.
 // SPDX-License-Identifier: MIT
 
-import Foundation
 import simd
 
-struct CameraUpdater {
-    static func updateIfNeeded(camera: Camera, cameraControl: CameraControl) {
-        guard cameraControl.update else {
+/// Синхронизирует semantic state из `CameraControl` с render `Camera`: eye/up vectors, matrices и frustum.
+final class RenderCameraSynchronizer {
+    private var needsUpdate = true
+
+    func requestUpdate() {
+        needsUpdate = true
+    }
+
+    func updateIfNeeded(camera: Camera, cameraControl: CameraControl) {
+        guard needsUpdate else {
             return
         }
 
@@ -25,9 +31,6 @@ struct CameraUpdater {
         camera.up = simd_act(yawQuat * pitchQuat, camUp)
 
         camera.recalculateMatrix()
-
-        // Camera updated; reset the flag to the default state
-        // When something changes in the camera, this flag becomes true
-        cameraControl.update = false
+        needsUpdate = false
     }
 }

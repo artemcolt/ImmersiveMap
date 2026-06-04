@@ -14,7 +14,7 @@ struct RenderPipelineBundle {
     let tilePipeline: TilePipeline
     let extrudedTilePipeline: ExtrudedTilePipeline
     let globePipeline: GlobePipeline
-    let starfield: Starfield
+    let starfieldRenderer: StarfieldRenderer
 }
 
 final class RenderPipelineFactory {
@@ -37,16 +37,16 @@ final class RenderPipelineFactory {
         let tilePipeline = TilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         let extrudedTilePipeline = ExtrudedTilePipeline(metalDevice: metalDevice, layer: layer, library: library)
         let globePipeline = GlobePipeline(metalDevice: metalDevice, layer: layer, library: library)
-        let starfield = Starfield(metalDevice: metalDevice,
-                                  layer: layer,
-                                  library: library,
-                                  spaceColor: config.scene.space.clearColor,
-                                  config: config.scene.starfield)
+        let starfieldRenderer = StarfieldRenderer(metalDevice: metalDevice,
+                                                  layer: layer,
+                                                  library: library,
+                                                  spaceColor: config.scene.space.clearColor,
+                                                  config: config.scene.starfield)
 
         return RenderPipelineBundle(polygonPipeline: polygonPipeline,
                                     tilePipeline: tilePipeline,
                                     extrudedTilePipeline: extrudedTilePipeline,
                                     globePipeline: globePipeline,
-                                    starfield: starfield)
+                                    starfieldRenderer: starfieldRenderer)
     }
 }

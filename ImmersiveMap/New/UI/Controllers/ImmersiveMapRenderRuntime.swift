@@ -24,7 +24,7 @@ final class ImmersiveMapRenderRuntime {
         driver.stop()
     }
 
-    func attachRenderer(_ renderer: Renderer) {
+    func attachRenderer(_ renderer: RenderFrameEngine) {
         driver.attachRenderer(renderer)
     }
 

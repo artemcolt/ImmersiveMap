@@ -7,6 +7,7 @@
 //
 
 import QuartzCore
+import simd
 
 struct GlobeCullingMetrics {
     static let zero = GlobeCullingMetrics(duration: 0,
@@ -31,33 +32,34 @@ struct GlobeVisibleTileResolution {
 
 protocol GlobeVisibleTileResolving {
     func resolveVisibleTiles(targetZoom: Int,
-                             globe: Globe) -> GlobeVisibleTileResolution
+                             globe: Globe,
+                             cameraFrustum: Frustum?,
+                             cameraEye: SIMD3<Float>) -> GlobeVisibleTileResolution
 }
 
 typealias GlobeNodeVisibilityEvaluator = (Tile, Int, Frustum, GlobeVisibilityInputs) -> GlobeNodeVisibilityEvaluation
 
 final class GlobeVisibleTileResolver: GlobeVisibleTileResolving {
-    private let camera: Camera
     private let visibilityEvaluationOverride: GlobeNodeVisibilityEvaluator?
     private let transitionLowZoomFallbackLimit = 3
 
-    init(camera: Camera,
-         visibilityEvaluationOverride: GlobeNodeVisibilityEvaluator? = nil) {
-        self.camera = camera
+    init(visibilityEvaluationOverride: GlobeNodeVisibilityEvaluator? = nil) {
         self.visibilityEvaluationOverride = visibilityEvaluationOverride
     }
 
     func resolveVisibleTiles(targetZoom: Int,
-                             globe: Globe) -> GlobeVisibleTileResolution {
+                             globe: Globe,
+                             cameraFrustum: Frustum?,
+                             cameraEye: SIMD3<Float>) -> GlobeVisibleTileResolution {
         let startTime = CACurrentMediaTime()
         guard targetZoom >= 0,
-              let frustum = camera.frustrum else {
+              let frustum = cameraFrustum else {
             return GlobeVisibleTileResolution(visibleTiles: [],
                                               metrics: .zero)
         }
 
         let inputs = GlobeVisibilityModel.makeInputs(globe: globe,
-                                                     cameraEye: camera.eye)
+                                                     cameraEye: cameraEye)
         var visibleTiles: [VisibleTile] = []
         visibleTiles.reserveCapacity(estimatedVisibleTileCapacity(targetZoom: targetZoom))
         var metrics = GlobeCullingMetrics.zero

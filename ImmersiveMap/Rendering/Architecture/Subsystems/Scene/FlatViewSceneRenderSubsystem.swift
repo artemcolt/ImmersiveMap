@@ -52,7 +52,7 @@ final class FlatViewSceneRenderSubsystem: RenderSubsystem {
     func prepareGPU(frameContext: FrameContext, resourceRegistry: RenderResourceRegistry) {}
 
     func encode(pass: RenderPass, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
-        guard pass == .scene, frameContext.renderBackendMode == .flat else { return }
+        guard pass == .scene, frameContext.renderSurfaceMode == .flat else { return }
         encodeFlatAndExtrudedScene(encoder, frameContext)
     }
 

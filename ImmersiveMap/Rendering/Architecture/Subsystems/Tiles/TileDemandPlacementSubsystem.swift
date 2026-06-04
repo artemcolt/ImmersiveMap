@@ -42,7 +42,7 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         // with coarser parents to reduce load/placement pressure.
         let preprocessedVisibleTiles = visibleTilesPreprocessor.preprocess(visibleTiles: visibleTiles,
                                                                            center: center,
-                                                                           renderBackendMode: frameContext.renderBackendMode)
+                                                                           renderSurfaceMode: frameContext.renderSurfaceMode)
         // `VisibleTile` includes `loop`, so flat-mode wrapped copies can produce
         // multiple placement targets that share the same content tile (`Tile`).
         // Deduplicate before storage request to avoid repeated cache lookup/request

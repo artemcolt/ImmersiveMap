@@ -3,7 +3,8 @@
 
 import Metal
 
-struct GridBuffers {
+/// GPU buffers сетки полотна карты: вершины, индексы и количество индексов для indexed draw.
+struct MapSurfaceGridBuffers {
     let verticesBuffer: MTLBuffer
     let indicesBuffer: MTLBuffer
     let indicesCount: Int

@@ -45,7 +45,7 @@ struct ResolvedPresentationState {
     let semanticWorldState: SemanticWorldState
     let presentationState: ImmersiveMapPresentationState
     let renderNormalizationState: RenderNormalizationState
-    let renderBackendMode: ViewMode
+    let renderSurfaceMode: ViewMode
     let screenSpaceProjectionMode: ScreenSpaceProjectionMode
     let globeRenderState: GlobeRenderState
     let flatRenderState: FlatRenderState
@@ -94,10 +94,10 @@ enum CameraBearingConstraintResolver {
     static func resolve(cameraState: ImmersiveMapCameraState,
                         settings: ImmersiveMapSettings,
                         projectionPolicy: ProjectionPolicy) -> CameraBearingConstraint {
-        let resolvedPresentation = ViewModeCalculator.resolve(cameraState: cameraState,
+        let resolvedPresentation = PresentationStateResolver.resolve(cameraState: cameraState,
                                                               settings: settings.presentation,
                                                               projectionPolicy: projectionPolicy)
-        guard resolvedPresentation.renderBackendMode == .spherical else {
+        guard resolvedPresentation.renderSurfaceMode == .spherical else {
             return CameraBearingConstraint(maximumAbsoluteBearing: nil)
         }
 
@@ -133,10 +133,10 @@ enum CameraPitchConstraintResolver {
     static func resolve(cameraState: ImmersiveMapCameraState,
                         settings: ImmersiveMapSettings,
                         projectionPolicy: ProjectionPolicy) -> CameraPitchConstraint {
-        let resolvedPresentation = ViewModeCalculator.resolve(cameraState: cameraState,
+        let resolvedPresentation = PresentationStateResolver.resolve(cameraState: cameraState,
                                                               settings: settings.presentation,
                                                               projectionPolicy: projectionPolicy)
-        guard resolvedPresentation.renderBackendMode == .spherical else {
+        guard resolvedPresentation.renderSurfaceMode == .spherical else {
             return CameraPitchConstraint(maximumPitch: settings.camera.maximumReachablePitch(at: cameraState.zoom))
         }
 
@@ -159,7 +159,7 @@ enum CameraPitchConstraintResolver {
     }
 }
 
-struct ViewModeCalculator {
+struct PresentationStateResolver {
     static func resolve(cameraState: ImmersiveMapCameraState,
                         projectionPolicy: ProjectionPolicy) -> ResolvedPresentationState {
         resolve(cameraState: cameraState,
@@ -183,17 +183,17 @@ struct ViewModeCalculator {
                           panY: Float(globePan.y),
                           radius: Float(globeRenderRadius),
                           transition: projectionBlend)
-        let renderBackendMode = resolveRenderBackendMode(projectionBlend: projectionBlend)
-        let screenSpaceProjectionMode = resolveScreenSpaceProjectionMode(renderBackendMode: renderBackendMode)
+        let renderSurfaceMode = resolveRenderSurfaceMode(projectionBlend: projectionBlend)
+        let screenSpaceProjectionMode = resolveScreenSpaceProjectionMode(renderSurfaceMode: renderSurfaceMode)
 
         return ResolvedPresentationState(
             semanticWorldState: SemanticWorldState(cameraState: cameraState),
             presentationState: ImmersiveMapPresentationState(projectionBlend: projectionBlend,
-                                                    projectionPolicy: projectionPolicy),
+                                                             projectionPolicy: projectionPolicy),
             renderNormalizationState: RenderNormalizationState(zoomScale: renderZoomScale,
                                                                globeRenderRadius: globeRenderRadius,
                                                                flatRenderMapSize: flatRenderMapSize),
-            renderBackendMode: renderBackendMode,
+            renderSurfaceMode: renderSurfaceMode,
             screenSpaceProjectionMode: screenSpaceProjectionMode,
             globeRenderState: GlobeRenderState(pan: globePan,
                                                renderRadius: globeRenderRadius,
@@ -223,11 +223,11 @@ struct ViewModeCalculator {
         }
     }
 
-    private static func resolveRenderBackendMode(projectionBlend: Float) -> ViewMode {
+    private static func resolveRenderSurfaceMode(projectionBlend: Float) -> ViewMode {
         projectionBlend >= 1.0 ? .flat : .spherical
     }
 
-    private static func resolveScreenSpaceProjectionMode(renderBackendMode: ViewMode) -> ScreenSpaceProjectionMode {
-        renderBackendMode == .flat ? .flat : .globe
+    private static func resolveScreenSpaceProjectionMode(renderSurfaceMode: ViewMode) -> ScreenSpaceProjectionMode {
+        renderSurfaceMode == .flat ? .flat : .globe
     }
 }
