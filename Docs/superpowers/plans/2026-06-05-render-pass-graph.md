@@ -12,33 +12,33 @@
 
 ## File Structure
 
-- Modify `ImmersiveMap/Rendering/Architecture/Contracts/RenderPass.swift`
+- Modify `ImmersiveMap/Render/Architecture/Contracts/RenderPass.swift`
   - Rename current logical pass types to layer types: `RenderLayer`, `RenderLayerPlanItem`, `RenderLayerPlanner`.
   - Keep `RenderSkipReason` and `RenderPassAvailability`.
-- Modify `ImmersiveMap/Rendering/Architecture/Contracts/RenderSubsystem.swift`
+- Modify `ImmersiveMap/Render/Architecture/Contracts/RenderSubsystem.swift`
   - Change subsystem encoding from `encode(pass:...)` to `encode(layer:...)`.
-- Modify all `RenderSubsystem` implementations under `ImmersiveMap/Rendering/Architecture/Subsystems/**`
+- Modify all `RenderSubsystem` implementations under `ImmersiveMap/Render/Architecture/Subsystems/**`
   - Replace `RenderPass` parameters and guards with `RenderLayer`.
-- Modify `ImmersiveMap/Rendering/Architecture/Diagnostics/FrameDiagnostics.swift`
+- Modify `ImmersiveMap/Render/Architecture/Diagnostics/FrameDiagnostics.swift`
   - Track layer durations separately from Metal pass durations.
-- Create `ImmersiveMap/Rendering/Architecture/Contracts/RenderPassNode.swift`
+- Create `ImmersiveMap/Render/Architecture/Contracts/RenderPassNode.swift`
   - Define real Metal pass names, descriptor provider protocol, and executable pass node.
-- Create `ImmersiveMap/Rendering/RenderPassGraph.swift`
+- Create `ImmersiveMap/Render/RenderPassGraph.swift`
   - Plan ordered real Metal pass nodes from frame context, settings, drawable, attachments, and render graph availability.
-- Create `ImmersiveMap/Rendering/Architecture/Subsystems/Scene/BuildingWinnerRenderSubsystem.swift`
+- Create `ImmersiveMap/Render/Architecture/Subsystems/Scene/BuildingWinnerRenderSubsystem.swift`
   - Encode the building winner layer using an already-created encoder.
-- Modify `ImmersiveMap/Rendering/Drawers/RendererSceneDrawer.swift`
+- Modify `ImmersiveMap/Render/Drawers/RendererSceneDrawer.swift`
   - Split `drawExtrudedWinnerPass(commandBuffer:...)` into `drawExtrudedWinnerLayer(renderEncoder:...)`.
-- Modify `ImmersiveMap/Rendering/Drawers/RendererPassEncoderFactory.swift`
+- Modify `ImmersiveMap/Render/Drawers/RendererPassEncoderFactory.swift`
   - Remove or stop using command-buffer-based factory methods after descriptors move to `RenderPassGraph`.
-- Modify `ImmersiveMap/Rendering/RenderGraph.swift`
+- Modify `ImmersiveMap/Render/RenderGraph.swift`
   - Replace pre-pass lifecycle with layer encoding only.
-- Modify `ImmersiveMap/Rendering/RenderGraphFactory.swift`
+- Modify `ImmersiveMap/Render/RenderGraphFactory.swift`
   - Register `BuildingWinnerRenderSubsystem` as a normal subsystem.
   - Remove `BuildingWinnerPrePass` from graph construction.
-- Delete `ImmersiveMap/Rendering/Architecture/Contracts/RenderFramePrePass.swift`
-- Delete `ImmersiveMap/Rendering/Architecture/Subsystems/Scene/BuildingWinnerPrePass.swift`
-- Modify `ImmersiveMap/New/Render/RenderFramePassEncoder.swift`
+- Delete `ImmersiveMap/Render/Architecture/Contracts/RenderFramePrePass.swift`
+- Delete `ImmersiveMap/Render/Architecture/Subsystems/Scene/BuildingWinnerPrePass.swift`
+- Modify `ImmersiveMap/Render/RenderFramePassEncoder.swift`
   - Execute real pass nodes, creating and ending one `MTLRenderCommandEncoder` per node.
 
 ---
@@ -46,26 +46,26 @@
 ### Task 1: Rename Logical RenderPass To RenderLayer
 
 **Files:**
-- Modify: `ImmersiveMap/Rendering/Architecture/Contracts/RenderPass.swift`
-- Modify: `ImmersiveMap/Rendering/Architecture/Contracts/RenderSubsystem.swift`
-- Modify: `ImmersiveMap/Rendering/Architecture/Diagnostics/FrameDiagnostics.swift`
-- Modify: `ImmersiveMap/Rendering/RenderGraph.swift`
-- Modify: `ImmersiveMap/New/Render/RenderFramePassEncoder.swift`
-- Modify: every file matching `ImmersiveMap/Rendering/Architecture/Subsystems/**/*.swift`
+- Modify: `ImmersiveMap/Render/Architecture/Contracts/RenderPass.swift`
+- Modify: `ImmersiveMap/Render/Architecture/Contracts/RenderSubsystem.swift`
+- Modify: `ImmersiveMap/Render/Architecture/Diagnostics/FrameDiagnostics.swift`
+- Modify: `ImmersiveMap/Render/RenderGraph.swift`
+- Modify: `ImmersiveMap/Render/RenderFramePassEncoder.swift`
+- Modify: every file matching `ImmersiveMap/Render/Architecture/Subsystems/**/*.swift`
 
 - [ ] **Step 1: Run structural baseline search**
 
 Run:
 
 ```bash
-rg -n "RenderPass|RenderPassPlanner|RenderPassPlanItem|encode\\(pass:" ImmersiveMap/Rendering ImmersiveMap/New/Render -S
+rg -n "RenderPass|RenderPassPlanner|RenderPassPlanItem|encode\\(pass:" ImmersiveMap/Render ImmersiveMap/Render -S
 ```
 
 Expected: current code references the old logical pass names in contracts, diagnostics, graph, encoder, and subsystem implementations.
 
 - [ ] **Step 2: Rename the logical enum and planner**
 
-In `ImmersiveMap/Rendering/Architecture/Contracts/RenderPass.swift`, replace the current logical pass declarations with:
+In `ImmersiveMap/Render/Architecture/Contracts/RenderPass.swift`, replace the current logical pass declarations with:
 
 ```swift
 enum RenderLayer: String, CaseIterable {
@@ -120,7 +120,7 @@ struct RenderLayerPlanner {
 
 - [ ] **Step 3: Update subsystem contract**
 
-In `ImmersiveMap/Rendering/Architecture/Contracts/RenderSubsystem.swift`, change the encode signature to:
+In `ImmersiveMap/Render/Architecture/Contracts/RenderSubsystem.swift`, change the encode signature to:
 
 ```swift
 func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: FrameContext)
@@ -128,7 +128,7 @@ func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: 
 
 - [ ] **Step 4: Update subsystem registry**
 
-In `ImmersiveMap/Rendering/Architecture/Subsystems/Infrastructure/RenderSubsystemRegistry.swift`, change:
+In `ImmersiveMap/Render/Architecture/Subsystems/Infrastructure/RenderSubsystemRegistry.swift`, change:
 
 ```swift
 func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
@@ -159,7 +159,7 @@ func encode(layer _: RenderLayer, encoder _: MTLRenderCommandEncoder, frameConte
 
 - [ ] **Step 6: Update diagnostics terminology**
 
-In `ImmersiveMap/Rendering/Architecture/Diagnostics/FrameDiagnostics.swift`, rename `passDurations` to `layerDurations` and `recordPass` to `recordLayer`:
+In `ImmersiveMap/Render/Architecture/Diagnostics/FrameDiagnostics.swift`, rename `passDurations` to `layerDurations` and `recordPass` to `recordLayer`:
 
 ```swift
 private(set) var layerDurations: [RenderLayer: TimeInterval] = [:]
@@ -173,7 +173,7 @@ Update `summaryLine()` to print layer durations using the new property name.
 
 - [ ] **Step 7: Update graph and encoder call sites**
 
-In `ImmersiveMap/Rendering/RenderGraph.swift`:
+In `ImmersiveMap/Render/RenderGraph.swift`:
 
 ```swift
 func encode(layer: RenderLayer,
@@ -185,7 +185,7 @@ func encode(layer: RenderLayer,
 }
 ```
 
-In `ImmersiveMap/New/Render/RenderFramePassEncoder.swift`, temporarily keep the same single Metal encoder behavior but use:
+In `ImmersiveMap/Render/RenderFramePassEncoder.swift`, temporarily keep the same single Metal encoder behavior but use:
 
 ```swift
 let layerPlan = RenderLayerPlanner.plan(availability: passAvailability)
@@ -206,7 +206,7 @@ frameContext.diagnostics.recordLayer(planItem.layer,
 Run:
 
 ```bash
-rg -n "RenderPassPlanner|RenderPassPlanItem|encode\\(pass:|recordPass|passDurations" ImmersiveMap/Rendering ImmersiveMap/New/Render -S
+rg -n "RenderPassPlanner|RenderPassPlanItem|encode\\(pass:|recordPass|passDurations" ImmersiveMap/Render ImmersiveMap/Render -S
 ```
 
 Expected: no matches. Matches for `RenderPassAvailability` are expected and should remain.
@@ -226,11 +226,11 @@ Expected: `** BUILD SUCCEEDED **`.
 ### Task 2: Add Real Metal Render Pass Node Types
 
 **Files:**
-- Create: `ImmersiveMap/Rendering/Architecture/Contracts/RenderPassNode.swift`
+- Create: `ImmersiveMap/Render/Architecture/Contracts/RenderPassNode.swift`
 
 - [ ] **Step 1: Create pass node contracts**
 
-Create `ImmersiveMap/Rendering/Architecture/Contracts/RenderPassNode.swift`:
+Create `ImmersiveMap/Render/Architecture/Contracts/RenderPassNode.swift`:
 
 ```swift
 // Copyright (c) 2025-2026 Artem Bobkin.
@@ -272,11 +272,11 @@ Expected: `** BUILD SUCCEEDED **`.
 ### Task 3: Introduce RenderPassGraph For Ordered Metal Passes
 
 **Files:**
-- Create: `ImmersiveMap/Rendering/RenderPassGraph.swift`
+- Create: `ImmersiveMap/Render/RenderPassGraph.swift`
 
 - [ ] **Step 1: Create `RenderPassGraph.swift`**
 
-Create `ImmersiveMap/Rendering/RenderPassGraph.swift`:
+Create `ImmersiveMap/Render/RenderPassGraph.swift`:
 
 ```swift
 // Copyright (c) 2025-2026 Artem Bobkin.
@@ -376,7 +376,7 @@ final class RenderPassGraph {
 
 - [ ] **Step 2: Add `buildingWinner` layer**
 
-In `ImmersiveMap/Rendering/Architecture/Contracts/RenderPass.swift`, add:
+In `ImmersiveMap/Render/Architecture/Contracts/RenderPass.swift`, add:
 
 ```swift
 case buildingWinner
@@ -401,14 +401,14 @@ Expected: FAIL because no subsystem encodes `.buildingWinner` yet or because exh
 ### Task 4: Move Building Winner To A Normal Render Layer
 
 **Files:**
-- Create: `ImmersiveMap/Rendering/Architecture/Subsystems/Scene/BuildingWinnerRenderSubsystem.swift`
-- Modify: `ImmersiveMap/Rendering/Drawers/RendererSceneDrawer.swift`
-- Modify: `ImmersiveMap/Rendering/RenderGraphFactory.swift`
-- Delete later: `ImmersiveMap/Rendering/Architecture/Subsystems/Scene/BuildingWinnerPrePass.swift`
+- Create: `ImmersiveMap/Render/Architecture/Subsystems/Scene/BuildingWinnerRenderSubsystem.swift`
+- Modify: `ImmersiveMap/Render/Drawers/RendererSceneDrawer.swift`
+- Modify: `ImmersiveMap/Render/RenderGraphFactory.swift`
+- Delete later: `ImmersiveMap/Render/Architecture/Subsystems/Scene/BuildingWinnerPrePass.swift`
 
 - [ ] **Step 1: Extract winner draw body**
 
-In `ImmersiveMap/Rendering/Drawers/RendererSceneDrawer.swift`, replace the current `drawExtrudedWinnerPass(commandBuffer:...)` method with:
+In `ImmersiveMap/Render/Drawers/RendererSceneDrawer.swift`, replace the current `drawExtrudedWinnerPass(commandBuffer:...)` method with:
 
 ```swift
 static func drawExtrudedWinnerLayer(renderEncoder: MTLRenderCommandEncoder,
@@ -430,7 +430,7 @@ static func drawExtrudedWinnerLayer(renderEncoder: MTLRenderCommandEncoder,
 
 - [ ] **Step 2: Add building winner subsystem**
 
-Create `ImmersiveMap/Rendering/Architecture/Subsystems/Scene/BuildingWinnerRenderSubsystem.swift`:
+Create `ImmersiveMap/Render/Architecture/Subsystems/Scene/BuildingWinnerRenderSubsystem.swift`:
 
 ```swift
 // Copyright (c) 2025-2026 Artem Bobkin.
@@ -476,7 +476,7 @@ final class BuildingWinnerRenderSubsystem: RenderSubsystem {
 
 - [ ] **Step 3: Register subsystem in factory**
 
-In `ImmersiveMap/Rendering/RenderGraphFactory.swift`, replace:
+In `ImmersiveMap/Render/RenderGraphFactory.swift`, replace:
 
 ```swift
 let buildingWinnerPrePass = BuildingWinnerPrePass(extrudedTilePipeline: context.extrudedTilePipeline,
@@ -509,12 +509,12 @@ Expected: may still fail if old `BuildingWinnerPrePass` references the removed `
 ### Task 5: Execute RenderPassGraph In RenderFramePassEncoder
 
 **Files:**
-- Modify: `ImmersiveMap/New/Render/RenderFramePassEncoder.swift`
-- Modify: `ImmersiveMap/Rendering/Architecture/Diagnostics/FrameDiagnostics.swift`
+- Modify: `ImmersiveMap/Render/RenderFramePassEncoder.swift`
+- Modify: `ImmersiveMap/Render/Architecture/Diagnostics/FrameDiagnostics.swift`
 
 - [ ] **Step 1: Add pass graph dependency**
 
-In `ImmersiveMap/New/Render/RenderFramePassEncoder.swift`, add:
+In `ImmersiveMap/Render/RenderFramePassEncoder.swift`, add:
 
 ```swift
 private let passGraph = RenderPassGraph()
@@ -558,7 +558,7 @@ return drawable
 
 - [ ] **Step 3: Add metal pass diagnostics**
 
-In `ImmersiveMap/Rendering/Architecture/Diagnostics/FrameDiagnostics.swift`, add:
+In `ImmersiveMap/Render/Architecture/Diagnostics/FrameDiagnostics.swift`, add:
 
 ```swift
 private(set) var metalPassDurations: [RenderPassName: TimeInterval] = [:]
@@ -585,15 +585,15 @@ Expected: compile errors only from obsolete `RenderFramePrePass` / `BuildingWinn
 ### Task 6: Remove RenderFramePrePass And Old Descriptor Factory Usage
 
 **Files:**
-- Modify: `ImmersiveMap/Rendering/RenderGraph.swift`
-- Modify: `ImmersiveMap/Rendering/RenderGraphFactory.swift`
-- Delete: `ImmersiveMap/Rendering/Architecture/Contracts/RenderFramePrePass.swift`
-- Delete: `ImmersiveMap/Rendering/Architecture/Subsystems/Scene/BuildingWinnerPrePass.swift`
-- Modify: `ImmersiveMap/Rendering/Drawers/RendererPassEncoderFactory.swift`
+- Modify: `ImmersiveMap/Render/RenderGraph.swift`
+- Modify: `ImmersiveMap/Render/RenderGraphFactory.swift`
+- Delete: `ImmersiveMap/Render/Architecture/Contracts/RenderFramePrePass.swift`
+- Delete: `ImmersiveMap/Render/Architecture/Subsystems/Scene/BuildingWinnerPrePass.swift`
+- Modify: `ImmersiveMap/Render/Drawers/RendererPassEncoderFactory.swift`
 
 - [ ] **Step 1: Remove pre-pass storage from RenderGraph**
 
-In `ImmersiveMap/Rendering/RenderGraph.swift`, remove:
+In `ImmersiveMap/Render/RenderGraph.swift`, remove:
 
 ```swift
 private let prePasses: [any RenderFramePrePass]
@@ -616,7 +616,7 @@ Remove pre-pass calls from `handleMemoryWarning()` and `evict()`.
 
 - [ ] **Step 2: Update graph factory initializer call**
 
-In `ImmersiveMap/Rendering/RenderGraphFactory.swift`, change:
+In `ImmersiveMap/Render/RenderGraphFactory.swift`, change:
 
 ```swift
 return RenderGraph(registry: RenderSubsystemRegistry(subsystems: subsystems),
@@ -636,13 +636,13 @@ return RenderGraph(registry: RenderSubsystemRegistry(subsystems: subsystems),
 Delete:
 
 ```text
-ImmersiveMap/Rendering/Architecture/Contracts/RenderFramePrePass.swift
-ImmersiveMap/Rendering/Architecture/Subsystems/Scene/BuildingWinnerPrePass.swift
+ImmersiveMap/Render/Architecture/Contracts/RenderFramePrePass.swift
+ImmersiveMap/Render/Architecture/Subsystems/Scene/BuildingWinnerPrePass.swift
 ```
 
 - [ ] **Step 4: Remove obsolete factory methods**
 
-In `ImmersiveMap/Rendering/Drawers/RendererPassEncoderFactory.swift`, either delete the file if no callers remain, or reduce it to only methods still referenced. Verify with:
+In `ImmersiveMap/Render/Drawers/RendererPassEncoderFactory.swift`, either delete the file if no callers remain, or reduce it to only methods still referenced. Verify with:
 
 ```bash
 rg -n "RendererPassEncoderFactory|makeRenderEncoder|makeBuildingWinnerEncoder" ImmersiveMap -S
@@ -665,7 +665,7 @@ Expected: `** BUILD SUCCEEDED **`.
 ### Task 7: Publish Winner Textures From RenderPassGraph
 
 **Files:**
-- Modify: `ImmersiveMap/Rendering/RenderPassGraph.swift`
+- Modify: `ImmersiveMap/Render/RenderPassGraph.swift`
 
 - [ ] **Step 1: Register building winner textures**
 
@@ -707,7 +707,7 @@ Expected: `** BUILD SUCCEEDED **`.
 Run:
 
 ```bash
-rg -n "enum RenderPass|RenderPassPlanner|RenderPassPlanItem|encode\\(pass:|RenderFramePrePass|BuildingWinnerPrePass|makeBuildingWinnerEncoder|makeRenderEncoder" ImmersiveMap/Rendering ImmersiveMap/New/Render -S
+rg -n "enum RenderPass|RenderPassPlanner|RenderPassPlanItem|encode\\(pass:|RenderFramePrePass|BuildingWinnerPrePass|makeBuildingWinnerEncoder|makeRenderEncoder" ImmersiveMap/Render ImmersiveMap/Render -S
 ```
 
 Expected: no matches.
@@ -717,7 +717,7 @@ Expected: no matches.
 Run:
 
 ```bash
-rg -n "RenderLayer|RenderPassNode|RenderPassGraph|RenderPassName|recordMetalPass|recordLayer" ImmersiveMap/Rendering ImmersiveMap/New/Render -S
+rg -n "RenderLayer|RenderPassNode|RenderPassGraph|RenderPassName|recordMetalPass|recordLayer" ImmersiveMap/Render ImmersiveMap/Render -S
 ```
 
 Expected: matches in contracts, graph, frame encoder, diagnostics, and subsystem implementations.

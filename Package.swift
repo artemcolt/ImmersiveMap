@@ -6,7 +6,8 @@ let package = Package(
     name: "ImmersiveMap",
     platforms: [
         .iOS(.v18),
-        .macCatalyst(.v18)
+        .macCatalyst(.v18),
+        .macOS(.v12)
     ],
     products: [
         .library(
@@ -27,17 +28,19 @@ let package = Package(
             ],
             path: "ImmersiveMap",
             resources: [
-                .process("Avatars/Shaders"),
-                .process("Avatars/resources"),
-                .process("Globe/Shaders"),
-                .process("Labels/Shaders"),
-                .process("Labels/Text/resources"),
-                .process("Rendering/Compute/TilePoints/TilePointToScreen.metal"),
-                .process("Rendering/Debug/Shaders"),
-                .process("Rendering/Shaders/Shared/GeoMath.metal"),
-                .process("Tile/Shaders"),
-                .process("Trees/Shaders"),
-                .process("Trees/resources"),
+                .process("Render/Avatars/Resources/avatar_marker_sdf.json"),
+                .process("Render/Avatars/Resources/avatar_marker_sdf.png"),
+                .process("Render/Avatars/Shaders"),
+                .process("Render/Labels/Compute/Shaders"),
+                .process("Render/Labels/Shaders"),
+                .process("Render/Text/Shaders"),
+                .process("Text/Resources"),
+                .process("Render/Shaders/Globe"),
+                .process("Render/Shaders/Starfield"),
+                .process("Render/Compute/TilePoints/Shaders/TilePointToScreen.metal"),
+                .process("Render/Debug/Shaders"),
+                .process("Render/Shaders/Shared/GeoMath.metal"),
+                .process("Render/Tiles/Shaders"),
                 .copy("Proto/vector_tile.proto")
             ]
         ),

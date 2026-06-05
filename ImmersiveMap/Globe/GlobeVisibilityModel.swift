@@ -9,7 +9,7 @@
 import simd
 
 struct GlobeVisibilityInputs {
-    let globe: Globe
+    let globe: GlobeUniform
     let cameraEye: SIMD3<Float>
     let globeCenter: SIMD3<Float>
     let transition: Float
@@ -32,7 +32,7 @@ struct GlobeTileStaticVisibilityBound {
 enum GlobeVisibilityModel {
     private static let staticBoundsCache = GlobeTileStaticBoundsCache()
 
-    static func makeInputs(globe: Globe,
+    static func makeInputs(globe: GlobeUniform,
                            cameraEye: SIMD3<Float>) -> GlobeVisibilityInputs {
         let panLatitude = Float(globe.panY) * Float(ImmersiveMapProjection.maxMercatorLatitude)
         let panLongitude = Float(globe.panX) * Float.pi
@@ -130,7 +130,7 @@ enum GlobeVisibilityModel {
                                               radiusScale: 2.0 * sin(maxAngle * 0.5))
     }
 
-    private static func horizonThreshold(globe: Globe) -> Float {
+    private static func horizonThreshold(globe: GlobeUniform) -> Float {
         globe.radius * globe.radius
     }
 

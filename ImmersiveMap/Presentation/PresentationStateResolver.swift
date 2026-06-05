@@ -4,62 +4,6 @@
 import Foundation
 import simd
 
-enum ScreenSpaceProjectionMode {
-    case globe
-    case flat
-}
-
-struct ImmersiveMapPresentationState {
-    var transition: Float
-}
-
-struct SemanticWorldState {
-    let cameraState: ImmersiveMapCameraState
-}
-
-struct RenderNormalizationState {
-    let zoomScale: Double
-    let globeRenderRadius: Double
-    let flatRenderMapSize: Double
-}
-
-struct GlobeRenderState {
-    var pan: SIMD2<Double>
-    var renderRadius: Double
-    var globeUniform: Globe
-}
-
-struct FlatRenderState {
-    var pan: SIMD2<Double>
-    var renderMapSize: Double
-}
-
-struct ResolvedPresentationState {
-    let semanticWorldState: SemanticWorldState
-    let presentationState: ImmersiveMapPresentationState
-    let renderNormalizationState: RenderNormalizationState
-    let renderSurfaceMode: ViewMode
-    let screenSpaceProjectionMode: ScreenSpaceProjectionMode
-    let globeRenderState: GlobeRenderState
-    let flatRenderState: FlatRenderState
-
-    var transition: Float {
-        presentationState.transition
-    }
-
-    var globeRenderUniform: Globe {
-        globeRenderState.globeUniform
-    }
-
-    var cameraState: ImmersiveMapCameraState {
-        semanticWorldState.cameraState
-    }
-
-    var flatProjectionInputsEnabled: Bool {
-        screenSpaceProjectionMode == .flat
-    }
-}
-
 struct PresentationStateResolver {
     static func resolve(cameraState: ImmersiveMapCameraState,
                         renderSurfaceMode: ViewMode) -> ResolvedPresentationState {
@@ -89,7 +33,7 @@ struct PresentationStateResolver {
         let globePan = ImmersiveMapProjection.globePan(fromCenterWorldMercator: cameraState.centerWorldMercator)
         let flatPan = ImmersiveMapProjection.flatPan(fromCenterWorldMercator: cameraState.centerWorldMercator)
 
-        let globe = Globe(panX: Float(globePan.x),
+        let globe = GlobeUniform(panX: Float(globePan.x),
                           panY: Float(globePan.y),
                           radius: Float(globeRenderRadius),
                           transition: transition)
