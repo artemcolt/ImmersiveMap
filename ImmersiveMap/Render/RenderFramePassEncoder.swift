@@ -65,7 +65,8 @@ final class RenderFramePassEncoder {
 
     private func recordDisabledLayerSkips(settings: ImmersiveMapSettings,
                                           frameContext: FrameContext) {
-        let passAvailability = renderGraph.passAvailability(settings: settings)
+        let passAvailability = renderGraph.passAvailability(settings: settings,
+                                                            renderSurfaceMode: frameContext.renderSurfaceMode)
         let layerPlan = RenderLayerPlanner.plan(availability: passAvailability)
         for planItem in layerPlan where planItem.enabled == false {
             if let reason = planItem.skipReason {

@@ -73,7 +73,8 @@ final class RenderPassGraph {
 
         let clearColor = RenderFrameClearColor.make(transition: frameContext.transition,
                                                     settings: settings)
-        let layerAvailability = renderGraph.passAvailability(settings: settings)
+        let layerAvailability = renderGraph.passAvailability(settings: settings,
+                                                             renderSurfaceMode: frameContext.renderSurfaceMode)
         let layerPlan = RenderLayerPlanner.plan(availability: layerAvailability)
             .filter(\.enabled)
             .map(\.layer)

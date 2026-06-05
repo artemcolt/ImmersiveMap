@@ -27,22 +27,21 @@ enum RenderGraphFactory {
                                                     depthDisabledState: context.depthDisabledState)
         let buildingWinnerSubsystem = BuildingWinnerRenderSubsystem(extrudedTilePipeline: context.extrudedTilePipeline,
                                                                     extrudedDepthState: context.extrudedDepthState)
-        let commonViewSceneSubsystem = CommonViewSceneRenderSubsystem(depthDisabledState: context.depthDisabledState)
-        let globeViewSceneSubsystem = GlobeViewSceneRenderSubsystem(starfieldRenderer: context.starfieldRenderer,
-                                                                    globeDepthState: context.extrudedDepthState,
-                                                                    globeCapDepthState: context.globeCapDepthState,
-                                                                    depthDisabledState: context.depthDisabledState,
-                                                                    globeCapRenderer: context.globeCapRenderer,
-                                                                    globePipeline: context.globePipeline,
-                                                                    mapSurfaceGridBuffers: context.mapSurfaceGridBuffers,
-                                                                    tilesTexture: context.tilesTexture)
-        let flatViewSceneSubsystem = FlatViewSceneRenderSubsystem(tilePipeline: context.tilePipeline,
-                                                                  separateRoadRenderingMinimumZoom: settings.style.flatSeparateRoadRenderingMinimumZoom,
-                                                                  buildingExtrusionAlpha: settings.style.buildingExtrusionAlpha,
-                                                                  buildingWinnerIDTextureProvider: buildingWinnerIDTextureProvider,
-                                                                  extrudedTilePipeline: context.extrudedTilePipeline,
-                                                                  extrudedColorPassDepthState: context.extrudedColorPassDepthState,
-                                                                  depthDisabledState: context.depthDisabledState)
+        let flatMapSurfaceSubsystem = FlatMapSurfaceRenderSubsystem(tilePipeline: context.tilePipeline,
+                                                                    separateRoadRenderingMinimumZoom: settings.style.flatSeparateRoadRenderingMinimumZoom)
+        let buildingExtrusionSubsystem = BuildingExtrusionRenderSubsystem(buildingExtrusionAlpha: settings.style.buildingExtrusionAlpha,
+                                                                          buildingWinnerIDTextureProvider: buildingWinnerIDTextureProvider,
+                                                                          extrudedTilePipeline: context.extrudedTilePipeline,
+                                                                          extrudedColorPassDepthState: context.extrudedColorPassDepthState,
+                                                                          depthDisabledState: context.depthDisabledState)
+        let starfieldSubsystem = StarfieldRenderSubsystem(starfieldRenderer: context.starfieldRenderer)
+        let globeSurfaceSubsystem = GlobeSurfaceRenderSubsystem(globeDepthState: context.extrudedDepthState,
+                                                                globePipeline: context.globePipeline,
+                                                                mapSurfaceGridBuffers: context.mapSurfaceGridBuffers,
+                                                                tilesTexture: context.tilesTexture)
+        let globeCapSubsystem = GlobeCapRenderSubsystem(globeCapDepthState: context.globeCapDepthState,
+                                                        depthDisabledState: context.depthDisabledState,
+                                                        globeCapRenderer: context.globeCapRenderer)
         let debugSubsystem = DebugOverlayRenderSubsystem(polygonPipeline: context.polygonPipeline,
                                                          debugOverlayRenderer: context.debugOverlayRenderer,
                                                          textRenderer: context.textRenderer)
@@ -56,9 +55,11 @@ enum RenderGraphFactory {
             roadLabelDrawSubsystem,
             avatarSubsystem,
             buildingWinnerSubsystem,
-            commonViewSceneSubsystem,
-            globeViewSceneSubsystem,
-            flatViewSceneSubsystem,
+            flatMapSurfaceSubsystem,
+            buildingExtrusionSubsystem,
+            starfieldSubsystem,
+            globeSurfaceSubsystem,
+            globeCapSubsystem,
             debugSubsystem
         ]
         let availabilityProviders: [any RenderPassAvailabilityProvider] = [

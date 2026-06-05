@@ -18,8 +18,9 @@ final class RenderGraph {
         self.resourceRegistry = resourceRegistry
     }
 
-    func passAvailability(settings: ImmersiveMapSettings) -> RenderPassAvailability {
-        var builder = RenderPassAvailabilityBuilder()
+    func passAvailability(settings: ImmersiveMapSettings,
+                          renderSurfaceMode: ViewMode) -> RenderPassAvailability {
+        var builder = RenderPassAvailabilityBuilder(renderSurfaceMode: renderSurfaceMode)
         for provider in availabilityProviders {
             provider.contributePassAvailability(settings: settings,
                                                 builder: &builder)

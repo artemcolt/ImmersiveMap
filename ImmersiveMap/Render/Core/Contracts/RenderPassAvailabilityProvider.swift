@@ -7,12 +7,15 @@ protocol RenderPassAvailabilityProvider: AnyObject {
 }
 
 struct RenderPassAvailabilityBuilder {
+    let renderSurfaceMode: ViewMode
+
     var labelsEnabled: Bool = false
     var avatarsEnabled: Bool = false
     var debugOverlayEnabled: Bool = false
 
     func build() -> RenderPassAvailability {
-        RenderPassAvailability(labelsEnabled: labelsEnabled,
+        RenderPassAvailability(renderSurfaceMode: renderSurfaceMode,
+                               labelsEnabled: labelsEnabled,
                                avatarsEnabled: avatarsEnabled,
                                debugOverlayEnabled: debugOverlayEnabled)
     }

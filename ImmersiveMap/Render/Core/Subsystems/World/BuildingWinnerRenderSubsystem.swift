@@ -25,12 +25,12 @@ final class BuildingWinnerRenderSubsystem: RenderSubsystem {
             return
         }
 
-        RendererSceneDrawer.drawExtrudedWinnerLayer(renderEncoder: encoder,
-                                                    cameraUniform: frameContext.cameraUniform,
-                                                    placeTilesContext: frameContext.sharedState.tilePlacementState.placeTilesContext,
-                                                    flatRenderState: frameContext.resolvedPresentation.flatRenderState,
-                                                    extrudedTilePipeline: extrudedTilePipeline,
-                                                    extrudedDepthState: extrudedDepthState)
+        BuildingExtrusionDrawer.drawWinnerLayer(renderEncoder: encoder,
+                                                cameraUniform: frameContext.cameraUniform,
+                                                placeTilesContext: frameContext.sharedState.tilePlacementState.placeTilesContext,
+                                                flatRenderState: frameContext.resolvedPresentation.flatRenderState,
+                                                extrudedTilePipeline: extrudedTilePipeline,
+                                                extrudedDepthState: extrudedDepthState)
     }
 
     func handleMemoryWarning() {}

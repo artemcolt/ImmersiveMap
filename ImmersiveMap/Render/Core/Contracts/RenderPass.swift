@@ -10,7 +10,11 @@ import Foundation
 
 enum RenderLayer: String, CaseIterable {
     case buildingWinner
-    case scene
+    case starfield
+    case globeSurface
+    case globeCap
+    case flatMapSurface
+    case buildingExtrusion
     case labels
     case avatars
     case debugOverlay
@@ -30,6 +34,7 @@ enum RenderSkipReason: String, CaseIterable, Hashable {
 }
 
 struct RenderPassAvailability {
+    let renderSurfaceMode: ViewMode
     let labelsEnabled: Bool
     let avatarsEnabled: Bool
     let debugOverlayEnabled: Bool
@@ -43,8 +48,16 @@ struct RenderLayerPlanItem {
 
 struct RenderLayerPlanner {
     static func plan(availability: RenderPassAvailability) -> [RenderLayerPlanItem] {
-        [
-            RenderLayerPlanItem(layer: .scene, enabled: true, skipReason: nil),
+        let worldLayers: [RenderLayer] = switch availability.renderSurfaceMode {
+        case .flat:
+            [.flatMapSurface, .buildingExtrusion]
+        case .spherical:
+            [.starfield, .globeSurface, .globeCap]
+        }
+
+        return worldLayers.map {
+            RenderLayerPlanItem(layer: $0, enabled: true, skipReason: nil)
+        } + [
             RenderLayerPlanItem(layer: .labels,
                                 enabled: availability.labelsEnabled,
                                 skipReason: availability.labelsEnabled ? nil : .noLabelContent),
