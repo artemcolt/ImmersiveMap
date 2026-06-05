@@ -4,7 +4,7 @@
 /// Хранит текущий surface mode карты и резолвит presentation state для frame pipeline.
 final class MapPresentationStateResolver {
     private var settings: ImmersiveMapSettings
-    private(set) var renderSurfaceMode: ViewMode = .spherical
+    private var forcedRenderSurfaceMode: ViewMode?
 
     init(settings: ImmersiveMapSettings) {
         self.settings = settings
@@ -17,19 +17,32 @@ final class MapPresentationStateResolver {
     func resolve(cameraState: ImmersiveMapCameraState) -> ResolvedPresentationState {
         PresentationStateResolver.resolve(cameraState: cameraState,
                                           settings: settings.presentation,
-                                          renderSurfaceMode: renderSurfaceMode)
+                                          forcedRenderSurfaceMode: forcedRenderSurfaceMode)
     }
 
-    func switchRenderSurfaceMode() {
-        switch renderSurfaceMode {
+    func switchRenderSurfaceMode(cameraState: ImmersiveMapCameraState) {
+        guard forcedRenderSurfaceMode == nil else {
+            forcedRenderSurfaceMode = nil
+            return
+        }
+
+        let resolvedPresentation = resolve(cameraState: cameraState)
+
+        switch resolvedPresentation.renderSurfaceMode {
         case .spherical:
-            renderSurfaceMode = .flat
+            forcedRenderSurfaceMode = .flat
         case .flat:
-            renderSurfaceMode = .spherical
+            forcedRenderSurfaceMode = .spherical
         }
     }
 
-    func isSphericalSurfaceActive() -> Bool {
-        renderSurfaceMode == .spherical
+    func isSphericalSurfaceActive(cameraState: ImmersiveMapCameraState) -> Bool {
+        resolve(cameraState: cameraState).renderSurfaceMode == .spherical
+    }
+
+    func cameraConstraints(cameraState: ImmersiveMapCameraState) -> RenderCameraConstraints {
+        RenderCameraConstraintResolver.resolve(cameraState: cameraState,
+                                               cameraSettings: settings.camera,
+                                               renderSurfaceMode: resolve(cameraState: cameraState).renderSurfaceMode)
     }
 }

@@ -94,7 +94,7 @@ struct FrameContext {
         diagnostics: FrameDiagnostics) {
         let fallbackResolvedPresentation = resolvedPresentation ?? PresentationStateResolver.resolve(cameraState: mapCameraState,
                                                                                               settings: ImmersiveMapSettings.default.presentation,
-                                                                                              renderSurfaceMode: .spherical)
+                                                                                              forcedRenderSurfaceMode: nil)
         self.frameIndex = frameIndex
         self.frameSlotIndex = frameSlotIndex
         self.time = time

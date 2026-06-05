@@ -108,11 +108,11 @@ final class ImmersiveMapCameraRuntime {
     }
 
     func isSphericalRenderSurfaceActive() -> Bool {
-        guard renderCamera != nil else {
+        guard let cameraState = renderCamera?.currentCameraState() else {
             return false
         }
 
-        return presentationStateResolver.isSphericalSurfaceActive()
+        return presentationStateResolver.isSphericalSurfaceActive(cameraState: cameraState)
     }
 
     func needsCameraPositionUpdate(_ cameraPosition: ImmersiveMapCameraPosition?) -> Bool {
@@ -157,7 +157,11 @@ final class ImmersiveMapCameraRuntime {
     }
 
     func switchRenderMode() {
-        presentationStateResolver.switchRenderSurfaceMode()
+        guard let cameraState = renderCamera?.currentCameraState() else {
+            return
+        }
+
+        presentationStateResolver.switchRenderSurfaceMode(cameraState: cameraState)
         applyCurrentCameraConstraints()
         syncPitchControlValue()
         renderRuntime.requestFrame()
@@ -259,8 +263,6 @@ final class ImmersiveMapCameraRuntime {
     }
 
     private func currentCameraConstraints(cameraState: ImmersiveMapCameraState) -> RenderCameraConstraints {
-        RenderCameraConstraintResolver.resolve(cameraState: cameraState,
-                                               cameraSettings: settings.camera,
-                                               renderSurfaceMode: presentationStateResolver.renderSurfaceMode)
+        presentationStateResolver.cameraConstraints(cameraState: cameraState)
     }
 }

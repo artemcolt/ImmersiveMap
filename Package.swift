@@ -40,6 +40,11 @@ let package = Package(
                 .process("Trees/resources"),
                 .copy("Proto/vector_tile.proto")
             ]
+        ),
+        .testTarget(
+            name: "ImmersiveMapTests",
+            dependencies: ["ImmersiveMap"],
+            path: "Tests/ImmersiveMapTests"
         )
     ],
     swiftLanguageModes: [.v5]
