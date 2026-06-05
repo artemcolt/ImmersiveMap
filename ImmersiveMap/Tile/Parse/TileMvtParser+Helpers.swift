@@ -189,28 +189,6 @@ extension TileMvtParser {
         return nil
     }
 
-    func parseDoubleValue(_ value: VectorTile_Tile.Value) -> Double? {
-        if value.hasDoubleValue {
-            return value.doubleValue
-        }
-        if value.hasFloatValue {
-            return Double(value.floatValue)
-        }
-        if value.hasIntValue {
-            return Double(value.intValue)
-        }
-        if value.hasSintValue {
-            return Double(value.sintValue)
-        }
-        if value.hasUintValue {
-            return Double(value.uintValue)
-        }
-        if value.hasStringValue {
-            return Double(value.stringValue)
-        }
-        return nil
-    }
-
     func isTruthy(_ value: VectorTile_Tile.Value?) -> Bool {
         guard let value = value else { return false }
         return parseBoolValue(value) ?? false

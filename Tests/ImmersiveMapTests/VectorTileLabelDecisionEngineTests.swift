@@ -474,6 +474,30 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         XCTAssertEqual(decision?.style.sizePx, style.sizePx)
     }
 
+    func testTextLabelCanUseDecisionRuntimeKey() {
+        let style = LabelTextStyle(key: 31,
+                                   fillColor: SIMD3<Float>(0.1, 0.2, 0.3),
+                                   strokeColor: SIMD3<Float>(1, 1, 1),
+                                   strokeWidthPx: 2,
+                                   sizePx: 24,
+                                   weight: .bold)
+        let identity = VectorTileLabelIdentity.tileLocal(tile: Tile(x: 1, y: 2, z: 3),
+                                                         layerName: "poi_label",
+                                                         text: "Cafe",
+                                                         anchor: SIMD2<Int16>(120, 240))
+
+        let label = TileMvtParser.TextLabel(text: "Cafe",
+                                            position: SIMD2<Int16>(120, 240),
+                                            key: identity.runtimeKey,
+                                            sortKey: 50,
+                                            collisionPriority: 200_050,
+                                            textStyle: style)
+
+        XCTAssertEqual(label.key, identity.runtimeKey)
+        XCTAssertEqual(label.sortKey, 50)
+        XCTAssertEqual(label.collisionPriority, 200_050)
+    }
+
     private func stringValue(_ value: String) -> VectorTile_Tile.Value {
         var tileValue = VectorTile_Tile.Value()
         tileValue.stringValue = value

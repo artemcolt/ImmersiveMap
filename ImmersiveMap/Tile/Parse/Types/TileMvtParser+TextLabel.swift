@@ -12,7 +12,7 @@ extension TileMvtParser {
         let collisionPriority: Int
         let textStyle: LabelTextStyle
         let poiIcon: PoiSpriteIcon?
-        
+
         init(text: String,
              position: SIMD2<Int16>,
              tile: Tile,
@@ -30,6 +30,22 @@ extension TileMvtParser {
                                                        featureId: featureId,
                                                        hasFeatureId: hasFeatureId,
                                                        layerName: layerName)
+            self.sortKey = sortKey
+            self.collisionPriority = collisionPriority
+            self.textStyle = textStyle
+            self.poiIcon = poiIcon
+        }
+
+        init(text: String,
+             position: SIMD2<Int16>,
+             key: UInt64,
+             sortKey: Int,
+             collisionPriority: Int,
+             textStyle: LabelTextStyle,
+             poiIcon: PoiSpriteIcon? = nil) {
+            self.text = text
+            self.position = position
+            self.key = key
             self.sortKey = sortKey
             self.collisionPriority = collisionPriority
             self.textStyle = textStyle
