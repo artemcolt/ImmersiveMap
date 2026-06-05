@@ -124,9 +124,359 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         XCTAssertNotEqual(first.runtimeKey, second.runtimeKey)
     }
 
+    func testMapboxProfileExcludesRoadAndTransitPointLabelLayers() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "road_label",
+                                                      properties: [:],
+                                                      tileZoom: 15,
+                                                      sortKey: 0))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "transit_stop_label",
+                                                      properties: [:],
+                                                      tileZoom: 15,
+                                                      sortKey: 0))
+    }
+
+    func testMapboxProfileAllowsHouseNumberAtConfiguredZoom() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "housenum_label",
+                                                      properties: [:],
+                                                      tileZoom: 14,
+                                                      sortKey: 0))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "housenum_label",
+                                                     properties: [:],
+                                                     tileZoom: 15,
+                                                     sortKey: 0))
+    }
+
+    func testMapboxProfilePushesPoiCollisionBehindSettlementCollision() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertLessThan(profile.collisionRank(layerName: "place_label", sortKey: 50),
+                          profile.collisionRank(layerName: "poi_label", sortKey: 50))
+    }
+
+    func testMapboxProfileSortKeyUsesRankKeyPrecedence() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertEqual(profile.sortKey(properties: [
+            "symbolrank": intValue(4),
+            "rank": intValue(1),
+            "labelrank": intValue(2)
+        ]), 49)
+    }
+
+    func testMapboxProfileSortKeyParsesNumericRankValues() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let rankValues: [(String, VectorTile_Tile.Value)] = [
+            ("string", stringValue("7")),
+            ("uint", uintValue(7)),
+            ("int", intValue(7)),
+            ("sint", sintValue(7)),
+            ("float", floatValue(7.8)),
+            ("double", doubleValue(7.8))
+        ]
+
+        for (description, rankValue) in rankValues {
+            XCTAssertEqual(profile.sortKey(properties: ["symbolrank": rankValue]),
+                           79,
+                           description)
+        }
+    }
+
+    func testMapboxProfileSortKeyUsesMaximumPopulationBoost() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertEqual(profile.sortKey(properties: [
+            "symbolrank": intValue(20),
+            "population": doubleValue(10),
+            "pop_max": doubleValue(1_000_000)
+        ]), 149)
+    }
+
+    func testMapboxProfileSortKeyAppliesCapitalBoostForTruthyValues() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let capitalValues: [(String, VectorTile_Tile.Value)] = [
+            ("bool", boolValue(true)),
+            ("string", stringValue("yes")),
+            ("int", intValue(1))
+        ]
+
+        for (description, capitalValue) in capitalValues {
+            XCTAssertEqual(profile.sortKey(properties: [
+                "symbolrank": intValue(20),
+                "capital": capitalValue
+            ]), 179, description)
+        }
+    }
+
+    func testMapboxProfileBuildsProviderFeatureIdentityWhenFeatureIDExists() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let feature = VectorTileLabelFeature(providerID: "mapbox",
+                                             tile: Tile(x: 10, y: 20, z: 5),
+                                             layerName: "place_label",
+                                             featureID: 42,
+                                             anchor: SIMD2<Int16>(100, 200),
+                                             properties: [:])
+
+        XCTAssertEqual(profile.identity(feature: feature, text: "Moscow", kind: "place"),
+                       .providerFeature(providerID: "mapbox",
+                                        layerName: "place_label",
+                                        featureID: 42))
+    }
+
+    func testMapboxProfileBuildsTileLocalIdentityWhenFeatureIDIsAbsent() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let tile = Tile(x: 10, y: 20, z: 5)
+        let anchor = SIMD2<Int16>(100, 200)
+        let feature = VectorTileLabelFeature(providerID: "mapbox",
+                                             tile: tile,
+                                             layerName: "poi_label",
+                                             featureID: nil,
+                                             anchor: anchor,
+                                             properties: [:])
+
+        XCTAssertEqual(profile.identity(feature: feature, text: "Museum", kind: "poi"),
+                       .tileLocal(tile: tile,
+                                  layerName: "poi_label",
+                                  text: "Museum",
+                                  anchor: anchor))
+    }
+
+    func testMapboxProfileNormalizedKindTrimsLowercasesAndJoinsLayerClassType() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertEqual(profile.normalizedKind(layerName: " POI_Label ",
+                                              properties: [
+                                                  "class": stringValue(" Cafe "),
+                                                  "type": stringValue(" Coffee Shop ")
+                                              ]),
+                       "poi_label:cafe:coffee shop")
+    }
+
+    func testMapboxProfileNormalizedKindSkipsMissingAndEmptyClassType() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertEqual(profile.normalizedKind(layerName: " Place_Label ",
+                                              properties: [
+                                                  "class": stringValue(" "),
+                                                  "type": stringValue("")
+                                              ]),
+                       "place_label")
+    }
+
+    func testMapboxProfileIncludesContinentAndOceanNaturalLabelsOnlyAtLowZoom() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "natural_label",
+                                                     properties: ["class": stringValue("continent")],
+                                                     tileZoom: 2,
+                                                     sortKey: 1_000))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "natural_label",
+                                                      properties: ["class": stringValue("continent")],
+                                                      tileZoom: 3,
+                                                      sortKey: 1_000))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "natural_label",
+                                                     properties: ["type": stringValue("ocean")],
+                                                     tileZoom: 2,
+                                                     sortKey: 1_000))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "natural_label",
+                                                      properties: ["type": stringValue("ocean")],
+                                                      tileZoom: 3,
+                                                      sortKey: 1_000))
+    }
+
+    func testMapboxProfileIncludesCapitalLabelsOnlyInConfiguredZoomRange() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let properties: [String: VectorTile_Tile.Value] = [
+            "class": stringValue("settlement"),
+            "type": stringValue("city"),
+            "capital": boolValue(true)
+        ]
+
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_label",
+                                                     properties: properties,
+                                                     tileZoom: 2,
+                                                     sortKey: 1_000))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: properties,
+                                                      tileZoom: 13,
+                                                      sortKey: 1_000))
+    }
+
+    func testMapboxProfileIncludesPoiLandmarksByMinimumZoomAndThreshold() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let properties: [String: VectorTile_Tile.Value] = ["type": stringValue("museum")]
+
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "poi_label",
+                                                      properties: properties,
+                                                      tileZoom: 14,
+                                                      sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "poi_label",
+                                                     properties: properties,
+                                                     tileZoom: 15,
+                                                     sortKey: 200))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "poi_label",
+                                                      properties: properties,
+                                                      tileZoom: 15,
+                                                      sortKey: 201))
+    }
+
+    func testMapboxProfileIncludesRegularPoiByMinimumZoomAndThreshold() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let properties: [String: VectorTile_Tile.Value] = ["type": stringValue("shop")]
+
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "poi_label",
+                                                      properties: properties,
+                                                      tileZoom: 12,
+                                                      sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "poi_label",
+                                                     properties: properties,
+                                                     tileZoom: 13,
+                                                     sortKey: 60))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "poi_label",
+                                                      properties: properties,
+                                                      tileZoom: 13,
+                                                      sortKey: 61))
+    }
+
+    func testMapboxProfileIncludesAirportLabelsByMinimumZoomAndThreshold() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "airport_label",
+                                                      properties: [:],
+                                                      tileZoom: 7,
+                                                      sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "airport_label",
+                                                     properties: [:],
+                                                     tileZoom: 8,
+                                                     sortKey: 55))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "airport_label",
+                                                      properties: [:],
+                                                      tileZoom: 8,
+                                                      sortKey: 56))
+    }
+
+    func testMapboxProfileIncludesNaturalRiverLikeLabelsByMinimumZoomAndThreshold() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let properties: [String: VectorTile_Tile.Value] = ["class": stringValue("river")]
+
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "natural_label",
+                                                      properties: properties,
+                                                      tileZoom: 8,
+                                                      sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "natural_label",
+                                                     properties: properties,
+                                                     tileZoom: 9,
+                                                     sortKey: 70))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "natural_label",
+                                                      properties: properties,
+                                                      tileZoom: 9,
+                                                      sortKey: 71))
+    }
+
+    func testMapboxProfileIncludesCityLabelsByZoomRangeAndThreshold() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let properties: [String: VectorTile_Tile.Value] = ["type": stringValue("city")]
+
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: properties,
+                                                      tileZoom: 1,
+                                                      sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_label",
+                                                     properties: properties,
+                                                     tileZoom: 2,
+                                                     sortKey: 80))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: properties,
+                                                      tileZoom: 2,
+                                                      sortKey: 81))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: properties,
+                                                      tileZoom: 13,
+                                                      sortKey: 1))
+    }
+
+    func testMapboxProfileIncludesDistrictLabelsByMinimumZoomAndThreshold() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let properties: [String: VectorTile_Tile.Value] = ["type": stringValue("suburb")]
+
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: properties,
+                                                      tileZoom: 8,
+                                                      sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_label",
+                                                     properties: properties,
+                                                     tileZoom: 9,
+                                                     sortKey: 150))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: properties,
+                                                      tileZoom: 9,
+                                                      sortKey: 151))
+    }
+
+    func testMapboxProfileIncludesSmallSettlementsByZoomRangeAndThreshold() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let properties: [String: VectorTile_Tile.Value] = ["type": stringValue("town")]
+
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: properties,
+                                                      tileZoom: 9,
+                                                      sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_label",
+                                                     properties: properties,
+                                                     tileZoom: 10,
+                                                     sortKey: 180))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: properties,
+                                                      tileZoom: 10,
+                                                      sortKey: 181))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: properties,
+                                                      tileZoom: 13,
+                                                      sortKey: 1))
+    }
+
     private func stringValue(_ value: String) -> VectorTile_Tile.Value {
         var tileValue = VectorTile_Tile.Value()
         tileValue.stringValue = value
+        return tileValue
+    }
+
+    private func uintValue(_ value: UInt64) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.uintValue = value
+        return tileValue
+    }
+
+    private func intValue(_ value: Int64) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.intValue = value
+        return tileValue
+    }
+
+    private func sintValue(_ value: Int64) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.sintValue = value
+        return tileValue
+    }
+
+    private func floatValue(_ value: Float) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.floatValue = value
+        return tileValue
+    }
+
+    private func doubleValue(_ value: Double) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.doubleValue = value
+        return tileValue
+    }
+
+    private func boolValue(_ value: Bool) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.boolValue = value
         return tileValue
     }
 }
