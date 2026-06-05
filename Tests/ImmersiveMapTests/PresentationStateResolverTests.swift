@@ -6,7 +6,7 @@ import XCTest
 
 final class PresentationStateResolverTests: XCTestCase {
     func testAutomaticPresentationUsesSphericalSurfaceAtLowZoom() {
-        let resolver = MapPresentationStateResolver(settings: .default)
+        let resolver = MapPresentationStateController(settings: .default)
         let cameraState = ImmersiveMapCameraState(centerWorldMercator: SIMD2<Double>(0.5, 0.5),
                                                   zoom: 5.0,
                                                   bearing: 0,
@@ -20,7 +20,7 @@ final class PresentationStateResolverTests: XCTestCase {
     }
 
     func testAutomaticPresentationUsesFlatSurfaceAtHighZoom() {
-        let resolver = MapPresentationStateResolver(settings: .default)
+        let resolver = MapPresentationStateController(settings: .default)
         let cameraState = ImmersiveMapCameraState(centerWorldMercator: SIMD2<Double>(0.5, 0.5),
                                                   zoom: 7.0,
                                                   bearing: 0,
@@ -34,7 +34,7 @@ final class PresentationStateResolverTests: XCTestCase {
     }
 
     func testSwitchRenderSurfaceModeTemporarilyForcesOppositeSurfaceAndSecondSwitchReturnsToAutomatic() {
-        let resolver = MapPresentationStateResolver(settings: .default)
+        let resolver = MapPresentationStateController(settings: .default)
         let highZoomCameraState = ImmersiveMapCameraState(centerWorldMercator: SIMD2<Double>(0.5, 0.5),
                                                           zoom: 7.0,
                                                           bearing: 0,
