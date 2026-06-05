@@ -27,6 +27,7 @@ let package = Package(
                 .product(name: "SwiftProtobuf", package: "swift-protobuf")
             ],
             path: "ImmersiveMap",
+            exclude: ["VectorTileAdaptation/README.md"],
             resources: [
                 .process("Render/Avatars/Resources/avatar_marker_sdf.json"),
                 .process("Render/Avatars/Resources/avatar_marker_sdf.png"),
