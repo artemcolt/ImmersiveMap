@@ -11,14 +11,6 @@ It provides:
 - Roads, land, water, buildings, labels, POI icons, trees, and avatar markers.
 - Runtime configuration through `MapSettings`.
 
-## Screenshots
-
-<p>
-  <img src="Docs/Screenshots/immersive-map-city.png" alt="ImmersiveMap city view" width="260">
-  <img src="Docs/Screenshots/immersive-map-globe.png" alt="ImmersiveMap globe view" width="260">
-  <img src="Docs/Screenshots/immersive-map-moscow-closeup.png" alt="ImmersiveMap Moscow close-up angled view" width="260">
-</p>
-
 ## Requirements
 
 - iOS 18.0+
@@ -91,7 +83,6 @@ The host apps read optional launch environment variables:
 ```text
 IMMERSIVE_MAP_TILE_BASE_URL=https://example.com/api/v1/map/tiles
 IMMERSIVE_MAP_AUTH_TOKEN=your-token
-IMMERSIVE_MAP_DEMO_MODE=city|globe|moscowCloseup
 ```
 
 Do not commit bearer tokens. Use Xcode scheme environment variables, or launch the installed simulator app with `SIMCTL_CHILD_IMMERSIVE_MAP_AUTH_TOKEN` when you need to test a protected tile server.
@@ -101,7 +92,6 @@ For Mapbox-hosted vector tiles, set these Xcode scheme environment variables ins
 ```text
 IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN=your-mapbox-public-token
 IMMERSIVE_MAP_MAPBOX_TILESET_ID=mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2
-IMMERSIVE_MAP_DEMO_MODE=city|globe|moscowCloseup
 ```
 
 When `IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN` is present, the host apps request tiles from `https://api.mapbox.com/v4/{tileset_id}/{z}/{x}/{y}.mvt?access_token=...`. The default Mapbox tileset ID is `mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2`.

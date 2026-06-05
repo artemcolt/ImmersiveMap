@@ -29,12 +29,11 @@ When the user writes `исследуй` or asks to investigate/research, treat i
 
 ## Current Handoff State
 
-The current in-progress work is adding runnable screenshots and README documentation.
+The current in-progress work is removing host-app demo modes and screenshot README assets.
 
 Uncommitted work expected in this handoff:
 
-- `README.md` includes a new `Screenshots` section and `Xcode Workspace` section.
-- `Docs/Screenshots/immersive-map-city.png`, `Docs/Screenshots/immersive-map-globe.png`, and `Docs/Screenshots/immersive-map-moscow-closeup.png` contain verified screenshots.
+- `README.md` includes the `Xcode Workspace` section without screenshot demo assets.
 - `ImmersiveMap/` contains the Swift Package target sources and resources.
 - `ImmersiveMapIOS/` contains an iOS host app used to run the map.
 - `ImmersiveMapMac/` contains a Mac Catalyst host app used to run the map on Mac.
@@ -79,26 +78,9 @@ IMMERSIVE_MAP_TILE_BASE_URL=https://example.com/api/v1/map/tiles
 IMMERSIVE_MAP_AUTH_TOKEN=your-token
 IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN=your-mapbox-public-token
 IMMERSIVE_MAP_MAPBOX_TILESET_ID=mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2
-IMMERSIVE_MAP_DEMO_MODE=city|globe|moscowCloseup
 ```
 
 If `IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN` is present, the host apps use the Mapbox Vector Tiles API and pass the token as the `access_token` query parameter. Never commit real bearer tokens, stand secrets, database credentials, Mapbox tokens, or generated secret files.
-
-## Screenshot Workflow
-
-After screenshots are captured, place final README images here:
-
-```text
-Docs/Screenshots/immersive-map-city.png
-Docs/Screenshots/immersive-map-globe.png
-Docs/Screenshots/immersive-map-moscow-closeup.png
-```
-
-The existing screenshots were visually checked:
-
-- `immersive-map-city.png`: Moscow city/flat map view with avatar marker.
-- `immersive-map-globe.png`: globe view with starfield/background and avatar marker.
-- `immersive-map-moscow-closeup.png`: high-zoom angled Moscow view with 3D buildings.
 
 ## Validation
 
@@ -119,7 +101,6 @@ Keep README examples generic:
 
 - Use `https://example.com/api/v1/map/tiles` in install/use snippets.
 - Mention bearer token configuration without including real values.
-- Keep screenshots linked as relative paths under `Docs/Screenshots`.
 
 ## Security
 

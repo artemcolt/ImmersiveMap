@@ -15,25 +15,27 @@ struct ImmersiveMapMacApp: App {
 }
 
 struct HostMapScreen: View {
+    private static let initialCameraPosition = ImmersiveMapCameraPosition(
+        latitudeDegrees: 55.7558,
+        longitudeDegrees: 37.6173,
+        zoom: 13.2,
+        bearing: .pi / 10,
+        pitch: .pi / 5
+    )
+
     @State private var camera = ImmersiveMapCameraController()
     @State private var avatars = ImmersiveMapAvatarsController()
-    @State private var mode: PreviewMode = .initial
-    @State private var liveCameraPosition = PreviewMode.initial.cameraPosition
+    @State private var liveCameraPosition = HostMapScreen.initialCameraPosition
 
     var body: some View {
         ZStack {
             ImmersiveMapView(
                 settings: mapSettings,
                 avatarsController: avatars,
-                cameraPosition: mode.cameraPosition,
+                cameraPosition: Self.initialCameraPosition,
                 cameraController: camera
             )
             .ignoresSafeArea()
-
-            modeBadge
-                .padding(.top, 18)
-                .padding(.leading, 18)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             CameraControlPanel(
                 cameraPosition: liveCameraPosition,
@@ -57,7 +59,6 @@ struct HostMapScreen: View {
         }
         .task {
             await seedPreviewMarkers()
-            await cycleCameraForScreenshotsIfNeeded()
         }
     }
 
@@ -90,15 +91,6 @@ struct HostMapScreen: View {
         return configuredTilesetID == legacyDefaultTilesetID ? defaultTilesetID : configuredTilesetID
     }
 
-    private var modeBadge: some View {
-        Text(mode.title)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
     @MainActor
     private func seedPreviewMarkers() async {
         avatars.set([
@@ -118,28 +110,6 @@ struct HostMapScreen: View {
                 speedBadge: AvatarSpeedBadge(kilometersPerHour: 18)
             )
         ])
-    }
-
-    @MainActor
-    private func cycleCameraForScreenshotsIfNeeded() async {
-        guard PreviewMode.shouldAutoCycle else {
-            return
-        }
-
-        try? await Task.sleep(for: .seconds(5))
-        mode = .globe
-        liveCameraPosition = PreviewMode.globe.cameraPosition
-        camera.fly(to: PreviewMode.globe.cameraPosition, options: CameraFlightOptions(duration: 1.2))
-
-        try? await Task.sleep(for: .seconds(5))
-        mode = .city
-        liveCameraPosition = PreviewMode.city.cameraPosition
-        camera.fly(to: PreviewMode.city.cameraPosition, options: CameraFlightOptions(duration: 1.0))
-
-        try? await Task.sleep(for: .seconds(5))
-        mode = .moscowCloseup
-        liveCameraPosition = PreviewMode.moscowCloseup.cameraPosition
-        camera.fly(to: PreviewMode.moscowCloseup.cameraPosition, options: CameraFlightOptions(duration: 1.0))
     }
 
     private static func markerImage(fill: UIColor) -> UIImage {
@@ -501,60 +471,5 @@ private extension ImmersiveMapCameraPosition {
             pitch: CameraControlMath.pitchRadians(fromDegrees: pitchDegrees,
                                                   maximumPitchDegrees: maximumPitchDegrees)
         )
-    }
-}
-
-private enum PreviewMode: String {
-    case city
-    case globe
-    case moscowCloseup
-
-    static var initial: PreviewMode {
-        let rawValue = ProcessInfo.processInfo.environment["IMMERSIVE_MAP_DEMO_MODE"]
-        return rawValue.flatMap(PreviewMode.init(rawValue:)) ?? .city
-    }
-
-    static var shouldAutoCycle: Bool {
-        ProcessInfo.processInfo.environment["IMMERSIVE_MAP_DEMO_MODE"] == nil
-    }
-
-    var title: String {
-        switch self {
-        case .city:
-            return "ImmersiveMap city view"
-        case .globe:
-            return "ImmersiveMap globe view"
-        case .moscowCloseup:
-            return "ImmersiveMap Moscow close-up"
-        }
-    }
-
-    var cameraPosition: ImmersiveMapCameraPosition {
-        switch self {
-        case .city:
-            return ImmersiveMapCameraPosition(
-                latitudeDegrees: 55.7558,
-                longitudeDegrees: 37.6173,
-                zoom: 13.2,
-                bearing: .pi / 10,
-                pitch: .pi / 5
-            )
-        case .globe:
-            return ImmersiveMapCameraPosition(
-                latitudeDegrees: 52.0,
-                longitudeDegrees: 38.0,
-                zoom: 1.35,
-                bearing: 0,
-                pitch: 0
-            )
-        case .moscowCloseup:
-            return ImmersiveMapCameraPosition(
-                latitudeDegrees: 55.7520,
-                longitudeDegrees: 37.6175,
-                zoom: 16.6,
-                bearing: -.pi / 7,
-                pitch: .pi / 4
-            )
-        }
     }
 }

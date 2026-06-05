@@ -1124,21 +1124,13 @@ Expected: PASS. If the simulator name is unavailable, run `xcrun simctl list dev
 
 - [ ] **Step 4: Run flat visual smoke check**
 
-Run the Mac or iOS host with:
-
-```text
-IMMERSIVE_MAP_DEMO_MODE=city
-```
+Run the Mac or iOS host at a high zoom level.
 
 Expected visual result: flat Moscow city map renders with ground, roads, 3D buildings, labels when available, avatars when available, and no missing base map layer.
 
 - [ ] **Step 5: Run globe visual smoke check**
 
-Run the Mac or iOS host with:
-
-```text
-IMMERSIVE_MAP_DEMO_MODE=globe
-```
+Run the Mac or iOS host at a low zoom level.
 
 Expected visual result: starfield/background renders behind the globe, globe surface renders with tile texture, globe cap remains visible, labels/avatars render when available, and no depth-state corruption appears after globe cap rendering.
 
@@ -1151,4 +1143,3 @@ git status --short --ignored
 ```
 
 Expected: source tree is clean except ignored build artifacts such as `.build/` or `DerivedData/`.
-
