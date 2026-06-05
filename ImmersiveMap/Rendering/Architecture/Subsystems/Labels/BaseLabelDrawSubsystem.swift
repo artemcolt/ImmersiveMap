@@ -8,7 +8,7 @@
 
 import Metal
 
-final class BaseLabelDrawSubsystem: RenderSubsystem {
+final class BaseLabelDrawSubsystem: RenderSubsystem, RenderPassAvailabilityProvider {
     let name: String = "BaseLabelDraw"
 
     private let textRenderer: TextRenderer
@@ -25,6 +25,11 @@ final class BaseLabelDrawSubsystem: RenderSubsystem {
 
     func update(frameContext: FrameContext) {
         hasRenderableLabels = frameContext.sharedState.baseLabelState.labelInputsCount > 0
+    }
+
+    func contributePassAvailability(settings _: ImmersiveMapSettings,
+                                    builder: inout RenderPassAvailabilityBuilder) {
+        builder.labelsEnabled = builder.labelsEnabled || hasRenderableLabels
     }
 
     func prepareGPU(frameContext: FrameContext, resourceRegistry: RenderResourceRegistry) {

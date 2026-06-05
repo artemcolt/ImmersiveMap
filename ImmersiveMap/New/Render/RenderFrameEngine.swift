@@ -10,9 +10,9 @@ final class RenderFrameEngine {
     // MARK: - Dependencies
 
     private let persistentContext: RenderPersistentContext
-    private let renderCamera: ImmersiveMapRenderCamera
-    private let presentationCoordinator: RenderPresentationCoordinator
-    private let subsystemGraph: RenderSubsystemGraph
+    private let renderCamera: FrameCameraStateResolver
+    private let presentationStateResolver: MapPresentationStateResolver
+    private let renderGraph: RenderGraph
     private let eventSink: RenderFrameEventSink
     private let passEncoder: RenderFramePassEncoder
     private let visibilityResolver: RenderFrameVisibilityResolver
@@ -34,8 +34,8 @@ final class RenderFrameEngine {
     init(layer: CAMetalLayer,
          avatarSource: AvatarRenderSource,
          settings: ImmersiveMapSettings = .default,
-         renderCamera: ImmersiveMapRenderCamera,
-         presentationCoordinator: RenderPresentationCoordinator,
+         renderCamera: FrameCameraStateResolver,
+         presentationStateResolver: MapPresentationStateResolver,
          eventSink: RenderFrameEventSink) {
         let persistentContext = RenderPersistentContext(layer: layer,
                                                         avatarSource: avatarSource,
@@ -43,23 +43,22 @@ final class RenderFrameEngine {
                                                         eventSink: eventSink)
         let attachments = FrameAttachmentStore(metalDevice: persistentContext.metalContext.device)
 
-        let subsystemGraph = RenderSubsystemGraph(context: persistentContext,
-                                                  settings: settings,
-                                                  initialZoom: Int(renderCamera.currentCameraState().zoom),
-                                                  buildingWinnerIDTextureProvider: { [attachments] in
-                                                      attachments.currentBuildingWinnerIDTexture
-                                                  })
+        let renderGraph = RenderGraphFactory.makeDefaultGraph(context: persistentContext,
+                                                              settings: settings,
+                                                              initialZoom: Int(renderCamera.currentCameraState().zoom),
+                                                              buildingWinnerIDTextureProvider: { [attachments] in
+                                                                  attachments.currentBuildingWinnerIDTexture
+                                                              })
 
         self.settings = settings
         self.persistentContext = persistentContext
         self.renderCamera = renderCamera
-        self.presentationCoordinator = presentationCoordinator
+        self.presentationStateResolver = presentationStateResolver
         self.attachments = attachments
-        self.subsystemGraph = subsystemGraph
+        self.renderGraph = renderGraph
         self.eventSink = eventSink
-        self.passEncoder = RenderFramePassEncoder(context: persistentContext,
-                                                  attachments: attachments,
-                                                  subsystemGraph: subsystemGraph)
+        self.passEncoder = RenderFramePassEncoder(attachments: attachments,
+                                                  renderGraph: renderGraph)
         self.visibilityResolver = RenderFrameVisibilityResolver()
     }
 
@@ -83,7 +82,7 @@ final class RenderFrameEngine {
 
     func applySettings(_ settings: ImmersiveMapSettings) {
         renderCamera.applyCameraSettings(settings.camera)
-        presentationCoordinator.applySettings(settings)
+        presentationStateResolver.applySettings(settings)
         persistentContext.applySettings(settings)
         self.settings = settings
     }
@@ -91,7 +90,7 @@ final class RenderFrameEngine {
     // MARK: - Memory
 
     func handleMemoryWarning() {
-        subsystemGraph.handleMemoryWarning()
+        renderGraph.handleMemoryWarning()
         attachments.reset()
     }
 
@@ -105,7 +104,7 @@ final class RenderFrameEngine {
         frameContext.diagnostics.recordStage(.collectInput, duration: CACurrentMediaTime() - collectStart)
 
         RenderFrameStageMeasurer.measure(.updateScene, diagnostics: frameContext.diagnostics) {
-            subsystemGraph.update(frameContext: frameContext)
+            renderGraph.update(frameContext: frameContext)
         }
         RenderFrameStageMeasurer.measure(.prepareGPU, diagnostics: frameContext.diagnostics) {
             prepareGPU(frameContext: frameContext)
@@ -155,7 +154,7 @@ final class RenderFrameEngine {
         }
 
         publishStaticResources(frameIndex: frameTick.index)
-        let resolvedPresentation = presentationCoordinator.resolve(cameraState: cameraFrameState.mapCameraState)
+        let resolvedPresentation = presentationStateResolver.resolve(cameraState: cameraFrameState.mapCameraState)
         let visibleContent = visibilityResolver.resolve(cameraFrameState: cameraFrameState,
                                                         resolvedPresentation: resolvedPresentation,
                                                         tileSettings: settings.tiles,
@@ -180,7 +179,7 @@ final class RenderFrameEngine {
     }
 
     private func publishStaticResources(frameIndex: UInt64) {
-        let resourceRegistry = subsystemGraph.resourceRegistry
+        let resourceRegistry = renderGraph.resourceRegistry
         resourceRegistry.beginFrame(frameIndex: frameIndex)
         resourceRegistry.setPipeline(persistentContext.polygonPipeline.pipelineState, named: .polygonPipeline)
         resourceRegistry.setPipeline(persistentContext.tilePipeline.pipelineState, named: .tilePipeline)
@@ -192,9 +191,9 @@ final class RenderFrameEngine {
     }
 
     private func prepareGPU(frameContext: FrameContext) {
-        subsystemGraph.prepareGPU(frameContext: frameContext)
+        renderGraph.prepareGPU(frameContext: frameContext)
 
-        let counts = subsystemGraph.resourceRegistry.counts
+        let counts = renderGraph.resourceRegistry.counts
         frameContext.services.diagnostics.setCounter(.resourceBufferCount, value: counts.buffers)
         frameContext.services.diagnostics.setCounter(.resourceTextureCount, value: counts.textures)
         frameContext.services.diagnostics.setCounter(.resourcePipelineCount, value: counts.pipelines)

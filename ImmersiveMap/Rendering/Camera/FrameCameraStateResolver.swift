@@ -15,7 +15,10 @@ struct CameraFrameState {
     let qualityTier: RenderQualityTier
 }
 
-final class ImmersiveMapRenderCamera {
+/// Отвечает за подготовку состояния камеры для кадра рендера:
+/// синхронизирует управляющую камеру с render-камерой, применяет ограничения
+/// и собирает матрицы, frustum, eye position и camera state для frame pipeline.
+final class FrameCameraStateResolver {
     private static let flatPlaneIntersectionTolerance: Float = 1e-5
 
     private let camera: Camera

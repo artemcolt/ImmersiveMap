@@ -4,83 +4,28 @@
 import CoreGraphics
 import simd
 
-struct RenderCameraConstraints {
-    let bearing: CameraBearingConstraint
-    let pitch: CameraPitchConstraint
-}
-
-/// Координирует presentation state карты: projection policy, flat/globe surface mode и camera constraints.
-final class RenderPresentationCoordinator {
-    private var settings: ImmersiveMapSettings
-    private var projectionPolicy: ProjectionPolicy = .automatic
-
-    init(settings: ImmersiveMapSettings) {
-        self.settings = settings
-    }
-
-    func applySettings(_ settings: ImmersiveMapSettings) {
-        self.settings = settings
-    }
-
-    func resolve(cameraState: ImmersiveMapCameraState) -> ResolvedPresentationState {
-        PresentationStateResolver.resolve(cameraState: cameraState,
-                                          settings: settings.presentation,
-                                          projectionPolicy: projectionPolicy)
-    }
-
-    func switchProjectionPolicy(cameraState: ImmersiveMapCameraState) {
-        let resolvedPresentation = resolve(cameraState: cameraState)
-
-        switch projectionPolicy {
-        case .automatic:
-            switch resolvedPresentation.renderSurfaceMode {
-            case .spherical:
-                projectionPolicy = .forcedFlat
-            case .flat:
-                projectionPolicy = .forcedGlobe
-            }
-        case .forcedGlobe, .forcedFlat:
-            projectionPolicy = .automatic
-        }
-    }
-
-    func isSphericalSurfaceActive(cameraState: ImmersiveMapCameraState) -> Bool {
-        resolve(cameraState: cameraState).renderSurfaceMode == .spherical
-    }
-
-    func cameraConstraints(cameraState: ImmersiveMapCameraState) -> RenderCameraConstraints {
-        RenderCameraConstraints(bearing: cameraBearingConstraint(cameraState: cameraState),
-                                pitch: cameraPitchConstraint(cameraState: cameraState))
-    }
-
-    func cameraBearingConstraint(cameraState: ImmersiveMapCameraState) -> CameraBearingConstraint {
-        CameraBearingConstraintResolver.resolve(cameraState: cameraState,
-                                                settings: settings,
-                                                projectionPolicy: projectionPolicy)
-    }
-
-    func cameraPitchConstraint(cameraState: ImmersiveMapCameraState) -> CameraPitchConstraint {
-        CameraPitchConstraintResolver.resolve(cameraState: cameraState,
-                                              settings: settings,
-                                              projectionPolicy: projectionPolicy)
-    }
-
-    func zoomCamera(_ renderCamera: ImmersiveMapRenderCamera,
+/// Выполняет camera zoom вокруг drawable anchor: для flat surface сохраняет world coordinate под пальцем.
+final class AnchoredCameraZoomHandler {
+    func zoomCamera(_ renderCamera: FrameCameraStateResolver,
                     delta: Double,
                     anchorDrawablePoint: CGPoint,
-                    drawableSize: CGSize) {
+                    drawableSize: CGSize,
+                    resolvePresentation: (ImmersiveMapCameraState) -> ResolvedPresentationState,
+                    applyCameraConstraints: () -> Void) {
         guard delta.isFinite, delta != 0 else {
             return
         }
 
         guard drawableSize.width > 0,
               drawableSize.height > 0 else {
-            zoomCamera(renderCamera, delta: delta)
+            zoomCamera(renderCamera,
+                       delta: delta,
+                       applyCameraConstraints: applyCameraConstraints)
             return
         }
 
         let cameraStateBefore = renderCamera.currentCameraState()
-        let resolvedBefore = resolve(cameraState: cameraStateBefore)
+        let resolvedBefore = resolvePresentation(cameraStateBefore)
         guard resolvedBefore.screenSpaceProjectionMode == .flat,
               renderCamera.prepareForInput(drawableSize: drawableSize),
               let anchorRenderPointBefore = renderCamera.renderPointOnZeroZPlane(at: anchorDrawablePoint,
@@ -88,14 +33,18 @@ final class RenderPresentationCoordinator {
               let anchoredWorldCoordinate = flatWorldCoordinate(forRenderPoint: anchorRenderPointBefore,
                                                                 flatRenderState: resolvedBefore.flatRenderState,
                                                                 cameraState: cameraStateBefore) else {
-            zoomCamera(renderCamera, delta: delta)
+            zoomCamera(renderCamera,
+                       delta: delta,
+                       applyCameraConstraints: applyCameraConstraints)
             return
         }
 
-        zoomCamera(renderCamera, delta: delta)
+        zoomCamera(renderCamera,
+                   delta: delta,
+                   applyCameraConstraints: applyCameraConstraints)
 
         let cameraStateAfter = renderCamera.currentCameraState()
-        let resolvedAfter = resolve(cameraState: cameraStateAfter)
+        let resolvedAfter = resolvePresentation(cameraStateAfter)
         guard resolvedAfter.screenSpaceProjectionMode == .flat,
               renderCamera.prepareForInput(drawableSize: drawableSize),
               let anchorRenderPointAfter = renderCamera.renderPointOnZeroZPlane(at: anchorDrawablePoint,
@@ -112,14 +61,11 @@ final class RenderPresentationCoordinator {
         renderCamera.setCenterWorldMercator(cameraStateAfter.centerWorldMercator + SIMD2<Double>(deltaX, deltaY))
     }
 
-    func zoomCamera(_ renderCamera: ImmersiveMapRenderCamera,
-                    delta: Double) {
+    private func zoomCamera(_ renderCamera: FrameCameraStateResolver,
+                            delta: Double,
+                            applyCameraConstraints: () -> Void) {
         renderCamera.zoomCamera(delta: delta)
-        applyCameraConstraints(to: renderCamera)
-    }
-
-    func applyCameraConstraints(to renderCamera: ImmersiveMapRenderCamera) {
-        renderCamera.applyConstraints(cameraConstraints(cameraState: renderCamera.currentCameraState()))
+        applyCameraConstraints()
     }
 
     private func flatWorldCoordinate(forRenderPoint point: SIMD2<Double>,

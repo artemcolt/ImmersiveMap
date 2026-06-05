@@ -5,14 +5,15 @@ import CoreGraphics
 import Foundation
 
 /// Владеет mutable camera state одного map view.
-/// Оборачивает `ImmersiveMapRenderCamera`, применяет camera changes, хранит settings и запрашивает frames.
+/// Оборачивает `FrameCameraStateResolver`, применяет camera changes, хранит settings и запрашивает frames.
 final class ImmersiveMapCameraRuntime {
     private let initialCameraPosition: ImmersiveMapCameraPosition?
-    let presentationCoordinator: RenderPresentationCoordinator
+    let presentationStateResolver: MapPresentationStateResolver
+    private let anchoredZoomHandler = AnchoredCameraZoomHandler()
     private let renderRuntime: ImmersiveMapRenderRuntime
     private let controlsRuntime: ImmersiveMapControlsRuntime
     private weak var controller: ImmersiveMapCameraController?
-    private(set) var renderCamera: ImmersiveMapRenderCamera?
+    private(set) var renderCamera: FrameCameraStateResolver?
     private var settings: ImmersiveMapSettings
     private var appliedCameraPosition: ImmersiveMapCameraPosition?
 
@@ -22,7 +23,7 @@ final class ImmersiveMapCameraRuntime {
          controlsRuntime: ImmersiveMapControlsRuntime) {
         self.settings = settings
         self.initialCameraPosition = initialCameraPosition
-        self.presentationCoordinator = RenderPresentationCoordinator(settings: settings)
+        self.presentationStateResolver = MapPresentationStateResolver(settings: settings)
         self.renderRuntime = renderRuntime
         self.controlsRuntime = controlsRuntime
     }
@@ -37,7 +38,7 @@ final class ImmersiveMapCameraRuntime {
 
     func updateSettings(_ settings: ImmersiveMapSettings) {
         self.settings = settings
-        presentationCoordinator.applySettings(settings)
+        presentationStateResolver.applySettings(settings)
         renderCamera?.applyCameraSettings(settings.camera)
         applyCurrentCameraConstraints()
     }
@@ -66,9 +67,9 @@ final class ImmersiveMapCameraRuntime {
     }
 
     func makeRenderCamera(settings: ImmersiveMapSettings,
-                          cameraPosition: ImmersiveMapCameraPosition?) -> ImmersiveMapRenderCamera {
+                          cameraPosition: ImmersiveMapCameraPosition?) -> FrameCameraStateResolver {
         self.settings = settings
-        let renderCamera = ImmersiveMapRenderCamera(settings: settings)
+        let renderCamera = FrameCameraStateResolver(settings: settings)
         self.renderCamera = renderCamera
         if let cameraPosition {
             renderCamera.setCameraPosition(cameraPosition)
@@ -103,15 +104,15 @@ final class ImmersiveMapCameraRuntime {
             return settings.camera.maximumPitch
         }
 
-        return presentationCoordinator.cameraPitchConstraint(cameraState: cameraState).maximumPitch
+        return currentCameraConstraints(cameraState: cameraState).pitch.maximumPitch
     }
 
     func isSphericalRenderSurfaceActive() -> Bool {
-        guard let cameraState = renderCamera?.currentCameraState() else {
+        guard renderCamera != nil else {
             return false
         }
 
-        return presentationCoordinator.isSphericalSurfaceActive(cameraState: cameraState)
+        return presentationStateResolver.isSphericalSurfaceActive()
     }
 
     func needsCameraPositionUpdate(_ cameraPosition: ImmersiveMapCameraPosition?) -> Bool {
@@ -156,11 +157,7 @@ final class ImmersiveMapCameraRuntime {
     }
 
     func switchRenderMode() {
-        guard let cameraState = renderCamera?.currentCameraState() else {
-            return
-        }
-
-        presentationCoordinator.switchProjectionPolicy(cameraState: cameraState)
+        presentationStateResolver.switchRenderSurfaceMode()
         applyCurrentCameraConstraints()
         syncPitchControlValue()
         renderRuntime.requestFrame()
@@ -206,10 +203,16 @@ final class ImmersiveMapCameraRuntime {
             return
         }
 
-        presentationCoordinator.zoomCamera(renderCamera,
-                                           delta: delta,
-                                           anchorDrawablePoint: anchorDrawablePoint,
-                                           drawableSize: drawableSize)
+        anchoredZoomHandler.zoomCamera(renderCamera,
+                                       delta: delta,
+                                       anchorDrawablePoint: anchorDrawablePoint,
+                                       drawableSize: drawableSize,
+                                       resolvePresentation: { [presentationStateResolver] cameraState in
+                                           presentationStateResolver.resolve(cameraState: cameraState)
+                                       },
+                                       applyCameraConstraints: { [weak self] in
+                                           self?.applyCurrentCameraConstraints()
+                                       })
         notifyCameraPositionChanged()
         syncPitchControlValue()
         renderRuntime.requestFrame()
@@ -252,6 +255,12 @@ final class ImmersiveMapCameraRuntime {
             return
         }
 
-        presentationCoordinator.applyCameraConstraints(to: renderCamera)
+        renderCamera.applyConstraints(currentCameraConstraints(cameraState: renderCamera.currentCameraState()))
+    }
+
+    private func currentCameraConstraints(cameraState: ImmersiveMapCameraState) -> RenderCameraConstraints {
+        RenderCameraConstraintResolver.resolve(cameraState: cameraState,
+                                               cameraSettings: settings.camera,
+                                               renderSurfaceMode: presentationStateResolver.renderSurfaceMode)
     }
 }

@@ -8,7 +8,7 @@
 
 import Metal
 
-final class AvatarRenderSubsystem: RenderSubsystem {
+final class AvatarRenderSubsystem: RenderSubsystem, RenderPassAvailabilityProvider {
     let name: String = "Avatars"
 
     private let avatarsRenderer: AvatarsRenderer
@@ -25,6 +25,11 @@ final class AvatarRenderSubsystem: RenderSubsystem {
         self.avatarsRenderer = avatarsRenderer
         self.avatarSource = avatarSource
         self.depthDisabledState = depthDisabledState
+    }
+
+    func contributePassAvailability(settings _: ImmersiveMapSettings,
+                                    builder: inout RenderPassAvailabilityBuilder) {
+        builder.avatarsEnabled = builder.avatarsEnabled || hasRenderableAvatars
     }
 
     func update(frameContext: FrameContext) {

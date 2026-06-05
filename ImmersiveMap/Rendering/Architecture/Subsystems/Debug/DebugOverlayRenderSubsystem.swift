@@ -8,7 +8,7 @@
 
 import Metal
 
-final class DebugOverlayRenderSubsystem: RenderSubsystem {
+final class DebugOverlayRenderSubsystem: RenderSubsystem, RenderPassAvailabilityProvider {
     let name: String = "DebugOverlay"
 
     private let polygonPipeline: PolygonsPipeline
@@ -21,6 +21,12 @@ final class DebugOverlayRenderSubsystem: RenderSubsystem {
         self.polygonPipeline = polygonPipeline
         self.debugOverlayRenderer = debugOverlayRenderer
         self.textRenderer = textRenderer
+    }
+
+    func contributePassAvailability(settings: ImmersiveMapSettings,
+                                    builder: inout RenderPassAvailabilityBuilder) {
+        builder.debugOverlayEnabled = builder.debugOverlayEnabled
+            || RenderDebugOverlayPolicy.shouldEncode(settings.debug)
     }
 
     func update(frameContext: FrameContext) {}

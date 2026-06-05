@@ -3,18 +3,11 @@
 
 import Metal
 
-final class RenderSubsystemGraph {
-    let resourceRegistry = RenderResourceRegistry()
-
-    private let registry: RenderSubsystemRegistry
-    private weak var baseLabelDrawSubsystem: BaseLabelDrawSubsystem?
-    private weak var roadLabelDrawSubsystem: RoadLabelDrawSubsystem?
-    private weak var avatarSubsystem: AvatarRenderSubsystem?
-
-    init(context: RenderPersistentContext,
-         settings: ImmersiveMapSettings,
-         initialZoom: Int,
-         buildingWinnerIDTextureProvider: @escaping () -> MTLTexture?) {
+enum RenderGraphFactory {
+    static func makeDefaultGraph(context: RenderPersistentContext,
+                                 settings: ImmersiveMapSettings,
+                                 initialZoom: Int,
+                                 buildingWinnerIDTextureProvider: @escaping () -> MTLTexture?) -> RenderGraph {
         let tileDemandPlacementSubsystem = TileDemandPlacementSubsystem(tileRenderStore: context.tileRenderStore,
                                                                         initialZoom: initialZoom)
         let tileProjectionIndexSubsystem = TileProjectionIndexSubsystem(flatTileOriginCalculator: context.flatTileOriginCalculator)
@@ -32,6 +25,8 @@ final class RenderSubsystemGraph {
         let avatarSubsystem = AvatarRenderSubsystem(avatarsRenderer: context.avatarsRenderer,
                                                     avatarSource: context.avatarSource,
                                                     depthDisabledState: context.depthDisabledState)
+        let buildingWinnerPrePass = BuildingWinnerPrePass(extrudedTilePipeline: context.extrudedTilePipeline,
+                                                          extrudedDepthState: context.extrudedDepthState)
         let commonViewSceneSubsystem = CommonViewSceneRenderSubsystem(depthDisabledState: context.depthDisabledState)
         let globeViewSceneSubsystem = GlobeViewSceneRenderSubsystem(starfieldRenderer: context.starfieldRenderer,
                                                                     globeDepthState: context.extrudedDepthState,
@@ -52,47 +47,27 @@ final class RenderSubsystemGraph {
                                                          debugOverlayRenderer: context.debugOverlayRenderer,
                                                          textRenderer: context.textRenderer)
 
-        self.baseLabelDrawSubsystem = baseLabelDrawSubsystem
-        self.roadLabelDrawSubsystem = roadLabelDrawSubsystem
-        self.avatarSubsystem = avatarSubsystem
-        self.registry = RenderSubsystemRegistry(subsystems: [tileDemandPlacementSubsystem,
-                                                             tileProjectionIndexSubsystem,
-                                                             tileGlobeTextureSubsystem,
-                                                             baseLabelSubsystem,
-                                                             baseLabelDrawSubsystem,
-                                                             roadLabelDrawSubsystem,
-                                                             avatarSubsystem,
-                                                             commonViewSceneSubsystem,
-                                                             globeViewSceneSubsystem,
-                                                             flatViewSceneSubsystem,
-                                                             debugSubsystem])
-    }
-
-    var passAvailability: RenderPassAvailability {
-        let hasBaseLabels = baseLabelDrawSubsystem?.hasRenderableLabels ?? false
-        let hasRoadLabels = roadLabelDrawSubsystem?.hasRenderableLabels ?? false
-        return RenderPassAvailability(labelsEnabled: hasBaseLabels || hasRoadLabels,
-                                      avatarsEnabled: avatarSubsystem?.hasRenderableAvatars ?? false,
-                                      debugOverlayEnabled: false)
-    }
-
-    func update(frameContext: FrameContext) {
-        registry.update(frameContext: frameContext)
-    }
-
-    func prepareGPU(frameContext: FrameContext) {
-        registry.prepareGPU(frameContext: frameContext, resourceRegistry: resourceRegistry)
-    }
-
-    func encode(pass: RenderPass,
-                encoder: MTLRenderCommandEncoder,
-                frameContext: FrameContext) {
-        registry.encode(pass: pass,
-                        encoder: encoder,
-                        frameContext: frameContext)
-    }
-
-    func handleMemoryWarning() {
-        registry.handleMemoryWarning()
+        let subsystems: [any RenderSubsystem] = [
+            tileDemandPlacementSubsystem,
+            tileProjectionIndexSubsystem,
+            tileGlobeTextureSubsystem,
+            baseLabelSubsystem,
+            baseLabelDrawSubsystem,
+            roadLabelDrawSubsystem,
+            avatarSubsystem,
+            commonViewSceneSubsystem,
+            globeViewSceneSubsystem,
+            flatViewSceneSubsystem,
+            debugSubsystem
+        ]
+        let availabilityProviders: [any RenderPassAvailabilityProvider] = [
+            baseLabelDrawSubsystem,
+            roadLabelDrawSubsystem,
+            avatarSubsystem,
+            debugSubsystem
+        ]
+        return RenderGraph(registry: RenderSubsystemRegistry(subsystems: subsystems),
+                           prePasses: [buildingWinnerPrePass],
+                           availabilityProviders: availabilityProviders)
     }
 }

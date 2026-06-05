@@ -32,7 +32,7 @@ final class ImmersiveMapRendererBuilder {
                                  avatarSource: avatarRuntime,
                                  settings: settings,
                                  renderCamera: renderCamera,
-                                 presentationCoordinator: cameraRuntime.presentationCoordinator,
+                                 presentationStateResolver: cameraRuntime.presentationStateResolver,
                                  eventSink: eventSink)
     }
 }

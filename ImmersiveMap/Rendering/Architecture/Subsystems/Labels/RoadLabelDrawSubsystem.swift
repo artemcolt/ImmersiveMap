@@ -8,7 +8,7 @@
 
 import Metal
 
-final class RoadLabelDrawSubsystem: RenderSubsystem {
+final class RoadLabelDrawSubsystem: RenderSubsystem, RenderPassAvailabilityProvider {
     let name: String = "RoadLabelDraw"
 
     private let textRenderer: TextRenderer
@@ -22,6 +22,11 @@ final class RoadLabelDrawSubsystem: RenderSubsystem {
 
     func update(frameContext: FrameContext) {
         hasRenderableLabels = frameContext.sharedState.roadLabelState.drawLabels.isEmpty == false
+    }
+
+    func contributePassAvailability(settings _: ImmersiveMapSettings,
+                                    builder: inout RenderPassAvailabilityBuilder) {
+        builder.labelsEnabled = builder.labelsEnabled || hasRenderableLabels
     }
 
     func prepareGPU(frameContext: FrameContext, resourceRegistry: RenderResourceRegistry) {
