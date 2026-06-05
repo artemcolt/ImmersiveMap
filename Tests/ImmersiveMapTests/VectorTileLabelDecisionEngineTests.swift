@@ -438,6 +438,42 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
                                                       sortKey: 1))
     }
 
+    func testDecisionEngineBuildsTextLabelCompatibleDecision() {
+        let style = LabelTextStyle(key: 30,
+                                   fillColor: SIMD3<Float>(0.1, 0.2, 0.3),
+                                   strokeColor: SIMD3<Float>(1, 1, 1),
+                                   strokeWidthPx: 2,
+                                   sizePx: 24,
+                                   weight: .thin)
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let engine = VectorTileLabelDecisionEngine(profile: profile,
+                                                   textResolver: VectorTileLabelTextResolver(glyphCoverage: .currentAtlas))
+        let feature = VectorTileLabelFeature(providerID: "mapbox",
+                                             tile: Tile(x: 123, y: 456, z: 10),
+                                             layerName: "place_label",
+                                             featureID: 7,
+                                             anchor: SIMD2<Int16>(2048, 2048),
+                                             properties: [
+                                                "name_en": stringValue("Moscow"),
+                                                "type": stringValue("city")
+                                             ])
+
+        let decision = engine.makePointLabelDecision(feature: feature,
+                                                     style: style,
+                                                     poiIcon: nil)
+
+        XCTAssertEqual(decision?.text, "Moscow")
+        XCTAssertEqual(decision?.priority.collisionRank,
+                       profile.collisionRank(layerName: "place_label",
+                                             sortKey: decision?.priority.visibilityRank ?? -1))
+        XCTAssertEqual(decision?.identity,
+                       .providerFeature(providerID: "mapbox",
+                                        layerName: "place_label",
+                                        featureID: 7))
+        XCTAssertEqual(decision?.style.key, style.key)
+        XCTAssertEqual(decision?.style.sizePx, style.sizePx)
+    }
+
     private func stringValue(_ value: String) -> VectorTile_Tile.Value {
         var tileValue = VectorTile_Tile.Value()
         tileValue.stringValue = value
