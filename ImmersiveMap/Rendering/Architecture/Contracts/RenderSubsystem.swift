@@ -13,7 +13,7 @@ protocol RenderSubsystem: AnyObject {
 
     func update(frameContext: FrameContext)
     func prepareGPU(frameContext: FrameContext, resourceRegistry: RenderResourceRegistry)
-    func encode(pass: RenderPass, encoder: MTLRenderCommandEncoder, frameContext: FrameContext)
+    func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: FrameContext)
     func handleMemoryWarning()
     func evict()
 }

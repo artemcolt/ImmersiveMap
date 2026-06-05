@@ -36,7 +36,8 @@ final class FrameDiagnostics: FrameDiagnosticsService {
     private(set) var frameIndex: UInt64
     private(set) var frameTime: TimeInterval
     private(set) var stageDurations: [FrameStage: TimeInterval] = [:]
-    private(set) var passDurations: [RenderPass: TimeInterval] = [:]
+    private(set) var metalPassDurations: [RenderPassName: TimeInterval] = [:]
+    private(set) var layerDurations: [RenderLayer: TimeInterval] = [:]
     private(set) var counters: [Counter: Int] = [:]
     private(set) var measurements: [Measurement: Double] = [:]
     private(set) var skipReasons: Set<RenderSkipReason> = []
@@ -56,8 +57,12 @@ final class FrameDiagnostics: FrameDiagnosticsService {
         stageDurations[stage] = duration
     }
 
-    func recordPass(_ pass: RenderPass, duration: TimeInterval) {
-        passDurations[pass] = duration
+    func recordLayer(_ layer: RenderLayer, duration: TimeInterval) {
+        layerDurations[layer] = duration
+    }
+
+    func recordMetalPass(_ pass: RenderPassName, duration: TimeInterval) {
+        metalPassDurations[pass] = duration
         incrementCounter(.encodedPasses, by: 1)
     }
 
@@ -93,6 +98,14 @@ final class FrameDiagnostics: FrameDiagnosticsService {
         let tileSummary = "tiles v:\(counterValue(.visibleTiles)) r:\(counterValue(.readyTiles)) q:\(counterValue(.requestedTiles))"
         let labelSummary = "labels b:\(counterValue(.baseLabelCount)) rg:\(counterValue(.roadLabelGlyphCount))"
         let globeSummary = "globeCull ms:\(String(format: "%.2f", measurementValue(.globeCullingDurationMs))) n:\(counterValue(.globeCullingVisitedNodes)) f:\(counterValue(.globeCullingFrustumRejects)) h:\(counterValue(.globeCullingHorizonRejects)) l:\(counterValue(.globeCullingAcceptedLeafTiles)) a:\(counterValue(.globeCullingAcceptedWholeSubtrees))"
-        return "frame=\(frameIndex) \(tileSummary) \(labelSummary) \(globeSummary) stageMs[u:\(String(format: "%.2f", updateMs)) p:\(String(format: "%.2f", prepareMs)) e:\(String(format: "%.2f", encodeMs)) pr:\(String(format: "%.2f", presentMs))]"
+        let metalPassSummary = metalPassDurations
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { "\($0.key.rawValue):\(String(format: "%.2f", $0.value * 1000.0))" }
+            .joined(separator: ",")
+        let layerSummary = layerDurations
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { "\($0.key.rawValue):\(String(format: "%.2f", $0.value * 1000.0))" }
+            .joined(separator: ",")
+        return "frame=\(frameIndex) \(tileSummary) \(labelSummary) \(globeSummary) stageMs[u:\(String(format: "%.2f", updateMs)) p:\(String(format: "%.2f", prepareMs)) e:\(String(format: "%.2f", encodeMs)) pr:\(String(format: "%.2f", presentMs))] metalPassMs[\(metalPassSummary)] layerMs[\(layerSummary)]"
     }
 }

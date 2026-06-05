@@ -8,7 +8,8 @@
 
 import Foundation
 
-enum RenderPass: String, CaseIterable {
+enum RenderLayer: String, CaseIterable {
+    case buildingWinner
     case scene
     case labels
     case avatars
@@ -34,25 +35,25 @@ struct RenderPassAvailability {
     let debugOverlayEnabled: Bool
 }
 
-struct RenderPassPlanItem {
-    let pass: RenderPass
+struct RenderLayerPlanItem {
+    let layer: RenderLayer
     let enabled: Bool
     let skipReason: RenderSkipReason?
 }
 
-struct RenderPassPlanner {
-    static func plan(availability: RenderPassAvailability) -> [RenderPassPlanItem] {
+struct RenderLayerPlanner {
+    static func plan(availability: RenderPassAvailability) -> [RenderLayerPlanItem] {
         [
-            RenderPassPlanItem(pass: .scene, enabled: true, skipReason: nil),
-            RenderPassPlanItem(pass: .labels,
-                               enabled: availability.labelsEnabled,
-                               skipReason: availability.labelsEnabled ? nil : .noLabelContent),
-            RenderPassPlanItem(pass: .avatars,
-                               enabled: availability.avatarsEnabled,
-                               skipReason: availability.avatarsEnabled ? nil : .noAvatarContent),
-            RenderPassPlanItem(pass: .debugOverlay,
-                               enabled: availability.debugOverlayEnabled,
-                               skipReason: availability.debugOverlayEnabled ? nil : .debugOverlayDisabled)
+            RenderLayerPlanItem(layer: .scene, enabled: true, skipReason: nil),
+            RenderLayerPlanItem(layer: .labels,
+                                enabled: availability.labelsEnabled,
+                                skipReason: availability.labelsEnabled ? nil : .noLabelContent),
+            RenderLayerPlanItem(layer: .avatars,
+                                enabled: availability.avatarsEnabled,
+                                skipReason: availability.avatarsEnabled ? nil : .noAvatarContent),
+            RenderLayerPlanItem(layer: .debugOverlay,
+                                enabled: availability.debugOverlayEnabled,
+                                skipReason: availability.debugOverlayEnabled ? nil : .debugOverlayDisabled)
         ]
     }
 }

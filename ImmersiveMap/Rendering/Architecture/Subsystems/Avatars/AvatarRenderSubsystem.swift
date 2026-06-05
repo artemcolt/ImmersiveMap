@@ -52,8 +52,8 @@ final class AvatarRenderSubsystem: RenderSubsystem, RenderPassAvailabilityProvid
             .withFrameIndex(frameContext.frameIndex)
     }
 
-    func encode(pass: RenderPass, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
-        guard pass == .avatars else { return }
+    func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
+        guard layer == .avatars else { return }
         encoder.setDepthStencilState(depthDisabledState)
         RendererAvatarDrawer.drawAvatars(renderEncoder: encoder,
                                          screenMatrix: frameContext.cameraMatrices.screen,

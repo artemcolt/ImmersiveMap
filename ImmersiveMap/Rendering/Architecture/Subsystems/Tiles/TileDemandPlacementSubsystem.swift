@@ -92,7 +92,7 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
 
     func prepareGPU(frameContext _: FrameContext, resourceRegistry _: RenderResourceRegistry) {}
 
-    func encode(pass _: RenderPass, encoder _: MTLRenderCommandEncoder, frameContext _: FrameContext) {}
+    func encode(layer _: RenderLayer, encoder _: MTLRenderCommandEncoder, frameContext _: FrameContext) {}
 
     func handleMemoryWarning() {
         tileRenderStore.handleMemoryWarning()

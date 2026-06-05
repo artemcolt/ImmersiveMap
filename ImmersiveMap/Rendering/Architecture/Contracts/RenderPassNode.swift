@@ -1,0 +1,22 @@
+// Copyright (c) 2025-2026 Artem Bobkin.
+// SPDX-License-Identifier: MIT
+
+import Metal
+import QuartzCore
+
+enum RenderPassName: String, CaseIterable {
+    case buildingWinner
+    case mainDrawable
+}
+
+protocol RenderPassDescriptorProvider: AnyObject {
+    func makeRenderPassDescriptor(frameContext: FrameContext,
+                                  attachments: FrameAttachmentStore,
+                                  drawable: CAMetalDrawable?) -> MTLRenderPassDescriptor?
+}
+
+struct RenderPassNode {
+    let name: RenderPassName
+    let descriptorProvider: any RenderPassDescriptorProvider
+    let layers: [RenderLayer]
+}

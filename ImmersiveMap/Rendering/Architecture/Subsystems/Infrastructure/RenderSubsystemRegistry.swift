@@ -31,9 +31,9 @@ final class RenderSubsystemRegistry {
         }
     }
 
-    func encode(pass: RenderPass, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
+    func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
         for subsystem in subsystems {
-            subsystem.encode(pass: pass, encoder: encoder, frameContext: frameContext)
+            subsystem.encode(layer: layer, encoder: encoder, frameContext: frameContext)
         }
     }
 

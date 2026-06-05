@@ -27,8 +27,8 @@ final class CommonViewSceneRenderSubsystem: RenderSubsystem {
 
     func prepareGPU(frameContext: FrameContext, resourceRegistry: RenderResourceRegistry) {}
 
-    func encode(pass: RenderPass, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
-        guard pass == .scene else { return }
+    func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
+        guard layer == .scene else { return }
         applyCommonSceneState(encoder)
     }
 

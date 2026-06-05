@@ -7,6 +7,7 @@ import QuartzCore
 /// Кодирует render passes одного кадра: готовит drawable, attachments, pass plan и вызывает subsystem encoders.
 final class RenderFramePassEncoder {
     private let attachments: FrameAttachmentStore
+    private let passGraph = RenderPassGraph()
     private let renderGraph: RenderGraph
 
     init(attachments: FrameAttachmentStore,
@@ -28,42 +29,48 @@ final class RenderFramePassEncoder {
             return nil
         }
 
-        let resourceRegistry = renderGraph.resourceRegistry
-        let clearColor = RenderFrameClearColor.make(transition: frameContext.transition,
-                                                    settings: settings)
-        let depthTexture = attachments.ensureDepthTexture(drawSize: frameContext.drawSize)
-        if let depthTexture {
-            resourceRegistry.setTexture(depthTexture, named: .depthTexture)
-        }
-        renderGraph.preparePrePasses(frameContext: frameContext,
-                                     attachments: attachments)
-        renderGraph.encodePrePasses(commandBuffer: commandBuffer,
-                                    frameContext: frameContext)
+        recordDisabledLayerSkips(settings: settings,
+                                 frameContext: frameContext)
 
-        let renderEncoder = RendererPassEncoderFactory.makeRenderEncoder(commandBuffer: commandBuffer,
-                                                                         drawable: drawable,
-                                                                         clearColor: clearColor,
-                                                                         depthTexture: depthTexture)
-        let passAvailability = renderGraph.passAvailability(settings: settings)
-        let passPlan = RenderPassPlanner.plan(availability: passAvailability)
+        let passNodes = passGraph.plan(frameContext: frameContext,
+                                       settings: settings,
+                                       attachments: attachments,
+                                       drawable: drawable,
+                                       renderGraph: renderGraph)
 
-        for planItem in passPlan {
-            guard planItem.enabled else {
-                if let reason = planItem.skipReason {
-                    frameContext.services.diagnostics.recordSkipReason(reason)
-                }
+        for passNode in passNodes {
+            guard let descriptor = passNode.descriptorProvider.makeRenderPassDescriptor(frameContext: frameContext,
+                                                                                       attachments: attachments,
+                                                                                       drawable: drawable),
+                  let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
                 continue
             }
 
             let passStart = CACurrentMediaTime()
-            renderGraph.encode(pass: planItem.pass,
-                               encoder: renderEncoder,
-                               frameContext: frameContext)
-            frameContext.diagnostics.recordPass(planItem.pass,
-                                                duration: CACurrentMediaTime() - passStart)
+            for layer in passNode.layers {
+                let layerStart = CACurrentMediaTime()
+                renderGraph.encode(layer: layer,
+                                   encoder: renderEncoder,
+                                   frameContext: frameContext)
+                frameContext.diagnostics.recordLayer(layer,
+                                                     duration: CACurrentMediaTime() - layerStart)
+            }
+            renderEncoder.endEncoding()
+            frameContext.diagnostics.recordMetalPass(passNode.name,
+                                                     duration: CACurrentMediaTime() - passStart)
         }
 
-        renderEncoder.endEncoding()
         return drawable
+    }
+
+    private func recordDisabledLayerSkips(settings: ImmersiveMapSettings,
+                                          frameContext: FrameContext) {
+        let passAvailability = renderGraph.passAvailability(settings: settings)
+        let layerPlan = RenderLayerPlanner.plan(availability: passAvailability)
+        for planItem in layerPlan where planItem.enabled == false {
+            if let reason = planItem.skipReason {
+                frameContext.services.diagnostics.recordSkipReason(reason)
+            }
+        }
     }
 }

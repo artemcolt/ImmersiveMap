@@ -48,8 +48,8 @@ final class GlobeViewSceneRenderSubsystem: RenderSubsystem {
 
     func prepareGPU(frameContext: FrameContext, resourceRegistry: RenderResourceRegistry) {}
 
-    func encode(pass: RenderPass, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
-        guard pass == .scene, frameContext.renderSurfaceMode == .spherical else { return }
+    func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
+        guard layer == .scene, frameContext.renderSurfaceMode == .spherical else { return }
         encodeGlobeScene(encoder, frameContext)
     }
 

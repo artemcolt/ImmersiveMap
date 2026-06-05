@@ -3,20 +3,17 @@
 
 import Metal
 
-/// Runtime graph of render subsystems, pre-passes, shared frame resources, and pass availability providers.
+/// Runtime graph of render subsystems, shared frame resources, and pass availability providers.
 final class RenderGraph {
     let resourceRegistry: RenderResourceRegistry
 
     private let registry: RenderSubsystemRegistry
-    private let prePasses: [any RenderFramePrePass]
     private let availabilityProviders: [any RenderPassAvailabilityProvider]
 
     init(registry: RenderSubsystemRegistry,
-         prePasses: [any RenderFramePrePass],
          availabilityProviders: [any RenderPassAvailabilityProvider],
          resourceRegistry: RenderResourceRegistry = RenderResourceRegistry()) {
         self.registry = registry
-        self.prePasses = prePasses
         self.availabilityProviders = availabilityProviders
         self.resourceRegistry = resourceRegistry
     }
@@ -39,42 +36,19 @@ final class RenderGraph {
                             resourceRegistry: resourceRegistry)
     }
 
-    func preparePrePasses(frameContext: FrameContext,
-                          attachments: FrameAttachmentStore) {
-        for prePass in prePasses {
-            prePass.prepare(frameContext: frameContext,
-                            attachments: attachments,
-                            resourceRegistry: resourceRegistry)
-        }
-    }
-
-    func encodePrePasses(commandBuffer: MTLCommandBuffer,
-                         frameContext: FrameContext) {
-        for prePass in prePasses {
-            prePass.encode(commandBuffer: commandBuffer,
-                           frameContext: frameContext)
-        }
-    }
-
-    func encode(pass: RenderPass,
+    func encode(layer: RenderLayer,
                 encoder: MTLRenderCommandEncoder,
                 frameContext: FrameContext) {
-        registry.encode(pass: pass,
+        registry.encode(layer: layer,
                         encoder: encoder,
                         frameContext: frameContext)
     }
 
     func handleMemoryWarning() {
         registry.handleMemoryWarning()
-        for prePass in prePasses {
-            prePass.handleMemoryWarning()
-        }
     }
 
     func evict() {
         registry.evict()
-        for prePass in prePasses {
-            prePass.evict()
-        }
     }
 }

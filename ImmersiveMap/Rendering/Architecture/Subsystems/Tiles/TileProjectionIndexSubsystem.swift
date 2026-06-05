@@ -62,7 +62,7 @@ final class TileProjectionIndexSubsystem: RenderSubsystem {
         resourceRegistry.setBuffer(tileOriginDataBuffer, named: .tileOriginDataBuffer)
     }
 
-    func encode(pass _: RenderPass, encoder _: MTLRenderCommandEncoder, frameContext _: FrameContext) {}
+    func encode(layer _: RenderLayer, encoder _: MTLRenderCommandEncoder, frameContext _: FrameContext) {}
 
     func handleMemoryWarning() {
         sourceProjectionTiles.removeAll(keepingCapacity: false)

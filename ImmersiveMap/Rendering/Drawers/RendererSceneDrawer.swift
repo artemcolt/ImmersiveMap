@@ -217,19 +217,12 @@ final class RendererSceneDrawer {
         renderEncoder.setDepthStencilState(depthDisabledState)
     }
 
-    static func drawExtrudedWinnerPass(commandBuffer: MTLCommandBuffer,
-                                       cameraUniform: CameraUniform,
-                                       placeTilesContext: PlaceTilesContext,
-                                       flatRenderState: FlatRenderState,
-                                       winnerIDTexture: MTLTexture,
-                                       winnerDepthTexture: MTLTexture,
-                                       extrudedTilePipeline: ExtrudedTilePipeline,
-                                       extrudedDepthState: MTLDepthStencilState) {
-        let renderEncoder = RendererPassEncoderFactory.makeBuildingWinnerEncoder(commandBuffer: commandBuffer,
-                                                                                 winnerIDTexture: winnerIDTexture,
-                                                                                 winnerDepthTexture: winnerDepthTexture)
-        defer { renderEncoder.endEncoding() }
-
+    static func drawExtrudedWinnerLayer(renderEncoder: MTLRenderCommandEncoder,
+                                        cameraUniform: CameraUniform,
+                                        placeTilesContext: PlaceTilesContext,
+                                        flatRenderState: FlatRenderState,
+                                        extrudedTilePipeline: ExtrudedTilePipeline,
+                                        extrudedDepthState: MTLDepthStencilState) {
         var cameraUniformValue = cameraUniform
         renderEncoder.setCullMode(.back)
         renderEncoder.setDepthStencilState(extrudedDepthState)

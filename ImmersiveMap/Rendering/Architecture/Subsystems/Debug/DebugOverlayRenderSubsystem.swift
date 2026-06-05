@@ -33,8 +33,8 @@ final class DebugOverlayRenderSubsystem: RenderSubsystem, RenderPassAvailability
 
     func prepareGPU(frameContext: FrameContext, resourceRegistry: RenderResourceRegistry) {}
 
-    func encode(pass: RenderPass, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
-        guard pass == .debugOverlay else { return }
+    func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
+        guard layer == .debugOverlay else { return }
         RendererDebugOverlayDrawer.draw(renderEncoder: encoder,
                                         frameContext: frameContext,
                                         polygonPipeline: polygonPipeline,

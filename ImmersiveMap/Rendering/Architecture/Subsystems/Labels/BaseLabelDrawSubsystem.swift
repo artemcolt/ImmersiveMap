@@ -38,8 +38,8 @@ final class BaseLabelDrawSubsystem: RenderSubsystem, RenderPassAvailabilityProvi
         }
     }
 
-    func encode(pass: RenderPass, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
-        guard pass == .labels else {
+    func encode(layer: RenderLayer, encoder: MTLRenderCommandEncoder, frameContext: FrameContext) {
+        guard layer == .labels else {
             return
         }
 

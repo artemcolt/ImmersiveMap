@@ -49,7 +49,7 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
         globeTextureVersionTracker.commitPending()
     }
 
-    func encode(pass _: RenderPass, encoder _: MTLRenderCommandEncoder, frameContext _: FrameContext) {}
+    func encode(layer _: RenderLayer, encoder _: MTLRenderCommandEncoder, frameContext _: FrameContext) {}
 
     func handleMemoryWarning() {
         placeTilesContext = .empty

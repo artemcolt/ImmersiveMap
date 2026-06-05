@@ -290,7 +290,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         frameContext.sharedState.roadLabelState.glyphVertexCount = drawBatches.first?.localGlyphVertexCount ?? 0
     }
 
-    func encode(pass _: RenderPass, encoder _: MTLRenderCommandEncoder, frameContext _: FrameContext) {}
+    func encode(layer _: RenderLayer, encoder _: MTLRenderCommandEncoder, frameContext _: FrameContext) {}
 
     func handleMemoryWarning() {
         reset()

@@ -25,8 +25,8 @@ enum RenderGraphFactory {
         let avatarSubsystem = AvatarRenderSubsystem(avatarsRenderer: context.avatarsRenderer,
                                                     avatarSource: context.avatarSource,
                                                     depthDisabledState: context.depthDisabledState)
-        let buildingWinnerPrePass = BuildingWinnerPrePass(extrudedTilePipeline: context.extrudedTilePipeline,
-                                                          extrudedDepthState: context.extrudedDepthState)
+        let buildingWinnerSubsystem = BuildingWinnerRenderSubsystem(extrudedTilePipeline: context.extrudedTilePipeline,
+                                                                    extrudedDepthState: context.extrudedDepthState)
         let commonViewSceneSubsystem = CommonViewSceneRenderSubsystem(depthDisabledState: context.depthDisabledState)
         let globeViewSceneSubsystem = GlobeViewSceneRenderSubsystem(starfieldRenderer: context.starfieldRenderer,
                                                                     globeDepthState: context.extrudedDepthState,
@@ -55,6 +55,7 @@ enum RenderGraphFactory {
             baseLabelDrawSubsystem,
             roadLabelDrawSubsystem,
             avatarSubsystem,
+            buildingWinnerSubsystem,
             commonViewSceneSubsystem,
             globeViewSceneSubsystem,
             flatViewSceneSubsystem,
@@ -67,7 +68,6 @@ enum RenderGraphFactory {
             debugSubsystem
         ]
         return RenderGraph(registry: RenderSubsystemRegistry(subsystems: subsystems),
-                           prePasses: [buildingWinnerPrePass],
                            availabilityProviders: availabilityProviders)
     }
 }
