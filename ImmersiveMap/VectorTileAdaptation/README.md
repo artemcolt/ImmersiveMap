@@ -19,12 +19,22 @@ or draw subsystems.
   future placement candidates.
 - Keep provider-specific rules out of renderer runtime code.
 
-## Non-Responsibilities
+## May Contain
 
-- It should not own Metal buffers, render passes, shaders, or frame state.
-- It should not perform label fade animation or per-frame collision resolution.
-- It should not fetch tiles or configure network authorization.
-- It should not expose public API until the internal model is stable.
+- Provider profile protocols and concrete provider profiles.
+- Provider-specific feature normalization rules.
+- Label text, language preference, and glyph coverage resolvers.
+- Stable label identity and hashing helpers.
+- Label decision, priority, and placement intent models.
+- Pure decision engines that produce renderer-neutral label decisions.
+
+## Must Not Contain
+
+- Metal buffers, render passes, shaders, GPU resources, or frame state.
+- Runtime label caches, fade animation, or per-frame collision resolution.
+- Tile fetching, URL construction, disk caching, or network authorization.
+- Public API until the internal adaptation model is stable.
+- UIKit/SwiftUI views, host-app code, demo modes, tokens, or local secrets.
 
 ## Intended Flow
 
@@ -40,4 +50,3 @@ The existing `Labels` and `Render/Labels` folders remain responsible for runtime
 label state, collision/fade presentation, GPU resources, and drawing. This
 folder is for provider adaptation and label decision logic before that runtime
 stage.
-
