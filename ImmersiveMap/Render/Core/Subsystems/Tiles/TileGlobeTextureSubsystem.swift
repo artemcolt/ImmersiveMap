@@ -15,17 +15,20 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
     private let tilesTexture: GlobeTilesTexture
 
     private var globeTextureVersionTracker = StagedHashChangeTracker()
-    private var placeTilesContext: PlaceTilesContext = .empty
+    private var placeTilesContext: GlobeTexturePlaceTilesContext = .empty
     private var overviewFadeAlpha: Float = 1.0
     private var roadFadeAlpha: Float = 0.0
+    private var globeAtlasDebugSummary: GlobeAtlasDebugSummary?
 
     init(tilesTexture: GlobeTilesTexture) {
         self.tilesTexture = tilesTexture
     }
 
     func update(frameContext: FrameContext) {
+        frameContext.sharedState.globeAtlasDebugSummary = frameContext.renderSurfaceMode == .spherical ? globeAtlasDebugSummary : nil
+
         let tilePlacementState = frameContext.sharedState.tilePlacementState
-        placeTilesContext = tilePlacementState.placeTilesContext
+        placeTilesContext = tilePlacementState.globeTexturePlaceTilesContext
         overviewFadeAlpha = LowZoomOverviewFade.alpha(for: frameContext.zoom, kind: .overviewFeatures)
         roadFadeAlpha = LowZoomOverviewFade.alpha(for: frameContext.zoom, kind: .roads)
 
@@ -53,11 +56,13 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
 
     func handleMemoryWarning() {
         placeTilesContext = .empty
+        globeAtlasDebugSummary = nil
         globeTextureVersionTracker.invalidate()
     }
 
     func evict() {
         placeTilesContext = .empty
+        globeAtlasDebugSummary = nil
         globeTextureVersionTracker.invalidate()
     }
 
@@ -65,31 +70,45 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
                                                  frameContext: FrameContext) {
         guard frameContext.renderSurfaceMode == .spherical else { return }
 
-        tilesTexture.activateEncoder(commandBuffer: commandBuffer)
-        tilesTexture.setOverviewFadeAlphas(overviewAlpha: overviewFadeAlpha,
-                                           roadAlpha: roadFadeAlpha)
-        drawGlobeTexture()
-        tilesTexture.endEncoding()
+        drawGlobeTexture(commandBuffer: commandBuffer, frameContext: frameContext)
     }
 
-    private func drawGlobeTexture() {
-        // Globe atlas path: assign atlas depth during draw and stop when capacity is exhausted.
-        tilesTexture.selectTilePipeline()
-        let tileDepthCount = TileDepthCount()
-        for placeTile in placeTilesContext.tilePlacements {
-            guard let atlasDepth = tileDepthCount.getTexturePlaceDepth() else {
-                break
+    private func drawGlobeTexture(commandBuffer: MTLCommandBuffer,
+                                  frameContext: FrameContext) {
+        tilesTexture.resetFrame()
+        let planner = GlobeAtlasPlacementPlanner(pageSizePx: tilesTexture.size,
+                                                 maxPageCount: 3,
+                                                 qualityScale: 1.0)
+        let candidates = planner.makeCandidates(placeTiles: placeTilesContext.tilePlacements,
+                                                frameContext: frameContext)
+        let atlasPlan = planner.plan(candidates: candidates)
+        let atlasDebugSummary = GlobeAtlasDebugSummary(plan: atlasPlan)
+        globeAtlasDebugSummary = atlasDebugSummary
+        frameContext.sharedState.globeAtlasDebugSummary = atlasDebugSummary
+
+        let allocationsByPage = Dictionary(grouping: atlasPlan.allocations, by: \.pageIndex)
+
+        for pageIndex in allocationsByPage.keys.sorted() {
+            guard let allocations = allocationsByPage[pageIndex],
+                  tilesTexture.beginPageEncoding(commandBuffer: commandBuffer, pageIndex: pageIndex) else {
+                continue
             }
 
-            let placed = tilesTexture.draw(placeTile: placeTile,
-                                           atlasDepth: atlasDepth,
-                                           maxDepth: 4)
-            if placed == false {
-                #if DEBUG
-                print("[ERROR] No place for tile in texture!")
-                #endif
-                break
+            tilesTexture.setOverviewFadeAlphas(overviewAlpha: overviewFadeAlpha,
+                                               roadAlpha: roadFadeAlpha)
+            tilesTexture.selectTilePipeline()
+
+            for allocation in allocations {
+                let placed = tilesTexture.draw(allocation: allocation, maxDepth: 4)
+                if placed == false {
+                    #if DEBUG
+                    print("[ERROR] No place for tile in globe atlas texture!")
+                    #endif
+                    break
+                }
             }
+
+            tilesTexture.endEncoding()
         }
     }
 }

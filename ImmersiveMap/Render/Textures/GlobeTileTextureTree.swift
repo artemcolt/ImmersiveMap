@@ -19,7 +19,7 @@ class GlobeTileTextureTree {
     }
 }
 
-struct PlacedPos {
+struct PlacedPos: Hashable {
     let depth: UInt8
     let x: UInt8
     let y: UInt8
@@ -41,16 +41,20 @@ class TextureNode {
     var lt: TextureNode? // left top
     var rt: TextureNode? // right top
     var rb: TextureNode? // right bottom
+
+    private var hasChildren: Bool {
+        lb != nil || lt != nil || rt != nil || rb != nil
+    }
     
     func insertNew(depth: UInt8) -> PlacedPos? {
         // Place the texture in a slot
-        if depth == self.depth && self.placedHere == false {
+        if depth == self.depth && self.placedHere == false && hasChildren == false {
             self.placedHere = true
             return PlacedPos(depth: self.depth, x: self.x, y: self.y)
         }
         
         // Slot already occupied, exit
-        if depth == self.depth {
+        if depth == self.depth || placedHere {
             return nil
         }
         

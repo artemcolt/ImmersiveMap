@@ -13,77 +13,82 @@ class GlobeTilesTexture {
         let position: simd_int1
         let textureSize: simd_int1
         let cellSize: simd_int1
+        let layer: simd_int1
         let tile: simd_int3
+    }
+
+    struct Page {
+        let texture: MTLTexture
+        let depthTexture: MTLTexture
+        var tileData: [TileData]
     }
     
     let textSize: Float = 40
-    let texture: MTLTexture
     let size: Int = 4096
-    var cellSize: Int = 1024
+    private(set) var pages: [Page] = []
     var projection: matrix_float4x4
     var previousProjectionCount: Int = 0
-    private let depthTexture: MTLTexture
     
+    private let metalDevice: MTLDevice
     private let tilePipeline: TilePipeline
     private let depthStencilState: MTLDepthStencilState
-    var renderEncoder: MTLRenderCommandEncoder?
-    var tileData: [TileData]
+    private var renderEncoder: MTLRenderCommandEncoder?
+    private var activePageIndex: Int?
     var texts: [TextEntry] = []
     var textsMatrices: [matrix_float4x4] = []
-    private var textureTree: GlobeTileTextureTree
     
     private var previousShiftX: Float? = nil
     private var previousShiftY: Float? = nil
     private var previousScale: Float? = nil
     
     init(metalDevice: MTLDevice, tilePipeline: TilePipeline) {
-        let descriptor = MTLTextureDescriptor()
-        descriptor.textureType = .type2D
-        descriptor.width = size
-        descriptor.height = size
-        descriptor.pixelFormat = .bgra8Unorm
-        descriptor.usage = [.shaderRead, .renderTarget]
-        descriptor.storageMode = .private
-        self.texture = metalDevice.makeTexture(descriptor: descriptor)!
-        let depthDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float,
-                                                                       width: size,
-                                                                       height: size,
-                                                                       mipmapped: false)
-        depthDescriptor.usage = [.renderTarget]
-        depthDescriptor.storageMode = .private
-        self.depthTexture = metalDevice.makeTexture(descriptor: depthDescriptor)!
+        self.metalDevice = metalDevice
         self.tilePipeline = tilePipeline
         let depthStateDescriptor = MTLDepthStencilDescriptor()
         depthStateDescriptor.depthCompareFunction = .always
         depthStateDescriptor.isDepthWriteEnabled = false
         self.depthStencilState = metalDevice.makeDepthStencilState(descriptor: depthStateDescriptor)!
         
-        let count = size / cellSize
+        let count = 4
         projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
-        tileData = []
-        textureTree = GlobeTileTextureTree()
     }
     
-    func activateEncoder(commandBuffer: MTLCommandBuffer) {
+    func resetFrame() {
+        for index in pages.indices {
+            pages[index].tileData = []
+        }
+        texts = []
+        textsMatrices = []
+    }
+
+    func beginPageEncoding(commandBuffer: MTLCommandBuffer, pageIndex: Int) -> Bool {
+        guard pageIndex >= 0 else { return false }
+        guard renderEncoder == nil else { return false }
+
+        ensurePage(at: pageIndex)
+        pages[pageIndex].tileData = []
         previousShiftX = nil
         previousShiftY = nil
         previousScale = nil
-        textureTree = GlobeTileTextureTree()
-        tileData = []
-        texts = []
-        textsMatrices = []
+
+        let page = pages[pageIndex]
         let renderPassDescriptor = MTLRenderPassDescriptor()
-        renderPassDescriptor.colorAttachments[0].texture = texture
+        renderPassDescriptor.colorAttachments[0].texture = page.texture
         renderPassDescriptor.colorAttachments[0].loadAction = .clear
         renderPassDescriptor.colorAttachments[0].storeAction = .store
         renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 1, green: 1, blue: 1, alpha: 1)
-        renderPassDescriptor.depthAttachment.texture = depthTexture
+        renderPassDescriptor.depthAttachment.texture = page.depthTexture
         renderPassDescriptor.depthAttachment.loadAction = .clear
         renderPassDescriptor.depthAttachment.storeAction = .dontCare
         renderPassDescriptor.depthAttachment.clearDepth = 1.0
-        
-        renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
-        renderEncoder?.setDepthStencilState(depthStencilState)
+
+        guard let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else {
+            return false
+        }
+        self.renderEncoder = renderEncoder
+        activePageIndex = pageIndex
+        renderEncoder.setDepthStencilState(depthStencilState)
+        return true
     }
     
     func selectTilePipeline() {
@@ -92,6 +97,8 @@ class GlobeTilesTexture {
     
     func endEncoding() {
         renderEncoder?.endEncoding()
+        renderEncoder = nil
+        activePageIndex = nil
     }
 
     func setOverviewFadeAlphas(overviewAlpha: Float, roadAlpha: Float) {
@@ -103,9 +110,15 @@ class GlobeTilesTexture {
                                        index: 0)
     }
     
-    func draw(placeTile: PlaceTile, atlasDepth: UInt8, maxDepth: UInt8) -> Bool {
-        guard let placedPos = textureTree.addNewValue(value: TextureValue(), depth: atlasDepth) else { return false }
-        guard let renderEncoder = renderEncoder else { return true }
+    func draw(allocation: GlobeAtlasAllocation, maxDepth: UInt8) -> Bool {
+        let placeTile = allocation.placeTile
+        let placedPos = allocation.placedPosition
+        let atlasDepth = allocation.atlasDepth.rawValue
+        guard let renderEncoder,
+              activePageIndex == allocation.pageIndex,
+              pages.indices.contains(allocation.pageIndex) else {
+            return false
+        }
         
         let placeIn = placeTile.placeIn
         let count = 1 << atlasDepth
@@ -117,10 +130,11 @@ class GlobeTilesTexture {
         // Add tile metadata for globe placement
         let cellSize = size / count
         let freePtr = Int(placedPos.x) + Int(placedPos.y) * count
-        tileData.append(TileData(position: simd_int1(freePtr),
-                                 textureSize: simd_int1(size),
-                                 cellSize: simd_int1(cellSize),
-                                 tile: simd_int3(Int32(placeIn.x), Int32(placeIn.y), Int32(placeIn.z))))
+        pages[allocation.pageIndex].tileData.append(TileData(position: simd_int1(freePtr),
+                                                             textureSize: simd_int1(size),
+                                                             cellSize: simd_int1(cellSize),
+                                                             layer: simd_int1(Int32(allocation.candidate.layer.rawValue)),
+                                                             tile: simd_int3(Int32(placeIn.x), Int32(placeIn.y), Int32(placeIn.z))))
         
         
         // Add text metadata for drawing coordinate text on the map texture
@@ -184,5 +198,32 @@ class GlobeTilesTexture {
                                             indexBufferOffset: 0)
         
         return true
+    }
+
+    private func ensurePage(at pageIndex: Int) {
+        while pages.count <= pageIndex {
+            pages.append(makePage())
+        }
+    }
+
+    private func makePage() -> Page {
+        let descriptor = MTLTextureDescriptor()
+        descriptor.textureType = .type2D
+        descriptor.width = size
+        descriptor.height = size
+        descriptor.pixelFormat = .bgra8Unorm
+        descriptor.usage = [.shaderRead, .renderTarget]
+        descriptor.storageMode = .private
+
+        let depthDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float,
+                                                                       width: size,
+                                                                       height: size,
+                                                                       mipmapped: false)
+        depthDescriptor.usage = [.renderTarget]
+        depthDescriptor.storageMode = .private
+
+        return Page(texture: metalDevice.makeTexture(descriptor: descriptor)!,
+                    depthTexture: metalDevice.makeTexture(descriptor: depthDescriptor)!,
+                    tileData: [])
     }
 }

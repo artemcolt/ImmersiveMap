@@ -63,11 +63,43 @@ struct TilePlacementPlanner {
                 return foundSome
             }
 
+            func findCurrentReadyParentReplacement() -> Bool {
+                var bestReplacement: MetalTile?
+                for candidate in readyTilesBySource.values {
+                    guard let candidate else {
+                        continue
+                    }
+                    let candidateTile = candidate.tile
+                    guard candidateTile != target.tile,
+                          candidateTile.covers(target.tile) else {
+                        continue
+                    }
+                    if let currentBest = bestReplacement {
+                        if candidateTile.z > currentBest.tile.z {
+                            bestReplacement = candidate
+                        }
+                    } else {
+                        bestReplacement = candidate
+                    }
+                }
+
+                guard let bestReplacement else {
+                    return false
+                }
+
+                placeTiles.append(PlaceTile(metalTile: bestReplacement,
+                                            placeIn: target,
+                                            lodKind: .retainedReplacement))
+                return true
+            }
+
             // Replace missing tile with temporary tiles from the previous frame.
             if metalTile == nil {
                 let zDiff = zoom - previousZoom
 
-                if zDiff >= 0 {
+                if findCurrentReadyParentReplacement() {
+                    continue
+                } else if zDiff >= 0 {
                     if findFullReplacement() == false {
                         _ = findPartialReplacement()
                     }

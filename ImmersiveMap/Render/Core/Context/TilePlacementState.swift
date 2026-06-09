@@ -10,6 +10,7 @@ import Foundation
 
 struct TilePlacementState {
     static let empty = TilePlacementState(placeTilesContext: .empty,
+                                          globeTexturePlaceTilesContext: .empty,
                                           placementVersion: 0,
                                           visibleTilesCount: 0,
                                           readyTilesCount: 0,
@@ -17,6 +18,7 @@ struct TilePlacementState {
                                           renderedTilesCount: 0)
 
     let placeTilesContext: PlaceTilesContext
+    let globeTexturePlaceTilesContext: GlobeTexturePlaceTilesContext
     let placementVersion: UInt64
     let visibleTilesCount: Int
     let readyTilesCount: Int

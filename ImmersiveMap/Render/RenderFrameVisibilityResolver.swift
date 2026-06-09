@@ -13,13 +13,34 @@ final class RenderFrameVisibilityResolver {
                  resolvedPresentation: ResolvedPresentationState,
                  tileSettings: ImmersiveMapSettings.TileSettings,
                  diagnostics: (any FrameDiagnosticsService)? = nil) -> VisibleContentState {
-        let targetTileZoom = tileSettings.resolvedCoverageZoomLevel(forCameraZoom: cameraFrameState.mapCameraState.zoom)
-        return tileCulling.resolveVisibleContent(cameraState: cameraFrameState.mapCameraState,
-                                                 resolvedPresentation: resolvedPresentation,
-                                                 targetZoom: targetTileZoom,
-                                                 cameraMatrix: cameraFrameState.cameraMatrices.projectionView,
-                                                 cameraFrustum: cameraFrameState.cameraFrustum,
-                                                 cameraEye: cameraFrameState.cameraEye,
-                                                 diagnostics: diagnostics)
+        let zoomPlan = TileCoverageZoomPolicy.resolve(cameraZoom: cameraFrameState.mapCameraState.zoom,
+                                                      renderSurfaceMode: resolvedPresentation.renderSurfaceMode,
+                                                      maximumZoomLevel: tileSettings.coverage.maximumZoomLevel)
+        let baseContent = tileCulling.resolveVisibleContent(cameraState: cameraFrameState.mapCameraState,
+                                                            resolvedPresentation: resolvedPresentation,
+                                                            targetZoom: zoomPlan.baseZoom,
+                                                            cameraMatrix: cameraFrameState.cameraMatrices.projectionView,
+                                                            cameraFrustum: cameraFrameState.cameraFrustum,
+                                                            cameraEye: cameraFrameState.cameraEye,
+                                                            diagnostics: diagnostics)
+        guard resolvedPresentation.renderSurfaceMode == .spherical,
+              let detailZoom = zoomPlan.detailZoom else {
+            return baseContent
+        }
+
+        let detailContent = tileCulling.resolveVisibleContent(cameraState: cameraFrameState.mapCameraState,
+                                                              resolvedPresentation: resolvedPresentation,
+                                                              targetZoom: detailZoom,
+                                                              cameraMatrix: cameraFrameState.cameraMatrices.projectionView,
+                                                              cameraFrustum: cameraFrameState.cameraFrustum,
+                                                              cameraEye: cameraFrameState.cameraEye,
+                                                              diagnostics: diagnostics)
+        return VisibleContentState(centerWorldMercator: baseContent.centerWorldMercator,
+                                   center: baseContent.center,
+                                   visibleTiles: baseContent.visibleTiles,
+                                   tileZoomLevel: baseContent.tileZoomLevel,
+                                   globeDetailVisibleTiles: detailContent.visibleTiles,
+                                   globeDetailTileZoomLevel: detailContent.tileZoomLevel,
+                                   coverageVersion: baseContent.coverageVersion)
     }
 }

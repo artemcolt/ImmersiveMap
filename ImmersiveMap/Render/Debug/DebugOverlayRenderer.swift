@@ -154,16 +154,13 @@ final class DebugOverlayRenderer {
                          zoom: Double,
                          latitude: Double,
                          longitude: Double,
+                         cameraDebugLines: [String] = [],
                          diagnostics: FrameDiagnostics?) {
         let coordinateLines = Self.makeCoordinateTextLines(zoom: zoom,
                                                            latitude: latitude,
                                                            longitude: longitude)
-        let diagnosticsLines: [String]
-        if let diagnostics {
-            diagnosticsLines = Self.makeDiagnosticsTextLines(from: diagnostics)
-        } else {
-            diagnosticsLines = []
-        }
+        let diagnosticsLines = Self.makeOverlayDiagnosticsTextLines(cameraDebugLines: cameraDebugLines,
+                                                                    diagnostics: diagnostics)
         let coordinateScale = settings.coordinateScale
         let diagnosticsScale = settings.diagnosticsScale
         let coordinateLineAdvance = makeLineAdvance(textRenderer: textRenderer, scale: coordinateScale)
@@ -280,6 +277,14 @@ final class DebugOverlayRenderer {
                                           padding: 0.0)
         renderEncoder.setVertexBytes(&screenUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertices.count)
+    }
+
+    static func makeOverlayDiagnosticsTextLines(cameraDebugLines: [String],
+                                                diagnostics: FrameDiagnostics?) -> [String] {
+        guard let diagnostics else {
+            return cameraDebugLines
+        }
+        return cameraDebugLines + makeDiagnosticsTextLines(from: diagnostics)
     }
 
     private static func makeDiagnosticsTextLines(from diagnostics: FrameDiagnostics) -> [String] {

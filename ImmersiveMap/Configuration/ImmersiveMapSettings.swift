@@ -232,7 +232,9 @@ public struct ImmersiveMapSettings: Equatable {
         }
 
         func resolvedCoverageZoomLevel(forCameraZoom cameraZoom: Double) -> Int {
-            min(max(0, Int(cameraZoom)), coverage.maximumZoomLevel)
+            TileCoverageZoomPolicy.resolve(cameraZoom: cameraZoom,
+                                           renderSurfaceMode: .flat,
+                                           maximumZoomLevel: coverage.maximumZoomLevel).baseZoom
         }
     }
 

@@ -48,6 +48,7 @@ struct Tile {
     int position;
     int textureSize;
     int cellSize;
+    int layer;
     int3 tile;
 };
 

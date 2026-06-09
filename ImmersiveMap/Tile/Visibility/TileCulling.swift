@@ -44,6 +44,8 @@ class TileCulling {
                                    center: center,
                                    visibleTiles: visibleTiles,
                                    tileZoomLevel: targetZoom,
+                                   globeDetailVisibleTiles: [],
+                                   globeDetailTileZoomLevel: nil,
                                    coverageVersion: coverageVersion)
     }
 

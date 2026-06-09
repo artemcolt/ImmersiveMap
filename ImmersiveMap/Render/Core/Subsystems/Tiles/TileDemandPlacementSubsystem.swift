@@ -19,6 +19,7 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
     private var previousZoom: Int
     private var preprocessedVisibleTilesHashTracker = StagedHashChangeTracker()
     private var placeTilesContext: PlaceTilesContext = .empty
+    private var globeTexturePlaceTilesContext: GlobeTexturePlaceTilesContext = .empty
     private var placementVersion: UInt64 = 0
 
     init(tileRenderStore: TileRenderStore,
@@ -36,6 +37,7 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         let center = visibleContent.center
         let visibleTiles = visibleContent.visibleTiles
         let tileZoomLevel = visibleContent.tileZoomLevel
+        let globeDetailVisibleTiles = visibleContent.globeDetailVisibleTiles
         
         // Visible-tiles post-processing:
         // shortens the raw visible list and substitutes distant tiles
@@ -47,16 +49,25 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         // multiple placement targets that share the same content tile (`Tile`).
         // Deduplicate before storage request to avoid repeated cache lookup/request
         // for identical source bytes.
-        let demandedSourceTiles = deduplicateSourceTiles(preprocessedVisibleTiles)
+        var demandedSourceTiles = deduplicateSourceTiles(preprocessedVisibleTiles,
+                                                         parentFallbackDepth: frameContext.renderSurfaceMode == .spherical ? 2 : 0)
+        appendUniqueSourceTiles(globeDetailVisibleTiles.map(\.tile), to: &demandedSourceTiles)
         // Returns source-tile availability map for GPU rendering:
         // value contains Metal-ready tile buffers, or `nil` while still loading.
         let tileRequestResult = tileRenderStore.requestTiles(demandedSourceTiles)
         let readyTilesBySource = tileRequestResult.readyTilesBySource
 
-        let preprocessedVisibleTilesHash = PreprocessedVisibleTilesHasher.computePreprocessedVisibleTilesHash(
+        var hashBuilder = Hasher()
+        hashBuilder.combine(PreprocessedVisibleTilesHasher.computePreprocessedVisibleTilesHash(
             preprocessedVisibleTiles: preprocessedVisibleTiles,
             readyTilesBySource: readyTilesBySource
-        )
+        ))
+        hashBuilder.combine(visibleContent.globeDetailTileZoomLevel)
+        hashBuilder.combine(PreprocessedVisibleTilesHasher.computePreprocessedVisibleTilesHash(
+            preprocessedVisibleTiles: globeDetailVisibleTiles,
+            readyTilesBySource: readyTilesBySource
+        ))
+        let preprocessedVisibleTilesHash = hashBuilder.finalize()
 
         if preprocessedVisibleTilesHashTracker.stage(preprocessedVisibleTilesHash) {
             placeTilesContext = TilePlacementPlanner.buildPlacements(targets: preprocessedVisibleTiles,
@@ -64,6 +75,12 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
                                                                      zoom: tileZoomLevel,
                                                                      previousZoom: previousZoom,
                                                                      previousContext: placeTilesContext)
+            globeTexturePlaceTilesContext = GlobeTexturePlacementPlanner.buildPlacements(baseTargets: preprocessedVisibleTiles,
+                                                                                         detailTargets: globeDetailVisibleTiles,
+                                                                                         readyTilesBySource: readyTilesBySource,
+                                                                                         baseZoom: tileZoomLevel,
+                                                                                         previousBaseZoom: previousZoom,
+                                                                                         previousContext: globeTexturePlaceTilesContext)
             previousZoom = tileZoomLevel
             placementVersion &+= 1
             preprocessedVisibleTilesHashTracker.commitPending()
@@ -76,6 +93,7 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
 
         frameContext.sharedState.tilePlacementState = TilePlacementState(
             placeTilesContext: placeTilesContext,
+            globeTexturePlaceTilesContext: globeTexturePlaceTilesContext,
             placementVersion: placementVersion,
             visibleTilesCount: visibleTilesCount,
             readyTilesCount: readyTilesCount,
@@ -97,6 +115,7 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
     func handleMemoryWarning() {
         tileRenderStore.handleMemoryWarning()
         placeTilesContext = .empty
+        globeTexturePlaceTilesContext = .empty
         preprocessedVisibleTilesHashTracker.invalidate()
         placementVersion &+= 1
     }
@@ -104,20 +123,51 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
     func evict() {
         tileRenderStore.evict()
         placeTilesContext = .empty
+        globeTexturePlaceTilesContext = .empty
         preprocessedVisibleTilesHashTracker.invalidate()
         placementVersion &+= 1
     }
 
-    private func deduplicateSourceTiles(_ targets: [VisibleTile]) -> [Tile] {
+    private func deduplicateSourceTiles(_ targets: [VisibleTile],
+                                        parentFallbackDepth: Int = 0) -> [Tile] {
         var uniqueTiles: [Tile] = []
         uniqueTiles.reserveCapacity(targets.count)
         var seenTiles: Set<Tile> = []
         for target in targets {
             let source = target.tile
-            if seenTiles.insert(source).inserted {
-                uniqueTiles.append(source)
+            appendUniqueTile(source, to: &uniqueTiles, seenTiles: &seenTiles)
+
+            guard parentFallbackDepth > 0, source.z > 0 else {
+                continue
+            }
+
+            let lowestParentZoom = max(0, source.z - parentFallbackDepth)
+            guard source.z > lowestParentZoom else {
+                continue
+            }
+
+            for parentZoom in stride(from: source.z - 1, through: lowestParentZoom, by: -1) {
+                guard let parent = source.findParentTile(atZoom: parentZoom) else {
+                    continue
+                }
+                appendUniqueTile(parent, to: &uniqueTiles, seenTiles: &seenTiles)
             }
         }
         return uniqueTiles
+    }
+
+    private func appendUniqueSourceTiles(_ tiles: [Tile], to uniqueTiles: inout [Tile]) {
+        var seenTiles = Set(uniqueTiles)
+        for tile in tiles {
+            appendUniqueTile(tile, to: &uniqueTiles, seenTiles: &seenTiles)
+        }
+    }
+
+    private func appendUniqueTile(_ tile: Tile,
+                                  to uniqueTiles: inout [Tile],
+                                  seenTiles: inout Set<Tile>) {
+        if seenTiles.insert(tile).inserted {
+            uniqueTiles.append(tile)
+        }
     }
 }

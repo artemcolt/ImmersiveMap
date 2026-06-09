@@ -62,6 +62,7 @@ final class FrameContextSharedState {
     var tilePlacementState: TilePlacementState = .empty
     var placeTileTrackingState: PlaceTileTrackingState = .empty
     var tileProjectionIndexState: TileProjectionIndexState = .empty
+    var globeAtlasDebugSummary: GlobeAtlasDebugSummary?
     var baseLabelState: BaseLabelState = .empty
     var roadLabelState: RoadLabelState = .empty
     var avatarState: AvatarState = .empty

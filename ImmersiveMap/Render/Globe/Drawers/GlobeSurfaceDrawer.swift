@@ -17,11 +17,29 @@ enum GlobeSurfaceDrawer {
         renderEncoder.setCullMode(.front)
         renderEncoder.setVertexBytes(&cameraUniformValue, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setVertexBytes(&globeValue, length: MemoryLayout<GlobeUniform>.stride, index: 2)
-        renderEncoder.setFragmentTexture(tilesTexture.texture, index: 0)
         renderEncoder.setFragmentBytes(&cameraUniformValue, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setVertexBuffer(mapSurfaceGridBuffers.verticesBuffer, offset: 0, index: 0)
 
-        for mapping in tilesTexture.tileData {
+        var pageMappings: [(pageIndex: Int, mapping: GlobeTilesTexture.TileData)] = []
+        for (pageIndex, page) in tilesTexture.pages.enumerated() {
+            for mapping in page.tileData {
+                pageMappings.append((pageIndex: pageIndex, mapping: mapping))
+            }
+        }
+        pageMappings.sort(by: { lhs, rhs in
+            if lhs.mapping.layer != rhs.mapping.layer {
+                return lhs.mapping.layer < rhs.mapping.layer
+            }
+            return lhs.pageIndex < rhs.pageIndex
+        })
+
+        var activePageIndex: Int?
+        for pageMapping in pageMappings {
+            if activePageIndex != pageMapping.pageIndex {
+                renderEncoder.setFragmentTexture(tilesTexture.pages[pageMapping.pageIndex].texture, index: 0)
+                activePageIndex = pageMapping.pageIndex
+            }
+            let mapping = pageMapping.mapping
             var mappingValue = mapping
             renderEncoder.setVertexBytes(&mappingValue,
                                          length: MemoryLayout<GlobeTilesTexture.TileData>.stride,
