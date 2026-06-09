@@ -63,6 +63,10 @@ struct FrameContext {
         resolvedPresentation.globeRenderUniform
     }
 
+    var earthSceneUniform: EarthSceneUniform {
+        EarthSceneUniform(settings: services.settings.scene.earth, now: services.now)
+    }
+
     var transition: Float {
         resolvedPresentation.transition
     }

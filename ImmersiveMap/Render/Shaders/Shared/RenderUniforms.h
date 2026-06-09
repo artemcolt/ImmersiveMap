@@ -25,4 +25,16 @@ struct Globe {
     float transition;
 };
 
+struct EarthScene {
+    float3 sunDirection;
+    uint isEnabled;
+    float daySideMinimumBrightness;
+    float nightSideBrightness;
+    float terminatorFadeWidth;
+    float nightLightsIntensity;
+    float nightLightsTerminatorFadeWidth;
+    uint nightLightsEnabled;
+    uint _padding0;
+};
+
 #endif

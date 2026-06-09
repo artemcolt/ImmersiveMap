@@ -1,6 +1,7 @@
 // Copyright (c) 2025-2026 Artem Bobkin.
 // SPDX-License-Identifier: MIT
 
+import Foundation
 import Metal
 import MetalKit
 import QuartzCore
@@ -139,7 +140,7 @@ final class RenderFrameEngine {
     private func collectInput(layer: CAMetalLayer, frameSlotIndex: Int) -> FrameContext? {
         let frameTick = timeline.nextFrame()
         let diagnostics = FrameDiagnostics(frameIndex: frameTick.index, frameTime: frameTick.time)
-        let services = FrameContextServices(diagnostics: diagnostics)
+        let services = FrameContextServices(diagnostics: diagnostics, settings: settings, now: Date())
 
         guard let cameraFrameState = renderCamera.makeFrameState(drawSize: layer.drawableSize,
                                                                  diagnostics: diagnostics) else {
