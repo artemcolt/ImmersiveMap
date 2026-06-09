@@ -18,6 +18,7 @@ final class ImmersiveMapCameraRuntime {
     private(set) var renderCamera: FrameCameraStateResolver?
     private var settings: ImmersiveMapSettings
     private var appliedCameraPosition: ImmersiveMapCameraPosition?
+    private var cameraNotificationGeneration = 0
 
     init(settings: ImmersiveMapSettings,
          initialCameraPosition: ImmersiveMapCameraPosition?,
@@ -38,11 +39,15 @@ final class ImmersiveMapCameraRuntime {
         controller === cameraController
     }
 
-    func updateSettings(_ settings: ImmersiveMapSettings) {
+    func updateSettings(_ settings: ImmersiveMapSettings,
+                        notifiesCameraPositionChanged: Bool = true) {
         self.settings = settings
         presentationStateResolver.applySettings(settings)
         renderCamera?.applyCameraSettings(settings.camera)
         applyCurrentCameraConstraints()
+        if notifiesCameraPositionChanged {
+            notifyCameraPositionChanged()
+        }
     }
 
     @MainActor
@@ -54,6 +59,7 @@ final class ImmersiveMapCameraRuntime {
 
         controller?.setCommandHandler(nil)
         controller?.updateCurrentCameraPosition(nil)
+        controller?.updateCurrentCameraSnapshot(nil)
         controller = newController
         newController?.setCommandHandler { command in
             commandHandler.handle(command)
@@ -65,6 +71,7 @@ final class ImmersiveMapCameraRuntime {
     func detachController() {
         controller?.setCommandHandler(nil)
         controller?.updateCurrentCameraPosition(nil)
+        controller?.updateCurrentCameraSnapshot(nil)
         controller = nil
     }
 
@@ -99,6 +106,21 @@ final class ImmersiveMapCameraRuntime {
 
     func currentCameraState() -> ImmersiveMapCameraState? {
         renderCamera?.currentCameraState()
+    }
+
+    func currentCameraSnapshot(position overridePosition: ImmersiveMapCameraPosition? = nil) -> ImmersiveMapCameraSnapshot? {
+        guard let renderCamera else {
+            return nil
+        }
+
+        let cameraState = renderCamera.currentCameraState()
+        let position = overridePosition ?? renderCamera.currentCameraPosition()
+        let constraints = currentCameraConstraints(cameraState: cameraState)
+        return ImmersiveMapCameraSnapshotResolver.resolve(
+            position: position,
+            constraints: constraints,
+            isSphericalSurfaceActive: presentationStateResolver.isSphericalSurfaceActive(cameraState: cameraState)
+        )
     }
 
     func currentMaximumPitch() -> Float {
@@ -166,6 +188,7 @@ final class ImmersiveMapCameraRuntime {
         presentationStateResolver.switchRenderSurfaceMode(cameraState: cameraState)
         applyCurrentCameraConstraints()
         syncPitchControlValue()
+        notifyCameraPositionChanged()
         renderRuntime.requestFrame()
     }
 
@@ -236,7 +259,20 @@ final class ImmersiveMapCameraRuntime {
             return
         }
 
+        let snapshot = currentCameraSnapshot(position: position)
+        cameraNotificationGeneration += 1
+        let notificationGeneration = cameraNotificationGeneration
+
+        if let snapshot {
+            controller?.updateCurrentCameraSnapshot(snapshot)
+        }
         controller?.notifyCameraPositionChanged(position)
+
+        guard notificationGeneration == cameraNotificationGeneration,
+              let snapshot else {
+            return
+        }
+        controller?.notifyCameraSnapshotChanged(snapshot)
     }
 
     func notifyMapBackgroundTap() {

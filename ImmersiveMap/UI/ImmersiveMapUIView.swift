@@ -149,7 +149,8 @@ public class ImmersiveMapUIView: UIView {
 
         let plan = ImmersiveMapSettingsApplicationPlanner.makePlan(from: currentSettings,
                                                                    to: settings)
-        cameraRuntime.updateSettings(settings)
+        cameraRuntime.updateSettings(settings,
+                                     notifiesCameraPositionChanged: plan.requiresRendererRecreation == false)
         cameraAnimationRuntime.updateSettings()
         controlsRuntime.applyAttributionSettings(settings.attribution)
         setNeedsLayout()

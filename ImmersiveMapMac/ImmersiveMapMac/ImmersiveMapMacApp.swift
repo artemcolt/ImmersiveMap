@@ -26,40 +26,56 @@ struct HostMapScreen: View {
     @State private var camera = ImmersiveMapCameraController()
     @State private var avatars = ImmersiveMapAvatarsController()
     @State private var liveCameraPosition = HostMapScreen.initialCameraPosition
+    @State private var liveCameraSnapshot: ImmersiveMapCameraSnapshot?
 
     var body: some View {
         ZStack {
             ImmersiveMapView(
                 settings: mapSettings,
                 avatarsController: avatars,
-                cameraPosition: Self.initialCameraPosition,
+                cameraPosition: liveCameraPosition,
                 cameraController: camera
             )
             .ignoresSafeArea()
 
             CameraControlPanel(
-                cameraPosition: liveCameraPosition,
-                maximumPitch: mapSettings.camera.maximumPitch
+                cameraSnapshot: liveCameraSnapshot ?? fallbackCameraSnapshot
             ) { nextPosition in
-                liveCameraPosition = nextPosition
-                camera.jump(to: nextPosition)
+                let cameraSnapshot = liveCameraSnapshot ?? fallbackCameraSnapshot
+                let constrainedPosition = cameraSnapshot.clampedPosition(nextPosition)
+                liveCameraPosition = constrainedPosition
+                camera.jump(to: constrainedPosition)
             }
             .padding(.trailing, 18)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         }
         .onAppear {
-            camera.onCameraPositionChanged = { position in
+            camera.onCameraSnapshotChanged = { snapshot in
                 Task { @MainActor in
-                    liveCameraPosition = position
+                    liveCameraSnapshot = snapshot
+                    liveCameraPosition = snapshot.position
                 }
+            }
+            if let currentSnapshot = camera.currentCameraSnapshot() {
+                liveCameraSnapshot = currentSnapshot
+                liveCameraPosition = currentSnapshot.position
             }
         }
         .onDisappear {
-            camera.onCameraPositionChanged = nil
+            camera.onCameraSnapshotChanged = nil
         }
         .task {
             await seedPreviewMarkers()
         }
+    }
+
+    private var fallbackCameraSnapshot: ImmersiveMapCameraSnapshot {
+        ImmersiveMapCameraSnapshot(
+            position: liveCameraPosition,
+            bearingLimits: ImmersiveMapCameraBearingLimits(maximumAbsoluteBearing: .pi),
+            pitchLimits: ImmersiveMapCameraAngleLimits(minimum: 0, maximum: mapSettings.camera.maximumPitch),
+            isSphericalSurfaceActive: false
+        )
     }
 
     private var mapSettings: ImmersiveMapSettings {
@@ -126,12 +142,14 @@ struct HostMapScreen: View {
 }
 
 private struct CameraControlPanel: View {
-    let cameraPosition: ImmersiveMapCameraPosition
-    let maximumPitch: Float
+    let cameraSnapshot: ImmersiveMapCameraSnapshot
     let onChange: (ImmersiveMapCameraPosition) -> Void
     @State private var draftBearingDegrees: Double?
     @State private var draftPitchDegrees: Double?
-    @State private var pendingCameraUpdate: Task<Void, Never>?
+
+    private var cameraPosition: ImmersiveMapCameraPosition {
+        cameraSnapshot.position
+    }
 
     private var bearingDegrees: Double {
         CameraControlMath.degrees(fromRadians: Double(cameraPosition.bearing))
@@ -149,8 +167,19 @@ private struct CameraControlPanel: View {
         draftPitchDegrees ?? pitchDegrees
     }
 
-    private var maximumPitchDegrees: Double {
-        max(CameraControlMath.degrees(fromRadians: Double(maximumPitch)), displayedPitchDegrees)
+    private var bearingRangeDegrees: ClosedRange<Double> {
+        let minimum = CameraControlMath.degrees(fromRadians: Double(cameraSnapshot.bearingLimits.minimum))
+        let maximum = CameraControlMath.degrees(fromRadians: Double(cameraSnapshot.bearingLimits.maximum))
+        if minimum <= -180, maximum >= 180 {
+            return -180...179
+        }
+        return minimum...maximum
+    }
+
+    private var pitchRangeDegrees: ClosedRange<Double> {
+        let minimum = Double(cameraSnapshot.pitchLimits.minimum) * 180 / .pi
+        let maximum = Double(cameraSnapshot.pitchLimits.maximum) * 180 / .pi
+        return minimum...maximum
     }
 
     var body: some View {
@@ -182,9 +211,8 @@ private struct CameraControlPanel: View {
                 }
 
                 CameraScrubSlider(value: bearingBinding,
-                                  range: -180...180,
-                                  step: 1,
-                                  onEditingEnded: flushPendingCameraUpdate)
+                                  range: bearingRangeDegrees,
+                                  step: 1)
             }
 
             Divider()
@@ -209,9 +237,8 @@ private struct CameraControlPanel: View {
                 }
 
                 CameraScrubSlider(value: pitchBinding,
-                                  range: 0...maximumPitchDegrees,
-                                  step: 1,
-                                  onEditingEnded: flushPendingCameraUpdate)
+                                  range: pitchRangeDegrees,
+                                  step: 1)
             }
         }
         .foregroundStyle(.white)
@@ -224,16 +251,8 @@ private struct CameraControlPanel: View {
         )
         .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
         .onChange(of: cameraPosition) { _, _ in
-            guard pendingCameraUpdate == nil else {
-                return
-            }
-
             draftBearingDegrees = nil
             draftPitchDegrees = nil
-        }
-        .onDisappear {
-            pendingCameraUpdate?.cancel()
-            pendingCameraUpdate = nil
         }
     }
 
@@ -241,9 +260,9 @@ private struct CameraControlPanel: View {
         Binding {
             displayedBearingDegrees
         } set: { newValue in
-            let normalizedValue = CameraControlMath.normalizedDegrees(newValue)
-            draftBearingDegrees = normalizedValue
-            queueCameraUpdate(bearingDegrees: normalizedValue,
+            let clampedValue = clampedBearingDegrees(newValue)
+            draftBearingDegrees = clampedValue
+            applyCameraUpdate(bearingDegrees: clampedValue,
                               pitchDegrees: displayedPitchDegrees)
         }
     }
@@ -252,10 +271,9 @@ private struct CameraControlPanel: View {
         Binding {
             displayedPitchDegrees
         } set: { newValue in
-            let clampedValue = CameraControlMath.clampedPitchDegrees(newValue,
-                                                                     maximumPitchDegrees: maximumPitchDegrees)
+            let clampedValue = CameraControlMath.clampedDegrees(newValue, range: pitchRangeDegrees)
             draftPitchDegrees = clampedValue
-            queueCameraUpdate(bearingDegrees: displayedBearingDegrees,
+            applyCameraUpdate(bearingDegrees: displayedBearingDegrees,
                               pitchDegrees: clampedValue)
         }
     }
@@ -265,9 +283,9 @@ private struct CameraControlPanel: View {
     }
 
     private func setBearing(degrees: Double) {
-        let normalizedValue = CameraControlMath.normalizedDegrees(degrees)
-        draftBearingDegrees = normalizedValue
-        applyCameraUpdate(bearingDegrees: normalizedValue,
+        let clampedValue = clampedBearingDegrees(degrees)
+        draftBearingDegrees = clampedValue
+        applyCameraUpdate(bearingDegrees: clampedValue,
                           pitchDegrees: displayedPitchDegrees)
     }
 
@@ -276,37 +294,21 @@ private struct CameraControlPanel: View {
     }
 
     private func setPitch(degrees: Double) {
-        let clampedValue = CameraControlMath.clampedPitchDegrees(degrees,
-                                                                 maximumPitchDegrees: maximumPitchDegrees)
+        let clampedValue = CameraControlMath.clampedDegrees(degrees, range: pitchRangeDegrees)
         draftPitchDegrees = clampedValue
         applyCameraUpdate(bearingDegrees: displayedBearingDegrees,
                           pitchDegrees: clampedValue)
     }
 
-    private func queueCameraUpdate(bearingDegrees: Double, pitchDegrees: Double) {
-        pendingCameraUpdate?.cancel()
-        pendingCameraUpdate = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(55))
-            guard Task.isCancelled == false else {
-                return
-            }
-
-            applyCameraUpdate(bearingDegrees: bearingDegrees,
-                              pitchDegrees: pitchDegrees)
-        }
-    }
-
-    private func flushPendingCameraUpdate() {
-        applyCameraUpdate(bearingDegrees: displayedBearingDegrees,
-                          pitchDegrees: displayedPitchDegrees)
+    private func clampedBearingDegrees(_ degrees: Double) -> Double {
+        CameraControlMath.clampedDegrees(CameraControlMath.normalizedDegrees(degrees),
+                                         range: bearingRangeDegrees)
     }
 
     private func applyCameraUpdate(bearingDegrees: Double, pitchDegrees: Double) {
-        pendingCameraUpdate?.cancel()
-        pendingCameraUpdate = nil
-        onChange(cameraPosition.withCameraAngles(bearingDegrees: bearingDegrees,
-                                                 pitchDegrees: pitchDegrees,
-                                                 maximumPitchDegrees: maximumPitchDegrees))
+        let requestedPosition = cameraPosition.withCameraAngles(bearingDegrees: bearingDegrees,
+                                                                pitchDegrees: pitchDegrees)
+        onChange(requestedPosition)
     }
 }
 
@@ -360,7 +362,6 @@ private struct CameraScrubSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
-    let onEditingEnded: () -> Void
 
     private let thumbSize: CGFloat = 22
     private let trackHeight: CGFloat = 8
@@ -397,7 +398,6 @@ private struct CameraScrubSlider: View {
                     .onEnded { gesture in
                         value = steppedValue(for: gesture.location.x,
                                              trackWidth: trackWidth)
-                        onEditingEnded()
                     }
             )
         }
@@ -436,16 +436,12 @@ private enum CameraControlMath {
         Float(normalizedDegrees(degrees) * .pi / 180)
     }
 
-    static func pitchRadians(fromDegrees degrees: Double, maximumPitchDegrees: Double) -> Float {
-        Float(clampedPitchDegrees(degrees, maximumPitchDegrees: maximumPitchDegrees) * .pi / 180)
-    }
-
     static func formattedDegrees(_ degrees: Double) -> String {
         "\(Int(degrees.rounded())) deg"
     }
 
-    static func clampedPitchDegrees(_ degrees: Double, maximumPitchDegrees: Double) -> Double {
-        min(max(0, degrees), maximumPitchDegrees)
+    static func clampedDegrees(_ degrees: Double, range: ClosedRange<Double>) -> Double {
+        min(max(degrees, range.lowerBound), range.upperBound)
     }
 
     static func normalizedDegrees(_ degrees: Double) -> Double {
@@ -461,15 +457,13 @@ private enum CameraControlMath {
 
 private extension ImmersiveMapCameraPosition {
     func withCameraAngles(bearingDegrees: Double,
-                          pitchDegrees: Double,
-                          maximumPitchDegrees: Double) -> ImmersiveMapCameraPosition {
+                          pitchDegrees: Double) -> ImmersiveMapCameraPosition {
         ImmersiveMapCameraPosition(
             latitudeDegrees: latitudeDegrees,
             longitudeDegrees: longitudeDegrees,
             zoom: zoom,
             bearing: CameraControlMath.radians(fromDegrees: bearingDegrees),
-            pitch: CameraControlMath.pitchRadians(fromDegrees: pitchDegrees,
-                                                  maximumPitchDegrees: maximumPitchDegrees)
+            pitch: Float(pitchDegrees * .pi / 180)
         )
     }
 }

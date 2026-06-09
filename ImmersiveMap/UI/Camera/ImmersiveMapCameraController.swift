@@ -14,12 +14,14 @@ enum ImmersiveMapCameraCommand {
 public final class ImmersiveMapCameraController {
     private let lock = NSLock()
     private var currentPosition: ImmersiveMapCameraPosition?
+    private var currentSnapshot: ImmersiveMapCameraSnapshot?
     private var pendingCommands: [ImmersiveMapCameraCommand] = []
     private var commandHandler: ((ImmersiveMapCameraCommand) -> Void)?
 
     public var onMapBackgroundTap: (() -> Void)?
     public var onUserInteractionBegan: (() -> Void)?
     public var onCameraPositionChanged: ((ImmersiveMapCameraPosition) -> Void)?
+    public var onCameraSnapshotChanged: ((ImmersiveMapCameraSnapshot) -> Void)?
 
     public init() {}
 
@@ -44,6 +46,12 @@ public final class ImmersiveMapCameraController {
         return currentPosition
     }
 
+    public func currentCameraSnapshot() -> ImmersiveMapCameraSnapshot? {
+        lock.lock()
+        defer { lock.unlock() }
+        return currentSnapshot
+    }
+
     func setCommandHandler(_ handler: ((ImmersiveMapCameraCommand) -> Void)?) {
         performOnMain {
             self.commandHandler = handler
@@ -60,6 +68,12 @@ public final class ImmersiveMapCameraController {
     func updateCurrentCameraPosition(_ position: ImmersiveMapCameraPosition?) {
         lock.lock()
         currentPosition = position
+        lock.unlock()
+    }
+
+    func updateCurrentCameraSnapshot(_ snapshot: ImmersiveMapCameraSnapshot?) {
+        lock.lock()
+        currentSnapshot = snapshot
         lock.unlock()
     }
 
@@ -85,5 +99,10 @@ public final class ImmersiveMapCameraController {
     func notifyCameraPositionChanged(_ position: ImmersiveMapCameraPosition) {
         updateCurrentCameraPosition(position)
         onCameraPositionChanged?(position)
+    }
+
+    func notifyCameraSnapshotChanged(_ snapshot: ImmersiveMapCameraSnapshot) {
+        updateCurrentCameraSnapshot(snapshot)
+        onCameraSnapshotChanged?(snapshot)
     }
 }
