@@ -367,7 +367,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
 
     func testSunInsideGlobeSilhouetteNearLimbSuppressesDiskAndKeepsHalo() {
         var earth = EarthSceneUniform(settings: ImmersiveMapSettings.default.scene.earth, now: .distantPast)
-        earth.sunDirection = normalize(SIMD3<Float>(0.88, 0, 0.48))
+        earth.sunDirection = normalize(SIMD3<Float>(0.48, 0, 0.88))
 
         let state = EarthSceneSunVisualState.make(earthScene: earth,
                                                   globe: GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 0),
