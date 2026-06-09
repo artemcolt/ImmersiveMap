@@ -482,6 +482,7 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
     }
 
     private func makeGlobeFrameContext() -> FrameContext {
+        let settings = ImmersiveMapSettings.default
         let cameraState = ImmersiveMapCameraState(centerWorldMercator: SIMD2<Double>(0.5, 0.5),
                                                   zoom: 5.0,
                                                   bearing: 0,
@@ -497,10 +498,12 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
                             qualityTier: .low,
                             commandBuffer: nil,
                             drawable: nil,
-                            services: FrameContextServices(diagnostics: diagnostics),
+                            services: FrameContextServices(diagnostics: diagnostics,
+                                                           settings: settings,
+                                                           now: Date(timeIntervalSince1970: 0)),
                             mapCameraState: cameraState,
                             resolvedPresentation: PresentationStateResolver.resolve(cameraState: cameraState,
-                                                                                   settings: ImmersiveMapSettings.default.presentation,
+                                                                                   settings: settings.presentation,
                                                                                    forcedRenderSurfaceMode: .spherical),
                             diagnostics: diagnostics)
     }
