@@ -13,6 +13,7 @@ enum RenderResourceName: String {
     case tileStyleBuffer = "TileStyleBuffer"
     case labelGlyphAtlas = "LabelGlyphAtlas"
     case poiSpriteAtlas = "PoiSpriteAtlas"
+    case nightLightsTexture = "NightLightsTexture"
     case baseLabelRuntimeBuffer = "BaseLabelRuntimeBuffer"
     case roadLabelRuntimeBuffer = "RoadLabelRuntimeBuffer"
     case depthTexture = "DepthTexture"

@@ -7,10 +7,13 @@ enum GlobeSurfaceDrawer {
     static func draw(renderEncoder: MTLRenderCommandEncoder,
                      cameraUniform: CameraUniform,
                      globe: GlobeUniform,
+                     earthScene: EarthSceneUniform,
+                     nightLightsTexture: MTLTexture,
                      globePipeline: GlobePipeline,
                      mapSurfaceGridBuffers: MapSurfaceGridBuffers,
                      tilesTexture: GlobeTilesTexture) {
         var cameraUniformValue = cameraUniform
+        var earthSceneValue = earthScene
         var globeValue = globe
 
         globePipeline.selectPipeline(renderEncoder: renderEncoder)
@@ -18,6 +21,8 @@ enum GlobeSurfaceDrawer {
         renderEncoder.setVertexBytes(&cameraUniformValue, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setVertexBytes(&globeValue, length: MemoryLayout<GlobeUniform>.stride, index: 2)
         renderEncoder.setFragmentBytes(&cameraUniformValue, length: MemoryLayout<CameraUniform>.stride, index: 1)
+        renderEncoder.setFragmentBytes(&earthSceneValue, length: MemoryLayout<EarthSceneUniform>.stride, index: 2)
+        renderEncoder.setFragmentTexture(nightLightsTexture, index: 1)
         renderEncoder.setVertexBuffer(mapSurfaceGridBuffers.verticesBuffer, offset: 0, index: 0)
 
         var pageMappings: [(pageIndex: Int, mapping: GlobeTilesTexture.TileData)] = []

@@ -359,17 +359,71 @@ public struct ImmersiveMapSettings: Equatable {
         }
     }
 
+    public struct EarthSceneSettings: Equatable {
+        public struct NightLightsSettings: Equatable {
+            public var isEnabled: Bool
+            /// Light contribution multiplier. Expected range: `0...1`.
+            public var intensity: Float
+            /// Positive normalized dot-product width used to fade across the terminator.
+            public var terminatorFadeWidth: Float
+
+            /// Creates night-lights settings.
+            /// - Parameters:
+            ///   - intensity: Light contribution multiplier in the expected range `0...1`.
+            ///   - terminatorFadeWidth: Positive normalized dot-product fade width.
+            public init(isEnabled: Bool = true,
+                        intensity: Float = 1.0,
+                        terminatorFadeWidth: Float = 0.18) {
+                self.isEnabled = isEnabled
+                self.intensity = intensity
+                self.terminatorFadeWidth = terminatorFadeWidth
+            }
+        }
+
+        public var isEnabled: Bool
+        public var timeMode: EarthSceneTimeMode
+        /// Minimum daylight brightness. Expected range: `0...1`.
+        public var daySideMinimumBrightness: Float
+        /// Night-side base brightness. Expected range: `0...1`.
+        public var nightSideBrightness: Float
+        /// Positive normalized dot-product width used to fade across the terminator.
+        public var terminatorFadeWidth: Float
+        public var nightLights: NightLightsSettings
+
+        /// Creates Earth scene settings.
+        /// - Parameters:
+        ///   - daySideMinimumBrightness: Minimum daylight brightness in the expected range `0...1`.
+        ///   - nightSideBrightness: Night-side base brightness in the expected range `0...1`.
+        ///   - terminatorFadeWidth: Positive normalized dot-product fade width.
+        public init(isEnabled: Bool = true,
+                    timeMode: EarthSceneTimeMode = .realtime,
+                    daySideMinimumBrightness: Float = 0.82,
+                    nightSideBrightness: Float = 0.18,
+                    terminatorFadeWidth: Float = 0.12,
+                    nightLights: NightLightsSettings = NightLightsSettings()) {
+            self.isEnabled = isEnabled
+            self.timeMode = timeMode
+            self.daySideMinimumBrightness = daySideMinimumBrightness
+            self.nightSideBrightness = nightSideBrightness
+            self.terminatorFadeWidth = terminatorFadeWidth
+            self.nightLights = nightLights
+        }
+    }
+
     public struct SceneSettings: Equatable {
         public var mapClearColor: SIMD4<Double>
         public var space: SpaceSettings
         public var starfield: StarfieldSettings
+        public var earth: EarthSceneSettings
 
         public init(mapClearColor: SIMD4<Double>,
                     space: SpaceSettings,
-                    starfield: StarfieldSettings) {
+                    starfield: StarfieldSettings,
+                    earth: EarthSceneSettings = EarthSceneSettings()) {
             self.mapClearColor = mapClearColor
             self.space = space
             self.starfield = starfield
+            self.earth = earth
         }
     }
 

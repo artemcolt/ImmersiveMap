@@ -17,4 +17,6 @@ protocol FrameDiagnosticsService: AnyObject {
 
 struct FrameContextServices {
     let diagnostics: any FrameDiagnosticsService
+    let settings: ImmersiveMapSettings
+    let now: Date
 }

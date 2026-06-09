@@ -22,6 +22,8 @@ struct VertexOut {
     float3 normal;
     float3 worldPos;
     float transition;
+    float2 nightLightsUV;
+    float3 earthNormal;
 };
 
 struct CapVertexIn {
@@ -165,12 +167,21 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     out.normal = normalize((float4(spherePosition, 0.0) * rotation).xyz);
     out.worldPos = spherePositionTranslated.xyz;
     out.transition = transition;
+    out.nightLightsUV = float2(vertexUvX, vertexUvY);
+    out.earthNormal = normalize(spherePosition);
     return out;
+}
+
+static float nightLightsMask(texture2d<float> nightLightsTexture, float2 uv) {
+    constexpr sampler sampler2d(filter::linear, address::repeat, mip_filter::linear);
+    return nightLightsTexture.sample(sampler2d, uv).r;
 }
 
 fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
                                     texture2d<float> texture [[texture(0)]],
-                                    constant Camera& camera [[buffer(1)]]) {
+                                    texture2d<float> nightLightsTexture [[texture(1)]],
+                                    constant Camera& camera [[buffer(1)]],
+                                    constant EarthScene& earthScene [[buffer(2)]]) {
     constexpr sampler textureSampler(filter::linear, mip_filter::linear, mag_filter::linear);
     
 //    return float4(1.0, 0, 0, 1);
@@ -201,6 +212,28 @@ fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
     float v_clamped = max(v_min + in.halfTexel, min(v_max - in.halfTexel, v));
     
     float4 color = texture.sample(textureSampler, float2(u_clamped, v_clamped));
+    if (earthScene.isEnabled != 0) {
+        float sunDot = dot(normalize(in.earthNormal), normalize(earthScene.sunDirection));
+        float dayFactor = smoothstep(-earthScene.terminatorFadeWidth,
+                                     earthScene.terminatorFadeWidth,
+                                     sunDot);
+        float dayBrightness = mix(earthScene.daySideMinimumBrightness, 1.0, dayFactor);
+        float surfaceBrightness = mix(earthScene.nightSideBrightness, dayBrightness, dayFactor);
+        surfaceBrightness = mix(surfaceBrightness, 1.0, in.transition);
+        color.rgb *= surfaceBrightness;
+
+        if (earthScene.nightLightsEnabled != 0) {
+            float nightFactor = 1.0 - smoothstep(-earthScene.nightLightsTerminatorFadeWidth,
+                                                 earthScene.nightLightsTerminatorFadeWidth,
+                                                 sunDot);
+            float mask = nightLightsMask(nightLightsTexture, in.nightLightsUV);
+            float3 warmLight = float3(1.0, 0.72, 0.36);
+            float3 coolLight = float3(0.65, 0.78, 1.0);
+            float3 lightColor = mix(warmLight, coolLight, pow(mask, 1.8));
+            color.rgb += lightColor * mask * nightFactor * earthScene.nightLightsIntensity * (1.0 - in.transition);
+        }
+    }
+
     float3 viewDir = normalize(camera.eye - in.worldPos);
     float rim = pow(max(0.0, 1.0 - dot(in.normal, viewDir)), 2.35);
     float outerGlow = pow(max(0.0, 1.0 - dot(in.normal, viewDir)), 5.2);
