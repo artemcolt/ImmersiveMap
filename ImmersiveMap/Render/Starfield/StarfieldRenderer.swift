@@ -125,7 +125,7 @@ final class StarfieldRenderer {
                                                      cameraMatrix: starCameraMatrix,
                                                      drawSize: drawSize,
                                                      starfieldRadiusScale: config.radiusScale)
-        guard sunState.hasVisibleContribution else {
+        guard sunState.hasVisibleContribution(earthScene: earthScene) else {
             return
         }
 

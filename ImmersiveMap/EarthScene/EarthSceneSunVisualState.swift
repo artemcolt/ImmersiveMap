@@ -19,6 +19,17 @@ struct EarthSceneSunVisualState {
         isEnabled != 0 && (diskAlpha > 0 || edgeGlareAlpha > 0 || limbHaloAlpha > 0)
     }
 
+    func hasVisibleContribution(earthScene: EarthSceneUniform) -> Bool {
+        guard isEnabled != 0 else {
+            return false
+        }
+
+        let diskOrGlow = diskAlpha > 0 && (earthScene.sunDiskIntensity > 0 || earthScene.sunGlowIntensity > 0)
+        let edgeGlare = edgeGlareAlpha > 0 && earthScene.sunEdgeGlareIntensity > 0
+        let limbHalo = limbHaloAlpha > 0 && earthScene.sunLimbHaloIntensity > 0
+        return diskOrGlow || edgeGlare || limbHalo
+    }
+
     static let disabled = EarthSceneSunVisualState(
         screenCenter: SIMD2<Float>(repeating: 0.5),
         clampedScreenCenter: SIMD2<Float>(repeating: 0.5),

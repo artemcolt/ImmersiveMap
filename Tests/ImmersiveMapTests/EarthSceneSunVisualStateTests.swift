@@ -119,6 +119,36 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
 
         XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
         XCTAssertTrue(state.hasVisibleContribution)
+        XCTAssertTrue(state.hasVisibleContribution(earthScene: earthScene))
+    }
+
+    func testVisibleSunHasNoRenderableContributionWhenAllIntensitiesAreZero() {
+        var earthScene = EarthSceneUniform(
+            settings: ImmersiveMapSettings.EarthSceneSettings(
+                sun: .init(
+                    diskIntensity: 0,
+                    glowIntensity: 0,
+                    edgeGlareIntensity: 0,
+                    limbHaloIntensity: 0
+                )
+            ),
+            now: .distantPast
+        )
+        earthScene.sunDirection = normalize(SIMD3<Float>(0.9, 0, 0.44))
+        var cameraMatrix = matrix_identity_float4x4
+        cameraMatrix[0][0] = 0.05
+        cameraMatrix[1][1] = 0.05
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: cameraMatrix,
+            drawSize: CGSize(width: 1024, height: 768)
+        )
+
+        XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
+        XCTAssertTrue(state.hasVisibleContribution)
+        XCTAssertFalse(state.hasVisibleContribution(earthScene: earthScene))
     }
 
     func testSunInsideGlobeSilhouetteNearLimbSuppressesDiskAndKeepsHalo() {
