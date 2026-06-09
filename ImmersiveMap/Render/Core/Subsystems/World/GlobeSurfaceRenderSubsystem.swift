@@ -9,15 +9,18 @@ final class GlobeSurfaceRenderSubsystem: RenderSubsystem {
     private let globeDepthState: MTLDepthStencilState
     private let globePipeline: GlobePipeline
     private let mapSurfaceGridBuffers: MapSurfaceGridBuffers
+    private let nightLightsTexture: NightLightsTexture
     private let tilesTexture: GlobeTilesTexture
 
     init(globeDepthState: MTLDepthStencilState,
          globePipeline: GlobePipeline,
          mapSurfaceGridBuffers: MapSurfaceGridBuffers,
+         nightLightsTexture: NightLightsTexture,
          tilesTexture: GlobeTilesTexture) {
         self.globeDepthState = globeDepthState
         self.globePipeline = globePipeline
         self.mapSurfaceGridBuffers = mapSurfaceGridBuffers
+        self.nightLightsTexture = nightLightsTexture
         self.tilesTexture = tilesTexture
     }
 
@@ -31,10 +34,17 @@ final class GlobeSurfaceRenderSubsystem: RenderSubsystem {
             return
         }
 
+        let earthScene = frameContext.earthSceneUniform
+        let nightTexture = earthScene.isEnabled != 0 && earthScene.nightLightsEnabled != 0
+            ? nightLightsTexture.texture()
+            : nightLightsTexture.placeholderTexture
+
         encoder.setDepthStencilState(globeDepthState)
         GlobeSurfaceDrawer.draw(renderEncoder: encoder,
                                 cameraUniform: frameContext.cameraUniform,
                                 globe: frameContext.globeRenderUniform,
+                                earthScene: earthScene,
+                                nightLightsTexture: nightTexture,
                                 globePipeline: globePipeline,
                                 mapSurfaceGridBuffers: mapSurfaceGridBuffers,
                                 tilesTexture: tilesTexture)
