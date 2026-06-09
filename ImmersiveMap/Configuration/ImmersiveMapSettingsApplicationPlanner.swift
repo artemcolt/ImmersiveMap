@@ -62,6 +62,7 @@ public enum ImmersiveMapSettingsApplicationPlanner {
 
         let sceneLiveChanged = oldValue.scene.mapClearColor != newValue.scene.mapClearColor
             || oldValue.scene.space != newValue.scene.space
+            || oldValue.scene.earth != newValue.scene.earth
         if sceneLiveChanged {
             mark(.scene, actions: [.liveApply])
         }
