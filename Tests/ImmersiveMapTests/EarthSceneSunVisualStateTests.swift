@@ -31,6 +31,10 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
     func testVisibleSunOutsideGlobeSilhouetteDrawsDiskAndGlare() {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = normalize(SIMD3<Float>(0.9, 0, 0.44))
+        let expectedScreenCenter = SIMD2<Float>(
+            0.5 + earthScene.sunDirection.x * 0.5,
+            0.5 - earthScene.sunDirection.y * 0.5
+        )
 
         let state = EarthSceneSunVisualState.make(
             earthScene: earthScene,
@@ -40,14 +44,23 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         )
 
         XCTAssertEqual(state.isEnabled, 1)
-        XCTAssertGreaterThan(state.diskAlpha, 0)
-        XCTAssertGreaterThan(state.edgeGlareAlpha, 0)
+        XCTAssertEqual(state.screenCenter.x, expectedScreenCenter.x, accuracy: 0.0001)
+        XCTAssertEqual(state.screenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
+        XCTAssertEqual(state.clampedScreenCenter.x, expectedScreenCenter.x, accuracy: 0.0001)
+        XCTAssertEqual(state.clampedScreenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
+        XCTAssertGreaterThan(state.globeScreenRadius, 0)
+        XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
         XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
     }
 
     func testSunInsideGlobeSilhouetteNearLimbSuppressesDiskAndKeepsHalo() {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = normalize(SIMD3<Float>(0.48, 0, 0.88))
+        let expectedScreenCenter = SIMD2<Float>(
+            0.5 + earthScene.sunDirection.x * 0.5,
+            0.5 - earthScene.sunDirection.y * 0.5
+        )
 
         let state = EarthSceneSunVisualState.make(
             earthScene: earthScene,
@@ -57,9 +70,11 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         )
 
         XCTAssertEqual(state.isEnabled, 1)
+        XCTAssertEqual(state.screenCenter.x, expectedScreenCenter.x, accuracy: 0.0001)
+        XCTAssertEqual(state.screenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
         XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
-        XCTAssertGreaterThan(state.limbHaloAlpha, 0)
+        XCTAssertGreaterThan(state.limbHaloAlpha, 0.03)
     }
 
     func testSunBehindCameraSuppressesAllVisibleContributions() {
@@ -78,6 +93,87 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
         XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
     }
+
+    func testDisabledSunVisualReturnsDisabledState() {
+        let earthScene = EarthSceneUniform(
+            settings: ImmersiveMapSettings.EarthSceneSettings(sun: .init(isEnabled: false)),
+            now: .distantPast
+        )
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: matrix_identity_float4x4,
+            drawSize: CGSize(width: 1024, height: 768)
+        )
+
+        XCTAssertEqual(state.isEnabled, 0)
+        XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
+    }
+
+    func testInvalidDrawSizeReturnsDisabledState() {
+        let invalidSizes = [
+            CGSize(width: 0, height: 768),
+            CGSize(width: 1024, height: -1),
+            CGSize(width: CGFloat.nan, height: 768),
+            CGSize(width: 1024, height: CGFloat.infinity)
+        ]
+
+        for drawSize in invalidSizes {
+            let state = EarthSceneSunVisualState.make(
+                earthScene: Self.earthScene(),
+                globe: Self.globe,
+                cameraMatrix: matrix_identity_float4x4,
+                drawSize: drawSize
+            )
+
+            XCTAssertEqual(state.isEnabled, 0)
+            XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
+            XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
+            XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
+        }
+    }
+
+    func testZeroOrNonFiniteSunDirectionReturnsDisabledState() {
+        let invalidDirections = [
+            SIMD3<Float>(0, 0, 0),
+            SIMD3<Float>(.nan, 0, 1),
+            SIMD3<Float>(0, .infinity, 1)
+        ]
+
+        for direction in invalidDirections {
+            var earthScene = Self.earthScene()
+            earthScene.sunDirection = direction
+
+            let state = EarthSceneSunVisualState.make(
+                earthScene: earthScene,
+                globe: Self.globe,
+                cameraMatrix: matrix_identity_float4x4,
+                drawSize: CGSize(width: 1024, height: 768)
+            )
+
+            XCTAssertEqual(state.isEnabled, 0)
+            XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
+            XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
+            XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
+        }
+    }
+
+    func testVisualStateMatchesShaderABIRelatedLayout() {
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.stride, 48)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.alignment, 8)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.offset(of: \.screenCenter), 0)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.offset(of: \.clampedScreenCenter), 8)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.offset(of: \.globeScreenCenter), 16)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.offset(of: \.globeScreenRadius), 24)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.offset(of: \.diskAlpha), 28)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.offset(of: \.edgeGlareAlpha), 32)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.offset(of: \.limbHaloAlpha), 36)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.offset(of: \.isEnabled), 40)
+        XCTAssertEqual(MemoryLayout<EarthSceneSunVisualState>.offset(of: \.padding), 44)
+    }
 }
 
 private extension EarthSceneSunVisualStateTests {
@@ -87,7 +183,6 @@ private extension EarthSceneSunVisualStateTests {
         EarthSceneUniform(
             settings: ImmersiveMapSettings.EarthSceneSettings(
                 sun: .init(
-                    diskIntensity: 0.8,
                     edgeGlareIntensity: 0.6,
                     limbHaloIntensity: 0.4,
                     limbHaloWidth: 0.1

@@ -56,6 +56,7 @@ struct EarthSceneSunVisualState {
             return .disabled
         }
 
+        // MVP uses deterministic normalized-screen projection; keep these for the later exact projection path.
         _ = globe
         _ = cameraMatrix
 
