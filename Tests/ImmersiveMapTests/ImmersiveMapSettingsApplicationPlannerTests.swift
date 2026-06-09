@@ -40,4 +40,16 @@ final class ImmersiveMapSettingsApplicationPlannerTests: XCTestCase {
         XCTAssertEqual(plan.actions, [.liveApply])
         XCTAssertFalse(plan.requiresRendererRecreation)
     }
+
+    func testEarthSceneSunSettingsChangeIsLiveApplied() {
+        let oldSettings = ImmersiveMapSettings.default
+        var newSettings = oldSettings
+        newSettings.scene.earth.sun.glowIntensity = 0.25
+
+        let plan = ImmersiveMapSettingsApplicationPlanner.makePlan(from: oldSettings, to: newSettings)
+
+        XCTAssertEqual(plan.changedDomains, [.scene])
+        XCTAssertEqual(plan.actions, [.liveApply])
+        XCTAssertFalse(plan.requiresRendererRecreation)
+    }
 }

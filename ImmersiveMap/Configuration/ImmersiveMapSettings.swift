@@ -380,6 +380,46 @@ public struct ImmersiveMapSettings: Equatable {
             }
         }
 
+        public struct SunSettings: Equatable {
+            public var isEnabled: Bool
+            /// Apparent disk angular size in shader-facing normalized units.
+            public var diskAngularSize: Float
+            /// Disk contribution multiplier. Expected range: `0...1`.
+            public var diskIntensity: Float
+            /// Surrounding glow contribution multiplier. Expected range: `0...1`.
+            public var glowIntensity: Float
+            /// Horizon edge glare contribution multiplier. Expected range: `0...1`.
+            public var edgeGlareIntensity: Float
+            /// Globe limb halo contribution multiplier. Expected range: `0...1`.
+            public var limbHaloIntensity: Float
+            /// Positive normalized width used to fade the globe limb halo.
+            public var limbHaloWidth: Float
+
+            /// Creates visible Sun settings.
+            /// - Parameters:
+            ///   - diskAngularSize: Apparent disk angular size in shader-facing normalized units.
+            ///   - diskIntensity: Disk contribution multiplier in the expected range `0...1`.
+            ///   - glowIntensity: Surrounding glow contribution multiplier in the expected range `0...1`.
+            ///   - edgeGlareIntensity: Horizon edge glare contribution multiplier in the expected range `0...1`.
+            ///   - limbHaloIntensity: Globe limb halo contribution multiplier in the expected range `0...1`.
+            ///   - limbHaloWidth: Positive normalized globe limb halo fade width.
+            public init(isEnabled: Bool = true,
+                        diskAngularSize: Float = 0.075,
+                        diskIntensity: Float = 1.0,
+                        glowIntensity: Float = 0.75,
+                        edgeGlareIntensity: Float = 0.55,
+                        limbHaloIntensity: Float = 0.35,
+                        limbHaloWidth: Float = 0.10) {
+                self.isEnabled = isEnabled
+                self.diskAngularSize = diskAngularSize
+                self.diskIntensity = diskIntensity
+                self.glowIntensity = glowIntensity
+                self.edgeGlareIntensity = edgeGlareIntensity
+                self.limbHaloIntensity = limbHaloIntensity
+                self.limbHaloWidth = limbHaloWidth
+            }
+        }
+
         public var isEnabled: Bool
         public var timeMode: EarthSceneTimeMode
         /// Minimum daylight brightness. Expected range: `0...1`.
@@ -389,6 +429,7 @@ public struct ImmersiveMapSettings: Equatable {
         /// Positive normalized dot-product width used to fade across the terminator.
         public var terminatorFadeWidth: Float
         public var nightLights: NightLightsSettings
+        public var sun: SunSettings
 
         /// Creates Earth scene settings.
         /// - Parameters:
@@ -400,13 +441,15 @@ public struct ImmersiveMapSettings: Equatable {
                     daySideMinimumBrightness: Float = 0.82,
                     nightSideBrightness: Float = 0.18,
                     terminatorFadeWidth: Float = 0.12,
-                    nightLights: NightLightsSettings = NightLightsSettings()) {
+                    nightLights: NightLightsSettings = NightLightsSettings(),
+                    sun: SunSettings = SunSettings()) {
             self.isEnabled = isEnabled
             self.timeMode = timeMode
             self.daySideMinimumBrightness = daySideMinimumBrightness
             self.nightSideBrightness = nightSideBrightness
             self.terminatorFadeWidth = terminatorFadeWidth
             self.nightLights = nightLights
+            self.sun = sun
         }
     }
 

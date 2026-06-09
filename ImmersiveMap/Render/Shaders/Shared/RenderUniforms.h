@@ -34,7 +34,14 @@ struct EarthScene {
     float nightLightsIntensity;
     float nightLightsTerminatorFadeWidth;
     uint nightLightsEnabled;
-    uint _padding0;
+    uint sunVisualEnabled;
+    float sunDiskAngularSize;
+    float sunDiskIntensity;
+    float sunGlowIntensity;
+    float sunEdgeGlareIntensity;
+    float sunLimbHaloIntensity;
+    float sunLimbHaloWidth;
+    uint2 _padding0;
 };
 
 #endif

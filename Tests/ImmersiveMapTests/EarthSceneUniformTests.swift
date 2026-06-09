@@ -11,6 +11,13 @@ final class EarthSceneUniformTests: XCTestCase {
 
         XCTAssertEqual(uniform.isEnabled, 0)
         XCTAssertEqual(uniform.nightLightsEnabled, 0)
+        XCTAssertEqual(uniform.sunVisualEnabled, 0)
+        XCTAssertEqual(uniform.sunDiskIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunGlowIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunEdgeGlareIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunLimbHaloIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunDiskAngularSize, EarthSceneUniform.minimumFadeWidth, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunLimbHaloWidth, EarthSceneUniform.minimumFadeWidth, accuracy: 0.0001)
     }
 
     func testEnabledFixedDateSettingsProduceExpectedSunDirection() throws {
@@ -39,6 +46,14 @@ final class EarthSceneUniformTests: XCTestCase {
             nightLights: .init(
                 intensity: 2.5,
                 terminatorFadeWidth: 0.0
+            ),
+            sun: .init(
+                diskAngularSize: .nan,
+                diskIntensity: -0.3,
+                glowIntensity: 1.8,
+                edgeGlareIntensity: .infinity,
+                limbHaloIntensity: 0.4,
+                limbHaloWidth: -0.2
             )
         )
 
@@ -49,6 +64,38 @@ final class EarthSceneUniformTests: XCTestCase {
         XCTAssertEqual(uniform.terminatorFadeWidth, EarthSceneUniform.minimumFadeWidth, accuracy: 0.0001)
         XCTAssertEqual(uniform.nightLightsIntensity, 1.0, accuracy: 0.0001)
         XCTAssertEqual(uniform.nightLightsTerminatorFadeWidth, EarthSceneUniform.minimumFadeWidth, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunVisualEnabled, 1)
+        XCTAssertEqual(uniform.sunDiskAngularSize, EarthSceneUniform.minimumFadeWidth, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunDiskIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunGlowIntensity, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunEdgeGlareIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunLimbHaloIntensity, 0.4, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunLimbHaloWidth, EarthSceneUniform.minimumFadeWidth, accuracy: 0.0001)
+    }
+
+    func testDisabledSunVisualKeepsSceneEnabledAndZeroesSunIntensities() {
+        let settings = ImmersiveMapSettings.EarthSceneSettings(
+            sun: .init(
+                isEnabled: false,
+                diskAngularSize: 0.2,
+                diskIntensity: 1.0,
+                glowIntensity: 0.8,
+                edgeGlareIntensity: 0.6,
+                limbHaloIntensity: 0.4,
+                limbHaloWidth: 0.3
+            )
+        )
+
+        let uniform = EarthSceneUniform(settings: settings, now: .distantPast)
+
+        XCTAssertEqual(uniform.isEnabled, 1)
+        XCTAssertEqual(uniform.sunVisualEnabled, 0)
+        XCTAssertEqual(uniform.sunDiskAngularSize, 0.2, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunDiskIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunGlowIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunEdgeGlareIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunLimbHaloIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunLimbHaloWidth, 0.3, accuracy: 0.0001)
     }
 
     func testRealtimeTimeModeUsesInjectedNowForSunDirection() throws {
@@ -64,7 +111,7 @@ final class EarthSceneUniformTests: XCTestCase {
     }
 
     func testUniformMatchesShaderABIRelatedLayout() {
-        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.stride, 48)
+        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.stride, 80)
         XCTAssertEqual(MemoryLayout<EarthSceneUniform>.alignment, 16)
         XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.sunDirection), 0)
         XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.isEnabled), 16)
@@ -74,7 +121,14 @@ final class EarthSceneUniformTests: XCTestCase {
         XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.nightLightsIntensity), 32)
         XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.nightLightsTerminatorFadeWidth), 36)
         XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.nightLightsEnabled), 40)
-        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \._padding0), 44)
+        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.sunVisualEnabled), 44)
+        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.sunDiskAngularSize), 48)
+        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.sunDiskIntensity), 52)
+        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.sunGlowIntensity), 56)
+        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.sunEdgeGlareIntensity), 60)
+        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.sunLimbHaloIntensity), 64)
+        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \.sunLimbHaloWidth), 68)
+        XCTAssertEqual(MemoryLayout<EarthSceneUniform>.offset(of: \._padding0), 72)
     }
 }
 
