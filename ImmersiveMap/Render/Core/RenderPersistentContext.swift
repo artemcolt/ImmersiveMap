@@ -23,6 +23,7 @@ final class RenderPersistentContext {
 
     let globeCapRenderer: GlobeCapRenderer
     let starfieldRenderer: StarfieldRenderer
+    let nightLightsTexture: NightLightsTexture
     let mapSurfaceGridBuffers: MapSurfaceGridBuffers
     let flatTileOriginCalculator: FlatTileOriginCalculator
     let extrudedDepthState: MTLDepthStencilState
@@ -79,6 +80,7 @@ final class RenderPersistentContext {
                                                  library: metal.library,
                                                  maxLatitude: WebMercatorMath.maxLatitudeRadians,
                                                  mapBaseColors: mapBaseColors)
+        self.nightLightsTexture = NightLightsTexture(device: metal.device)
 
         self.textRenderer = TextRenderer(device: metal.device, library: metal.library)
         self.poiSpriteAtlas = PoiSpriteAtlas(device: metal.device)
