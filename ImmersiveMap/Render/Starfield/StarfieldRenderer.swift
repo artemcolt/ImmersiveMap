@@ -71,6 +71,7 @@ final class StarfieldRenderer {
 
     func draw(renderEncoder: MTLRenderCommandEncoder,
               globe: GlobeUniform,
+              earthScene: EarthSceneUniform,
               cameraView: matrix_float4x4,
               cameraEye: SIMD3<Float>,
               drawSize: CGSize,
@@ -117,6 +118,21 @@ final class StarfieldRenderer {
         renderEncoder.setVertexBytes(&params, length: MemoryLayout<StarfieldParams>.stride, index: 3)
         renderEncoder.setFragmentBytes(&time, length: MemoryLayout<Float>.stride, index: 0)
         renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesCount)
+
+        var earthSceneData = earthScene
+        var sunState = EarthSceneSunVisualState.make(earthScene: earthScene,
+                                                     globe: globe,
+                                                     cameraMatrix: starCameraMatrix,
+                                                     drawSize: drawSize)
+
+        pipeline.selectSunPipeline(renderEncoder: renderEncoder)
+        renderEncoder.setFragmentBytes(&earthSceneData,
+                                       length: MemoryLayout<EarthSceneUniform>.stride,
+                                       index: 0)
+        renderEncoder.setFragmentBytes(&sunState,
+                                       length: MemoryLayout<EarthSceneSunVisualState>.stride,
+                                       index: 1)
+        renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
     }
 
     private static func makeBackgroundParams(spaceColor: SIMD4<Double>) -> BackgroundParams {
