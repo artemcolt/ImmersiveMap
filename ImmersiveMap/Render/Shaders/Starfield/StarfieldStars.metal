@@ -178,7 +178,17 @@ fragment float4 sunFragmentShader(BackgroundVertexOut in [[stage_in]],
 
     float globeDistance = length((uv - sun.globeScreenCenter) * aspectScale);
     float limbDistance = abs(globeDistance - sun.globeScreenRadius);
-    float limb = exp(-pow(limbDistance / max(earth.sunLimbHaloWidth, 0.001), 2.0) * 6.0) * sun.limbHaloAlpha;
+    float2 limbVector = (uv - sun.globeScreenCenter) * aspectScale;
+    float2 sunVector = (sun.screenCenter - sun.globeScreenCenter) * aspectScale;
+    float limbVectorLength = length(limbVector);
+    float sunVectorLength = length(sunVector);
+    float2 limbDirection = limbVector / max(limbVectorLength, 0.0001);
+    float2 sunDirection = sunVector / max(sunVectorLength, 0.0001);
+    float limbAlignment = dot(limbDirection, sunDirection);
+    float directionalLimb = sunVectorLength > 0.0001 ? smoothstep(0.18, 0.92, limbAlignment) : 0.0;
+    float limb = exp(-pow(limbDistance / max(earth.sunLimbHaloWidth, 0.001), 2.0) * 6.0)
+        * sun.limbHaloAlpha
+        * directionalLimb;
 
     float3 warmCore = float3(1.0, 0.94, 0.72);
     float3 orangeGlow = float3(1.0, 0.45, 0.12);

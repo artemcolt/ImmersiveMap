@@ -99,7 +99,7 @@ struct EarthSceneSunVisualState {
             limbHaloAlpha = earthScene.sunLimbHaloIntensity * haloFade
         } else {
             diskAlpha = isOffscreen ? 0 : earthScene.sunDiskIntensity
-            edgeGlareAlpha = earthScene.sunEdgeGlareIntensity
+            edgeGlareAlpha = earthScene.sunEdgeGlareIntensity * Self.edgeGlareFade(screenCenter: screenCenter)
             limbHaloAlpha = 0
         }
 
@@ -141,16 +141,8 @@ struct EarthSceneSunVisualState {
             return nil
         }
 
-        let sampleOffsets = [
-            SIMD3<Float>(globe.radius, 0, 0),
-            SIMD3<Float>(-globe.radius, 0, 0),
-            SIMD3<Float>(0, globe.radius, 0),
-            SIMD3<Float>(0, -globe.radius, 0),
-            SIMD3<Float>(0, 0, globe.radius),
-            SIMD3<Float>(0, 0, -globe.radius)
-        ]
-        let radius = sampleOffsets.reduce(Float(0)) { partial, offset in
-            guard let sample = projectNormalized(worldPosition: centerWorld + offset,
+        let radius = Self.sphereSampleDirections.reduce(Float(0)) { partial, direction in
+            guard let sample = projectNormalized(worldPosition: centerWorld + direction * globe.radius,
                                                  cameraMatrix: cameraMatrix) else {
                 return partial
             }
@@ -180,7 +172,45 @@ struct EarthSceneSunVisualState {
         return ndc * 0.5 + SIMD2<Float>(repeating: 0.5)
     }
 
+    private static func edgeGlareFade(screenCenter: SIMD2<Float>) -> Float {
+        guard screenCenter.x >= 0,
+              screenCenter.x <= 1,
+              screenCenter.y >= 0,
+              screenCenter.y <= 1 else {
+            return 1
+        }
+
+        let edgeDistance = min(screenCenter.x, 1 - screenCenter.x, screenCenter.y, 1 - screenCenter.y)
+        return 1 - smoothstep(edge0: 0, edge1: 0.18, x: edgeDistance)
+    }
+
+    private static func smoothstep(edge0: Float, edge1: Float, x: Float) -> Float {
+        let t = clampedUnit((x - edge0) / (edge1 - edge0))
+        return t * t * (3 - 2 * t)
+    }
+
     private static func clampedUnit(_ value: Float) -> Float {
         min(max(value, 0), 1)
     }
+
+    private static let sphereSampleDirections: [SIMD3<Float>] = {
+        let cardinal = [
+            SIMD3<Float>(1, 0, 0),
+            SIMD3<Float>(-1, 0, 0),
+            SIMD3<Float>(0, 1, 0),
+            SIMD3<Float>(0, -1, 0),
+            SIMD3<Float>(0, 0, 1),
+            SIMD3<Float>(0, 0, -1)
+        ]
+        let sampleCount = 96
+        let goldenAngle = Float.pi * (3 - sqrt(Float(5)))
+        let fibonacci = (0..<sampleCount).map { index -> SIMD3<Float> in
+            let t = Float(index) + 0.5
+            let z = 1 - 2 * t / Float(sampleCount)
+            let radius = sqrt(max(0, 1 - z * z))
+            let theta = goldenAngle * t
+            return SIMD3<Float>(cos(theta) * radius, sin(theta) * radius, z)
+        }
+        return cardinal + fibonacci
+    }()
 }

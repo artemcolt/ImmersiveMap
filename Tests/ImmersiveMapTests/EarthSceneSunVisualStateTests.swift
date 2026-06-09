@@ -64,7 +64,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.padding, 0)
     }
 
-    func testVisibleSunOutsideGlobeSilhouetteDrawsDiskAndGlare() {
+    func testVisibleSunOutsideGlobeSilhouetteDrawsDiskWithoutEdgeGlareAwayFromViewportEdge() {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = normalize(SIMD3<Float>(0.9, 0, 0.44))
         var cameraMatrix = matrix_identity_float4x4
@@ -89,7 +89,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.clampedScreenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
         XCTAssertEqual(state.globeScreenRadius, 0.0333333, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
-        XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
         XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
     }
 
@@ -224,6 +224,45 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         )
 
         XCTAssertLessThan(wide.globeScreenRadius, regular.globeScreenRadius)
+    }
+
+    func testPerspectiveSilhouetteUsesDenseSphereSamples() {
+        var earthScene = Self.earthScene()
+        earthScene.sunDirection = normalize(SIMD3<Float>(0.2, 0, -0.98))
+        let cameraMatrix = Matrix.perspectiveMatrix(fovRadians: .pi / 4,
+                                                    aspect: 1,
+                                                    near: 0.01,
+                                                    far: 20)
+            * Matrix.lookAt(eye: SIMD3<Float>(0.35, 0.2, 1.4),
+                            center: SIMD3<Float>(0, 0, -1),
+                            up: SIMD3<Float>(0, 1, 0))
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: cameraMatrix,
+            drawSize: CGSize(width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThan(state.globeScreenRadius, 0.54)
+    }
+
+    func testEdgeGlareFadesOutAwayFromViewportEdge() {
+        var earthScene = Self.earthScene()
+        earthScene.sunDirection = normalize(SIMD3<Float>(0.9, 0, 0.44))
+        var cameraMatrix = matrix_identity_float4x4
+        cameraMatrix[0][0] = 0.05
+        cameraMatrix[1][1] = 0.05
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: cameraMatrix,
+            drawSize: CGSize(width: 1024, height: 768)
+        )
+
+        XCTAssertEqual(state.diskAlpha, earthScene.sunDiskIntensity, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
     }
 
     func testSunBehindCameraSuppressesAllVisibleContributions() {
