@@ -48,6 +48,18 @@ struct BackgroundViewParams {
     float2 padding;
 };
 
+struct SunVisualState {
+    float2 screenCenter;
+    float2 clampedScreenCenter;
+    float2 globeScreenCenter;
+    float globeScreenRadius;
+    float diskAlpha;
+    float edgeGlareAlpha;
+    float limbHaloAlpha;
+    uint isEnabled;
+    uint padding;
+};
+
 float hash21(float2 value) {
     value = fract(value * float2(123.34, 345.45));
     value += dot(value, value + 34.345);
@@ -147,6 +159,40 @@ fragment float4 starfieldBackgroundFragmentShader(BackgroundVertexOut in [[stage
     color *= 1.0 - smoothstep(0.15, 0.98, abs(localDirection.y)) * params.controls.x * 0.22;
 
     return float4(color, 1.0);
+}
+
+vertex BackgroundVertexOut sunVertexShader(uint vertexID [[vertex_id]]) {
+    return starfieldBackgroundVertexShader(vertexID);
+}
+
+fragment float4 sunFragmentShader(BackgroundVertexOut in [[stage_in]],
+                                  constant EarthScene& earth [[buffer(0)]],
+                                  constant SunVisualState& sun [[buffer(1)]]) {
+    if (earth.isEnabled == 0 || earth.sunVisualEnabled == 0 || sun.isEnabled == 0) {
+        return float4(0.0);
+    }
+
+    float2 uv = in.uv;
+    float diskDistance = distance(uv, sun.screenCenter);
+    float diskRadius = max(earth.sunDiskAngularSize, 0.001);
+    float core = exp(-pow(diskDistance / diskRadius, 2.0) * 2.6) * sun.diskAlpha;
+    float glow = exp(-pow(diskDistance / (diskRadius * 3.5), 2.0)) * sun.diskAlpha;
+
+    float edgeDistance = distance(uv, sun.clampedScreenCenter);
+    float edgeGlare = exp(-edgeDistance * 8.0) * sun.edgeGlareAlpha;
+
+    float globeDistance = distance(uv, sun.globeScreenCenter);
+    float limbDistance = abs(globeDistance - sun.globeScreenRadius);
+    float limb = exp(-pow(limbDistance / max(earth.sunLimbHaloWidth, 0.001), 2.0) * 6.0) * sun.limbHaloAlpha;
+
+    float3 warmCore = float3(1.0, 0.94, 0.72);
+    float3 orangeGlow = float3(1.0, 0.45, 0.12);
+    float3 color = warmCore * core * earth.sunDiskIntensity
+        + orangeGlow * glow * earth.sunGlowIntensity
+        + orangeGlow * edgeGlare * earth.sunEdgeGlareIntensity
+        + warmCore * limb * earth.sunLimbHaloIntensity;
+    float alpha = saturate(core + glow * 0.7 + edgeGlare * 0.45 + limb * 0.55);
+    return float4(color, alpha);
 }
 
 vertex StarVertexOut starfieldVertexShader(StarVertexIn in [[stage_in]],
