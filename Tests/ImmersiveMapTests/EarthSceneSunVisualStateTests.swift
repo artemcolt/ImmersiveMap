@@ -48,33 +48,62 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.screenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
         XCTAssertEqual(state.clampedScreenCenter.x, expectedScreenCenter.x, accuracy: 0.0001)
         XCTAssertEqual(state.clampedScreenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
-        XCTAssertGreaterThan(state.globeScreenRadius, 0)
+        XCTAssertEqual(state.globeScreenRadius, 0.1875, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
         XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
         XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
     }
 
     func testSunInsideGlobeSilhouetteNearLimbSuppressesDiskAndKeepsHalo() {
-        var earthScene = Self.earthScene()
-        earthScene.sunDirection = normalize(SIMD3<Float>(0.48, 0, 0.88))
+        var earthScene = Self.earthScene(limbHaloIntensity: 1)
+        let direction = normalize(SIMD3<Float>(0.48, 0, 0.88))
+        earthScene.sunDirection = direction
+        let expectedGlobeRadius: Float = 0.25
         let expectedScreenCenter = SIMD2<Float>(
-            0.5 + earthScene.sunDirection.x * 0.5,
-            0.5 - earthScene.sunDirection.y * 0.5
+            0.5 + direction.x * 0.5,
+            0.5
         )
+        let distanceFromGlobeCenter = simd_length(expectedScreenCenter - SIMD2<Float>(0.5, 0.5))
+        let limbDistance = abs(distanceFromGlobeCenter - expectedGlobeRadius)
+        let expectedHalo = max(0, 1 - limbDistance / earthScene.sunLimbHaloWidth)
 
         let state = EarthSceneSunVisualState.make(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
-            drawSize: CGSize(width: 1024, height: 1024)
+            drawSize: CGSize(width: 1000, height: 1000)
         )
 
         XCTAssertEqual(state.isEnabled, 1)
         XCTAssertEqual(state.screenCenter.x, expectedScreenCenter.x, accuracy: 0.0001)
         XCTAssertEqual(state.screenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
+        XCTAssertEqual(state.globeScreenRadius, expectedGlobeRadius, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
         XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
-        XCTAssertGreaterThan(state.limbHaloAlpha, 0.03)
+        XCTAssertEqual(state.limbHaloAlpha, expectedHalo, accuracy: 0.0001)
+    }
+
+    func testValidFiniteDirectionsKeepClampedCenterEqualToProjectedCenter() {
+        let directions = [
+            normalize(SIMD3<Float>(0.9, 0, 0.44)),
+            normalize(SIMD3<Float>(-0.7, 0.2, 0.8)),
+            normalize(SIMD3<Float>(0, -0.9, 0.6))
+        ]
+
+        for direction in directions {
+            var earthScene = Self.earthScene()
+            earthScene.sunDirection = direction
+
+            let state = EarthSceneSunVisualState.make(
+                earthScene: earthScene,
+                globe: Self.globe,
+                cameraMatrix: matrix_identity_float4x4,
+                drawSize: CGSize(width: 1024, height: 768)
+            )
+
+            XCTAssertEqual(state.clampedScreenCenter.x, state.screenCenter.x, accuracy: 0.0001)
+            XCTAssertEqual(state.clampedScreenCenter.y, state.screenCenter.y, accuracy: 0.0001)
+        }
     }
 
     func testSunBehindCameraSuppressesAllVisibleContributions() {
@@ -130,6 +159,9 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
             )
 
             XCTAssertEqual(state.isEnabled, 0)
+            XCTAssertEqual(state.screenCenter.x, EarthSceneSunVisualState.disabled.screenCenter.x, accuracy: 0.0001)
+            XCTAssertEqual(state.screenCenter.y, EarthSceneSunVisualState.disabled.screenCenter.y, accuracy: 0.0001)
+            XCTAssertEqual(state.globeScreenRadius, EarthSceneSunVisualState.disabled.globeScreenRadius, accuracy: 0.0001)
             XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
             XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
             XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
@@ -179,12 +211,12 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
 private extension EarthSceneSunVisualStateTests {
     static let globe = GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 1)
 
-    static func earthScene() -> EarthSceneUniform {
+    static func earthScene(limbHaloIntensity: Float = 0.4) -> EarthSceneUniform {
         EarthSceneUniform(
             settings: ImmersiveMapSettings.EarthSceneSettings(
                 sun: .init(
                     edgeGlareIntensity: 0.6,
-                    limbHaloIntensity: 0.4,
+                    limbHaloIntensity: limbHaloIntensity,
                     limbHaloWidth: 0.1
                 )
             ),
