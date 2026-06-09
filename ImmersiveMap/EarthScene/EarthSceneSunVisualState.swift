@@ -70,7 +70,7 @@ struct EarthSceneSunVisualState {
             Self.clampedUnit(screenCenter.y)
         )
         let globeScreenCenter = SIMD2<Float>(repeating: 0.5)
-        let globeScreenRadius = max(0.001, min(width, height) / max(width, height) * 0.25)
+        let globeScreenRadius: Float = 0.25
         let aspectScale = SIMD2<Float>(width / height, 1)
         let distanceToGlobeCenter = simd_length((screenCenter - globeScreenCenter) * aspectScale)
 

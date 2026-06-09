@@ -48,7 +48,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.screenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
         XCTAssertEqual(state.clampedScreenCenter.x, expectedScreenCenter.x, accuracy: 0.0001)
         XCTAssertEqual(state.clampedScreenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
-        XCTAssertEqual(state.globeScreenRadius, 0.1875, accuracy: 0.0001)
+        XCTAssertEqual(state.globeScreenRadius, 0.25, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
         XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
         XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
@@ -83,9 +83,9 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.limbHaloAlpha, expectedHalo, accuracy: 0.0001)
     }
 
-    func testWideViewportUsesPixelAspectForGlobeSilhouetteClassification() {
+    func testWideViewportKeepsVerticalLimbRadiusStable() {
         var earthScene = Self.earthScene()
-        earthScene.sunDirection = SIMD3<Float>(0.2, 0, 0.9797959)
+        earthScene.sunDirection = SIMD3<Float>(0, 0.5, Float(sqrt(0.75)))
 
         let state = EarthSceneSunVisualState.make(
             earthScene: earthScene,
@@ -94,10 +94,10 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
             drawSize: CGSize(width: 1000, height: 500)
         )
 
-        XCTAssertEqual(state.globeScreenRadius, 0.125, accuracy: 0.0001)
-        XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
-        XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
-        XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(state.globeScreenRadius, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(state.limbHaloAlpha, earthScene.sunLimbHaloIntensity, accuracy: 0.0001)
     }
 
     func testValidFiniteDirectionsKeepClampedCenterEqualToProjectedCenter() {

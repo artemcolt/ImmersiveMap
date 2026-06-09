@@ -75,8 +75,8 @@ final class StarfieldPipeline {
         sunDescriptor.colorAttachments[0].isBlendingEnabled = true
         sunDescriptor.colorAttachments[0].rgbBlendOperation = .add
         sunDescriptor.colorAttachments[0].alphaBlendOperation = .add
-        sunDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
-        sunDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+        sunDescriptor.colorAttachments[0].sourceRGBBlendFactor = .one
+        sunDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
         sunDescriptor.colorAttachments[0].destinationRGBBlendFactor = .one
         sunDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .one
 

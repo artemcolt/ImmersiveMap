@@ -110,7 +110,7 @@ float4x4 starfieldRotationMatrix(Globe globe) {
     );
 }
 
-vertex BackgroundVertexOut starfieldBackgroundVertexShader(uint vertexID [[vertex_id]]) {
+BackgroundVertexOut makeFullscreenTriangleVertex(uint vertexID) {
     float2 positions[3] = {
         float2(-1.0, -1.0),
         float2(3.0, -1.0),
@@ -122,6 +122,10 @@ vertex BackgroundVertexOut starfieldBackgroundVertexShader(uint vertexID [[verte
     out.position = float4(clip, 0.0, 1.0);
     out.uv = clip * 0.5 + 0.5;
     return out;
+}
+
+vertex BackgroundVertexOut starfieldBackgroundVertexShader(uint vertexID [[vertex_id]]) {
+    return makeFullscreenTriangleVertex(vertexID);
 }
 
 fragment float4 starfieldBackgroundFragmentShader(BackgroundVertexOut in [[stage_in]],
@@ -162,7 +166,7 @@ fragment float4 starfieldBackgroundFragmentShader(BackgroundVertexOut in [[stage
 }
 
 vertex BackgroundVertexOut sunVertexShader(uint vertexID [[vertex_id]]) {
-    return starfieldBackgroundVertexShader(vertexID);
+    return makeFullscreenTriangleVertex(vertexID);
 }
 
 fragment float4 sunFragmentShader(BackgroundVertexOut in [[stage_in]],
