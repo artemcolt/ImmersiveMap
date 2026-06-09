@@ -388,7 +388,7 @@ public struct ImmersiveMapSettings: Equatable {
             public var diskIntensity: Float
             /// Surrounding glow contribution multiplier. Expected range: `0...1`.
             public var glowIntensity: Float
-            /// Horizon edge glare contribution multiplier. Expected range: `0...1`.
+            /// Viewport-edge glare contribution multiplier. Expected range: `0...1`.
             public var edgeGlareIntensity: Float
             /// Globe limb halo contribution multiplier. Expected range: `0...1`.
             public var limbHaloIntensity: Float
@@ -400,7 +400,7 @@ public struct ImmersiveMapSettings: Equatable {
             ///   - diskAngularSize: Apparent disk angular size in shader-facing normalized units.
             ///   - diskIntensity: Disk contribution multiplier in the expected range `0...1`.
             ///   - glowIntensity: Surrounding glow contribution multiplier in the expected range `0...1`.
-            ///   - edgeGlareIntensity: Horizon edge glare contribution multiplier in the expected range `0...1`.
+            ///   - edgeGlareIntensity: Viewport-edge glare contribution multiplier in the expected range `0...1`.
             ///   - limbHaloIntensity: Globe limb halo contribution multiplier in the expected range `0...1`.
             ///   - limbHaloWidth: Positive normalized globe limb halo fade width.
             public init(isEnabled: Bool = true,

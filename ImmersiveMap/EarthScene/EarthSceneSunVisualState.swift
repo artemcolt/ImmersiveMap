@@ -95,11 +95,10 @@ struct EarthSceneSunVisualState {
 
             let limbDistance = abs(globeProjection.radius - distanceToGlobeCenter)
             let haloWidth = max(earthScene.sunLimbHaloWidth, EarthSceneUniform.minimumFadeWidth)
-            let haloFade = Self.clampedUnit(1 - limbDistance / haloWidth)
-            limbHaloAlpha = earthScene.sunLimbHaloIntensity * haloFade
+            limbHaloAlpha = Self.clampedUnit(1 - limbDistance / haloWidth)
         } else {
-            diskAlpha = isOffscreen ? 0 : earthScene.sunDiskIntensity
-            edgeGlareAlpha = earthScene.sunEdgeGlareIntensity * Self.edgeGlareFade(screenCenter: screenCenter)
+            diskAlpha = isOffscreen ? 0 : 1
+            edgeGlareAlpha = Self.edgeGlareFade(screenCenter: screenCenter)
             limbHaloAlpha = 0
         }
 

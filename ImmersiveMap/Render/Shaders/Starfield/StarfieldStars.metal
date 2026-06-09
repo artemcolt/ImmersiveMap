@@ -170,11 +170,11 @@ fragment float4 sunFragmentShader(BackgroundVertexOut in [[stage_in]],
 
     float diskDistance = length((uv - sun.screenCenter) * aspectScale);
     float diskRadius = max(earth.sunDiskAngularSize, 0.001);
-    float core = exp(-pow(diskDistance / diskRadius, 2.0) * 2.6) * sun.diskAlpha;
+    float core = exp(-pow(diskDistance / diskRadius, 2.0) * 2.6) * sun.diskAlpha * earth.sunDiskIntensity;
     float glow = exp(-pow(diskDistance / (diskRadius * 3.5), 2.0)) * sun.diskAlpha;
 
     float edgeDistance = length((uv - sun.clampedScreenCenter) * aspectScale);
-    float edgeGlare = exp(-edgeDistance * 8.0) * sun.edgeGlareAlpha;
+    float edgeGlare = exp(-edgeDistance * 8.0) * sun.edgeGlareAlpha * earth.sunEdgeGlareIntensity;
 
     float globeDistance = length((uv - sun.globeScreenCenter) * aspectScale);
     float limbDistance = abs(globeDistance - sun.globeScreenRadius);
@@ -188,7 +188,8 @@ fragment float4 sunFragmentShader(BackgroundVertexOut in [[stage_in]],
     float directionalLimb = sunVectorLength > 0.0001 ? smoothstep(0.18, 0.92, limbAlignment) : 0.0;
     float limb = exp(-pow(limbDistance / max(earth.sunLimbHaloWidth, 0.001), 2.0) * 6.0)
         * sun.limbHaloAlpha
-        * directionalLimb;
+        * directionalLimb
+        * earth.sunLimbHaloIntensity;
 
     float3 warmCore = float3(1.0, 0.94, 0.72);
     float3 orangeGlow = float3(1.0, 0.45, 0.12);

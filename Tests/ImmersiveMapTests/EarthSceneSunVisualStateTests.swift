@@ -93,6 +93,34 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
     }
 
+    func testVisibleSunGlowContributesWhenDiskIntensityIsZero() {
+        var earthScene = EarthSceneUniform(
+            settings: ImmersiveMapSettings.EarthSceneSettings(
+                sun: .init(
+                    diskIntensity: 0,
+                    glowIntensity: 1,
+                    edgeGlareIntensity: 0,
+                    limbHaloIntensity: 0
+                )
+            ),
+            now: .distantPast
+        )
+        earthScene.sunDirection = normalize(SIMD3<Float>(0.9, 0, 0.44))
+        var cameraMatrix = matrix_identity_float4x4
+        cameraMatrix[0][0] = 0.05
+        cameraMatrix[1][1] = 0.05
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: cameraMatrix,
+            drawSize: CGSize(width: 1024, height: 768)
+        )
+
+        XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
+        XCTAssertTrue(state.hasVisibleContribution)
+    }
+
     func testSunInsideGlobeSilhouetteNearLimbSuppressesDiskAndKeepsHalo() {
         var earthScene = Self.earthScene(limbHaloIntensity: 1)
         let direction = normalize(SIMD3<Float>(0.48, 0, 0.88))
@@ -136,7 +164,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
 
         XCTAssertEqual(state.globeScreenRadius, 1.0, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
-        XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, 1.0, accuracy: 0.0001)
         XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
     }
 
@@ -199,7 +227,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertGreaterThan(state.screenCenter.x, 1.0)
         XCTAssertEqual(state.clampedScreenCenter.x, 1.0, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
-        XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, 1.0, accuracy: 0.0001)
     }
 
     func testProjectionMatrixChangesGlobeSilhouetteRadius() {
@@ -261,7 +289,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
             drawSize: CGSize(width: 1024, height: 768)
         )
 
-        XCTAssertEqual(state.diskAlpha, earthScene.sunDiskIntensity, accuracy: 0.0001)
+        XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
         XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
     }
 
