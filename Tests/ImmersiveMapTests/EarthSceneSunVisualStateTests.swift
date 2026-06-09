@@ -6,6 +6,42 @@ import simd
 import XCTest
 
 final class EarthSceneSunVisualStateTests: XCTestCase {
+    func testDisabledStateHasNoVisibleContribution() {
+        XCTAssertFalse(EarthSceneSunVisualState.disabled.hasVisibleContribution)
+    }
+
+    func testOutsideGlobeStateHasVisibleContribution() {
+        var earthScene = Self.earthScene()
+        earthScene.sunDirection = normalize(SIMD3<Float>(0.9, 0, 0.44))
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: matrix_identity_float4x4,
+            drawSize: CGSize(width: 1024, height: 768)
+        )
+
+        XCTAssertTrue(state.hasVisibleContribution)
+    }
+
+    func testInsideGlobeAwayFromLimbHasNoVisibleContribution() {
+        var earthScene = Self.earthScene(limbHaloIntensity: 1)
+        earthScene.sunDirection = SIMD3<Float>(0, 0, 1)
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: matrix_identity_float4x4,
+            drawSize: CGSize(width: 1000, height: 1000)
+        )
+
+        XCTAssertEqual(state.isEnabled, 1)
+        XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertFalse(state.hasVisibleContribution)
+    }
+
     func testDisabledEarthSceneReturnsDisabledState() {
         let state = EarthSceneSunVisualState.make(
             earthScene: .disabled,

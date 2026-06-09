@@ -126,7 +126,7 @@ final class StarfieldRenderer {
                                                      globe: globe,
                                                      cameraMatrix: starCameraMatrix,
                                                      drawSize: drawSize)
-        guard sunState.isEnabled != 0 else {
+        guard sunState.hasVisibleContribution else {
             return
         }
 

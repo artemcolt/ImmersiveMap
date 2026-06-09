@@ -15,6 +15,10 @@ struct EarthSceneSunVisualState {
     var isEnabled: UInt32
     var padding: UInt32 = 0
 
+    var hasVisibleContribution: Bool {
+        isEnabled != 0 && (diskAlpha > 0 || edgeGlareAlpha > 0 || limbHaloAlpha > 0)
+    }
+
     static let disabled = EarthSceneSunVisualState(
         screenCenter: SIMD2<Float>(repeating: 0.5),
         clampedScreenCenter: SIMD2<Float>(repeating: 0.5),
