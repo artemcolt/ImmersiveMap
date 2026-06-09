@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 //  Task Notes
-//  - Purpose: render a globe-aligned starfield when globe view is active.
+//  - Purpose: render sky background, globe-aligned starfield, and Sun glow when globe view is active.
 //  - Stars: fixed buffer of unit-sphere positions, rotated by globe pan, drawn with a separate projection
 //    to avoid affecting map depth precision. Tuned via ImmersiveMapSettings.scene.starfield.
 //  - Space: background clear color configured in ImmersiveMapSettings.scene.space.
+//  - Sun: fullscreen glow pass drawn after stars so later globe layers can occlude it.
 
 import MetalKit
 import simd
@@ -119,12 +120,17 @@ final class StarfieldRenderer {
         renderEncoder.setFragmentBytes(&time, length: MemoryLayout<Float>.stride, index: 0)
         renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesCount)
 
-        var earthSceneData = earthScene
+        // The matrix is passed for the future exact projection path; the MVP helper currently
+        // derives a deterministic normalized-screen position from the sun direction.
         var sunState = EarthSceneSunVisualState.make(earthScene: earthScene,
                                                      globe: globe,
                                                      cameraMatrix: starCameraMatrix,
                                                      drawSize: drawSize)
+        guard sunState.isEnabled != 0 else {
+            return
+        }
 
+        var earthSceneData = earthScene
         pipeline.selectSunPipeline(renderEncoder: renderEncoder)
         renderEncoder.setFragmentBytes(&earthSceneData,
                                        length: MemoryLayout<EarthSceneUniform>.stride,
