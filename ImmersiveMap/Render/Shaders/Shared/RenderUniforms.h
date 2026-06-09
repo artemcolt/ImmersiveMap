@@ -44,4 +44,16 @@ struct EarthScene {
     uint2 _padding0;
 };
 
+struct SunVisualState {
+    float2 screenCenter;
+    float2 clampedScreenCenter;
+    float2 globeScreenCenter;
+    float globeScreenRadius;
+    float diskAlpha;
+    float edgeGlareAlpha;
+    float limbHaloAlpha;
+    uint isEnabled;
+    uint padding;
+};
+
 #endif

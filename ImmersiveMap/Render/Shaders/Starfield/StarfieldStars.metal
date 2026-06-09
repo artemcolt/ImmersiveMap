@@ -48,18 +48,6 @@ struct BackgroundViewParams {
     float2 padding;
 };
 
-struct SunVisualState {
-    float2 screenCenter;
-    float2 clampedScreenCenter;
-    float2 globeScreenCenter;
-    float globeScreenRadius;
-    float diskAlpha;
-    float edgeGlareAlpha;
-    float limbHaloAlpha;
-    uint isEnabled;
-    uint padding;
-};
-
 float hash21(float2 value) {
     value = fract(value * float2(123.34, 345.45));
     value += dot(value, value + 34.345);

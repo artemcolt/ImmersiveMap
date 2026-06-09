@@ -120,12 +120,11 @@ final class StarfieldRenderer {
         renderEncoder.setFragmentBytes(&time, length: MemoryLayout<Float>.stride, index: 0)
         renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: verticesCount)
 
-        // The matrix is passed for the future exact projection path; the MVP helper currently
-        // derives a deterministic normalized-screen position from the sun direction.
         var sunState = EarthSceneSunVisualState.make(earthScene: earthScene,
                                                      globe: globe,
                                                      cameraMatrix: starCameraMatrix,
-                                                     drawSize: drawSize)
+                                                     drawSize: drawSize,
+                                                     starfieldRadiusScale: config.radiusScale)
         guard sunState.hasVisibleContribution else {
             return
         }

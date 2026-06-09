@@ -33,7 +33,8 @@ struct EarthSceneSunVisualState {
     static func make(earthScene: EarthSceneUniform,
                      globe: GlobeUniform,
                      cameraMatrix: matrix_float4x4,
-                     drawSize: CGSize) -> EarthSceneSunVisualState {
+                     drawSize: CGSize,
+                     starfieldRadiusScale: Float = 10.5) -> EarthSceneSunVisualState {
         guard earthScene.isEnabled != 0,
               earthScene.sunVisualEnabled != 0 else {
             return .disabled
@@ -47,50 +48,57 @@ struct EarthSceneSunVisualState {
               height > 0 else {
             return .disabled
         }
+        let aspectScale = SIMD2<Float>(width / height, 1)
 
         let rawDirection = earthScene.sunDirection
         let directionLength = simd_length(rawDirection)
         guard directionLength.isFinite,
-              directionLength > 0 else {
+              directionLength > 0,
+              globe.radius.isFinite,
+              globe.radius > 0,
+              starfieldRadiusScale.isFinite else {
             return .disabled
         }
 
         let direction = rawDirection / directionLength
-        guard direction.z >= -0.0001 else {
+        let rotation = Self.globeRotationMatrix(globe: globe)
+        let rotatedDirection4 = simd_transpose(rotation) * SIMD4<Float>(direction, 0)
+        let rotatedDirection = normalize(SIMD3<Float>(rotatedDirection4.x,
+                                                      rotatedDirection4.y,
+                                                      rotatedDirection4.z))
+        let globeCenterWorld = SIMD3<Float>(0, 0, -globe.radius)
+        let sunDistance = globe.radius * max(starfieldRadiusScale, 1.01)
+        let sunWorld = globeCenterWorld + rotatedDirection * sunDistance
+        guard let screenCenter = Self.projectNormalized(worldPosition: sunWorld,
+                                                        cameraMatrix: cameraMatrix) else {
             return .disabled
         }
 
-        // MVP uses deterministic normalized-screen projection, which naturally stays inside 0...1.
-        // Keep the unused inputs and clamped output for the later exact projection/offscreen glare path.
-        _ = globe
-        _ = cameraMatrix
-
-        let screenCenter = SIMD2<Float>(
-            0.5 + direction.x * 0.5,
-            0.5 - direction.y * 0.5
-        )
+        guard let globeProjection = Self.projectGlobeSilhouette(globe: globe,
+                                                                cameraMatrix: cameraMatrix,
+                                                                aspectScale: aspectScale) else {
+            return .disabled
+        }
         let clampedScreenCenter = SIMD2<Float>(
             Self.clampedUnit(screenCenter.x),
             Self.clampedUnit(screenCenter.y)
         )
-        let globeScreenCenter = SIMD2<Float>(repeating: 0.5)
-        let globeScreenRadius: Float = 0.25
-        let aspectScale = SIMD2<Float>(width / height, 1)
-        let distanceToGlobeCenter = simd_length((screenCenter - globeScreenCenter) * aspectScale)
+        let distanceToGlobeCenter = simd_length((screenCenter - globeProjection.center) * aspectScale)
+        let isOffscreen = screenCenter.x < 0 || screenCenter.x > 1 || screenCenter.y < 0 || screenCenter.y > 1
 
         let diskAlpha: Float
         let edgeGlareAlpha: Float
         let limbHaloAlpha: Float
-        if distanceToGlobeCenter <= globeScreenRadius {
+        if distanceToGlobeCenter <= globeProjection.radius {
             diskAlpha = 0
             edgeGlareAlpha = 0
 
-            let limbDistance = abs(globeScreenRadius - distanceToGlobeCenter)
+            let limbDistance = abs(globeProjection.radius - distanceToGlobeCenter)
             let haloWidth = max(earthScene.sunLimbHaloWidth, EarthSceneUniform.minimumFadeWidth)
             let haloFade = Self.clampedUnit(1 - limbDistance / haloWidth)
             limbHaloAlpha = earthScene.sunLimbHaloIntensity * haloFade
         } else {
-            diskAlpha = earthScene.sunDiskIntensity
+            diskAlpha = isOffscreen ? 0 : earthScene.sunDiskIntensity
             edgeGlareAlpha = earthScene.sunEdgeGlareIntensity
             limbHaloAlpha = 0
         }
@@ -98,13 +106,78 @@ struct EarthSceneSunVisualState {
         return EarthSceneSunVisualState(
             screenCenter: screenCenter,
             clampedScreenCenter: clampedScreenCenter,
-            globeScreenCenter: globeScreenCenter,
-            globeScreenRadius: globeScreenRadius,
+            globeScreenCenter: globeProjection.center,
+            globeScreenRadius: globeProjection.radius,
             diskAlpha: diskAlpha,
             edgeGlareAlpha: edgeGlareAlpha,
             limbHaloAlpha: limbHaloAlpha,
             isEnabled: 1
         )
+    }
+
+    private static func globeRotationMatrix(globe: GlobeUniform) -> matrix_float4x4 {
+        let maxLatitude = Float(ImmersiveMapProjection.maxMercatorLatitude)
+        let latitude = globe.panY * maxLatitude
+        let longitude = globe.panX * .pi
+        let cx = cos(-latitude)
+        let sx = sin(-latitude)
+        let cy = cos(-longitude)
+        let sy = sin(-longitude)
+
+        return matrix_float4x4(columns: (
+            SIMD4<Float>(cy, 0, -sy, 0),
+            SIMD4<Float>(sy * sx, cx, cy * sx, 0),
+            SIMD4<Float>(sy * cx, -sx, cy * cx, 0),
+            SIMD4<Float>(0, 0, 0, 1)
+        ))
+    }
+
+    private static func projectGlobeSilhouette(globe: GlobeUniform,
+                                               cameraMatrix: matrix_float4x4,
+                                               aspectScale: SIMD2<Float>) -> (center: SIMD2<Float>, radius: Float)? {
+        let centerWorld = SIMD3<Float>(0, 0, -globe.radius)
+        guard let center = projectNormalized(worldPosition: centerWorld,
+                                             cameraMatrix: cameraMatrix) else {
+            return nil
+        }
+
+        let sampleOffsets = [
+            SIMD3<Float>(globe.radius, 0, 0),
+            SIMD3<Float>(-globe.radius, 0, 0),
+            SIMD3<Float>(0, globe.radius, 0),
+            SIMD3<Float>(0, -globe.radius, 0),
+            SIMD3<Float>(0, 0, globe.radius),
+            SIMD3<Float>(0, 0, -globe.radius)
+        ]
+        let radius = sampleOffsets.reduce(Float(0)) { partial, offset in
+            guard let sample = projectNormalized(worldPosition: centerWorld + offset,
+                                                 cameraMatrix: cameraMatrix) else {
+                return partial
+            }
+            let distance = simd_length((sample - center) * aspectScale)
+            return distance.isFinite ? max(partial, distance) : partial
+        }
+
+        guard radius.isFinite,
+              radius > 0 else {
+            return nil
+        }
+        return (center, radius)
+    }
+
+    private static func projectNormalized(worldPosition: SIMD3<Float>,
+                                          cameraMatrix: matrix_float4x4) -> SIMD2<Float>? {
+        let clip = cameraMatrix * SIMD4<Float>(worldPosition, 1)
+        guard clip.w.isFinite,
+              clip.w > 0 else {
+            return nil
+        }
+        let ndc = SIMD2<Float>(clip.x, clip.y) / clip.w
+        guard ndc.x.isFinite,
+              ndc.y.isFinite else {
+            return nil
+        }
+        return ndc * 0.5 + SIMD2<Float>(repeating: 0.5)
     }
 
     private static func clampedUnit(_ value: Float) -> Float {

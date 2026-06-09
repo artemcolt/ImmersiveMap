@@ -67,15 +67,18 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
     func testVisibleSunOutsideGlobeSilhouetteDrawsDiskAndGlare() {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = normalize(SIMD3<Float>(0.9, 0, 0.44))
+        var cameraMatrix = matrix_identity_float4x4
+        cameraMatrix[0][0] = 0.05
+        cameraMatrix[1][1] = 0.05
         let expectedScreenCenter = SIMD2<Float>(
-            0.5 + earthScene.sunDirection.x * 0.5,
-            0.5 - earthScene.sunDirection.y * 0.5
+            0.5 + earthScene.sunDirection.x * 10.5 * 0.05 * 0.5,
+            0.5 + earthScene.sunDirection.y * 10.5 * 0.05 * 0.5
         )
 
         let state = EarthSceneSunVisualState.make(
             earthScene: earthScene,
             globe: Self.globe,
-            cameraMatrix: matrix_identity_float4x4,
+            cameraMatrix: cameraMatrix,
             drawSize: CGSize(width: 1024, height: 768)
         )
 
@@ -84,7 +87,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.screenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
         XCTAssertEqual(state.clampedScreenCenter.x, expectedScreenCenter.x, accuracy: 0.0001)
         XCTAssertEqual(state.clampedScreenCenter.y, expectedScreenCenter.y, accuracy: 0.0001)
-        XCTAssertEqual(state.globeScreenRadius, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(state.globeScreenRadius, 0.0333333, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
         XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
         XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
@@ -94,9 +97,9 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         var earthScene = Self.earthScene(limbHaloIntensity: 1)
         let direction = normalize(SIMD3<Float>(0.48, 0, 0.88))
         earthScene.sunDirection = direction
-        let expectedGlobeRadius: Float = 0.25
+        let expectedGlobeRadius: Float = 0.5
         let expectedScreenCenter = SIMD2<Float>(
-            0.5 + direction.x * 0.5,
+            0.5 + direction.x,
             0.5
         )
         let distanceFromGlobeCenter = simd_length(expectedScreenCenter - SIMD2<Float>(0.5, 0.5))
@@ -107,7 +110,8 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
-            drawSize: CGSize(width: 1000, height: 1000)
+            drawSize: CGSize(width: 1000, height: 1000),
+            starfieldRadiusScale: 2
         )
 
         XCTAssertEqual(state.isEnabled, 1)
@@ -119,7 +123,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.limbHaloAlpha, expectedHalo, accuracy: 0.0001)
     }
 
-    func testWideViewportKeepsVerticalLimbRadiusStable() {
+    func testWideViewportUsesAspectScaledGlobeRadius() {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = SIMD3<Float>(0, 0.5, Float(sqrt(0.75)))
 
@@ -130,13 +134,13 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
             drawSize: CGSize(width: 1000, height: 500)
         )
 
-        XCTAssertEqual(state.globeScreenRadius, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(state.globeScreenRadius, 1.0, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
-        XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
-        XCTAssertEqual(state.limbHaloAlpha, earthScene.sunLimbHaloIntensity, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
+        XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
     }
 
-    func testValidFiniteDirectionsKeepClampedCenterEqualToProjectedCenter() {
+    func testValidFiniteDirectionsKeepClampedCenterInsideViewport() {
         let directions = [
             normalize(SIMD3<Float>(0.9, 0, 0.44)),
             normalize(SIMD3<Float>(-0.7, 0.2, 0.8)),
@@ -154,19 +158,85 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
                 drawSize: CGSize(width: 1024, height: 768)
             )
 
-            XCTAssertEqual(state.clampedScreenCenter.x, state.screenCenter.x, accuracy: 0.0001)
-            XCTAssertEqual(state.clampedScreenCenter.y, state.screenCenter.y, accuracy: 0.0001)
+            XCTAssertGreaterThanOrEqual(state.clampedScreenCenter.x, 0)
+            XCTAssertLessThanOrEqual(state.clampedScreenCenter.x, 1)
+            XCTAssertGreaterThanOrEqual(state.clampedScreenCenter.y, 0)
+            XCTAssertLessThanOrEqual(state.clampedScreenCenter.y, 1)
         }
+    }
+
+    func testGlobePanChangesProjectedSunCenter() {
+        var earthScene = Self.earthScene()
+        earthScene.sunDirection = normalize(SIMD3<Float>(0.55, 0, 0.83))
+
+        let unpanned = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 0),
+            cameraMatrix: matrix_identity_float4x4,
+            drawSize: CGSize(width: 1000, height: 1000)
+        )
+        let panned = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: GlobeUniform(panX: 0.5, panY: 0, radius: 1, transition: 0),
+            cameraMatrix: matrix_identity_float4x4,
+            drawSize: CGSize(width: 1000, height: 1000)
+        )
+
+        XCTAssertNotEqual(unpanned.screenCenter.x, panned.screenCenter.x, accuracy: 0.0001)
+    }
+
+    func testOffscreenProjectedSunKeepsUnclampedCenterAndUsesEdgeGlare() {
+        var earthScene = Self.earthScene()
+        earthScene.sunDirection = normalize(SIMD3<Float>(1, 0, 0.12))
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 0),
+            cameraMatrix: matrix_identity_float4x4,
+            drawSize: CGSize(width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThan(state.screenCenter.x, 1.0)
+        XCTAssertEqual(state.clampedScreenCenter.x, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(state.edgeGlareAlpha, earthScene.sunEdgeGlareIntensity, accuracy: 0.0001)
+    }
+
+    func testProjectionMatrixChangesGlobeSilhouetteRadius() {
+        var earthScene = Self.earthScene()
+        earthScene.sunDirection = normalize(SIMD3<Float>(0.2, 0, 0.98))
+        let globe = GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 0)
+        var wideProjection = matrix_identity_float4x4
+        wideProjection[0][0] = 0.5
+        wideProjection[1][1] = 0.5
+
+        let regular = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: globe,
+            cameraMatrix: matrix_identity_float4x4,
+            drawSize: CGSize(width: 1000, height: 1000)
+        )
+        let wide = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: globe,
+            cameraMatrix: wideProjection,
+            drawSize: CGSize(width: 1000, height: 1000)
+        )
+
+        XCTAssertLessThan(wide.globeScreenRadius, regular.globeScreenRadius)
     }
 
     func testSunBehindCameraSuppressesAllVisibleContributions() {
         var earthScene = Self.earthScene()
-        earthScene.sunDirection = normalize(SIMD3<Float>(0.2, 0, -1))
+        earthScene.sunDirection = normalize(SIMD3<Float>(0.2, 0, 1))
 
         let state = EarthSceneSunVisualState.make(
             earthScene: earthScene,
             globe: Self.globe,
-            cameraMatrix: matrix_identity_float4x4,
+            cameraMatrix: Matrix.perspectiveMatrix(fovRadians: .pi / 4,
+                                                   aspect: 1,
+                                                   near: 0.01,
+                                                   far: 20),
             drawSize: CGSize(width: 1024, height: 768)
         )
 
@@ -262,7 +332,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
 }
 
 private extension EarthSceneSunVisualStateTests {
-    static let globe = GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 1)
+    static let globe = GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 0)
 
     static func earthScene(limbHaloIntensity: Float = 0.4) -> EarthSceneUniform {
         EarthSceneUniform(
