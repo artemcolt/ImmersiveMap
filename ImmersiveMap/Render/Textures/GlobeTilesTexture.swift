@@ -13,7 +13,6 @@ class GlobeTilesTexture {
         let position: simd_int1
         let textureSize: simd_int1
         let cellSize: simd_int1
-        let layer: simd_int1
         let tile: simd_int3
     }
 
@@ -133,7 +132,6 @@ class GlobeTilesTexture {
         pages[allocation.pageIndex].tileData.append(TileData(position: simd_int1(freePtr),
                                                              textureSize: simd_int1(size),
                                                              cellSize: simd_int1(cellSize),
-                                                             layer: simd_int1(Int32(allocation.candidate.layer.rawValue)),
                                                              tile: simd_int3(Int32(placeIn.x), Int32(placeIn.y), Int32(placeIn.z))))
         
         

@@ -37,7 +37,6 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         let center = visibleContent.center
         let visibleTiles = visibleContent.visibleTiles
         let tileZoomLevel = visibleContent.tileZoomLevel
-        let globeDetailVisibleTiles = visibleContent.globeDetailVisibleTiles
         
         // Visible-tiles post-processing:
         // shortens the raw visible list and substitutes distant tiles
@@ -49,9 +48,8 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         // multiple placement targets that share the same content tile (`Tile`).
         // Deduplicate before storage request to avoid repeated cache lookup/request
         // for identical source bytes.
-        var demandedSourceTiles = deduplicateSourceTiles(preprocessedVisibleTiles,
+        let demandedSourceTiles = deduplicateSourceTiles(preprocessedVisibleTiles,
                                                          parentFallbackDepth: frameContext.renderSurfaceMode == .spherical ? 2 : 0)
-        appendUniqueSourceTiles(globeDetailVisibleTiles.map(\.tile), to: &demandedSourceTiles)
         // Returns source-tile availability map for GPU rendering:
         // value contains Metal-ready tile buffers, or `nil` while still loading.
         let tileRequestResult = tileRenderStore.requestTiles(demandedSourceTiles)
@@ -60,11 +58,6 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         var hashBuilder = Hasher()
         hashBuilder.combine(PreprocessedVisibleTilesHasher.computePreprocessedVisibleTilesHash(
             preprocessedVisibleTiles: preprocessedVisibleTiles,
-            readyTilesBySource: readyTilesBySource
-        ))
-        hashBuilder.combine(visibleContent.globeDetailTileZoomLevel)
-        hashBuilder.combine(PreprocessedVisibleTilesHasher.computePreprocessedVisibleTilesHash(
-            preprocessedVisibleTiles: globeDetailVisibleTiles,
             readyTilesBySource: readyTilesBySource
         ))
         let preprocessedVisibleTilesHash = hashBuilder.finalize()
@@ -76,7 +69,6 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
                                                                      previousZoom: previousZoom,
                                                                      previousContext: placeTilesContext)
             globeTexturePlaceTilesContext = GlobeTexturePlacementPlanner.buildPlacements(baseTargets: preprocessedVisibleTiles,
-                                                                                         detailTargets: globeDetailVisibleTiles,
                                                                                          readyTilesBySource: readyTilesBySource,
                                                                                          baseZoom: tileZoomLevel,
                                                                                          previousBaseZoom: previousZoom,

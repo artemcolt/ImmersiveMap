@@ -31,12 +31,7 @@ enum GlobeSurfaceDrawer {
                 pageMappings.append((pageIndex: pageIndex, mapping: mapping))
             }
         }
-        pageMappings.sort(by: { lhs, rhs in
-            if lhs.mapping.layer != rhs.mapping.layer {
-                return lhs.mapping.layer < rhs.mapping.layer
-            }
-            return lhs.pageIndex < rhs.pageIndex
-        })
+        pageMappings.sort { $0.pageIndex < $1.pageIndex }
 
         var activePageIndex: Int?
         for pageMapping in pageMappings {

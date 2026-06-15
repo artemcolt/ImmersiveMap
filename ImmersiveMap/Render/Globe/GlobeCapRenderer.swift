@@ -187,12 +187,7 @@ final class GlobeCapRenderer {
                 pageMappings.append((pageIndex: pageIndex, mapping: mapping))
             }
         }
-        pageMappings.sort(by: { lhs, rhs in
-            if lhs.mapping.layer != rhs.mapping.layer {
-                return lhs.mapping.layer < rhs.mapping.layer
-            }
-            return lhs.pageIndex < rhs.pageIndex
-        })
+        pageMappings.sort { $0.pageIndex < $1.pageIndex }
         return pageMappings
     }
 
@@ -200,7 +195,6 @@ final class GlobeCapRenderer {
         GlobeTilesTexture.TileData(position: simd_int1(0),
                                    textureSize: simd_int1(1),
                                    cellSize: simd_int1(1),
-                                   layer: simd_int1(0),
                                    tile: simd_int3(0, 0, 0))
     }
 

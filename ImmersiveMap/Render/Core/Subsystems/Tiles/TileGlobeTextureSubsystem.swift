@@ -77,7 +77,6 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
                                   frameContext: FrameContext) {
         tilesTexture.resetFrame()
         let planner = GlobeAtlasPlacementPlanner(pageSizePx: tilesTexture.size,
-                                                 maxPageCount: 3,
                                                  qualityScale: 1.0)
         let candidates = planner.makeCandidates(placeTiles: placeTilesContext.tilePlacements,
                                                 frameContext: frameContext)

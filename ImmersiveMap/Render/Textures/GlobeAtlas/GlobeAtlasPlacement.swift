@@ -34,7 +34,6 @@ enum GlobeAtlasSlotDepth: UInt8, CaseIterable, Comparable, Hashable {
 struct GlobeAtlasCandidate: Hashable {
     let placementIndex: Int
     let placeTile: PlaceTile
-    let layer: GlobeTextureLayer
     let screenDemandPx: Float
     let distanceToCamera: Float
     let desiredDepth: GlobeAtlasSlotDepth
@@ -76,31 +75,18 @@ struct GlobeAtlasPlan: Equatable {
 struct GlobeAtlasDebugSummary: Equatable {
     let pageCount: Int
     let allocationCount: Int
-    let baseAllocationCount: Int
-    let detailAllocationCount: Int
     let downgradedAllocationCount: Int
     let skippedAllocationCount: Int
     let slotCountsByDepth: [GlobeAtlasSlotDepth: Int]
-    let fallbackHighResolutionCount: Int
 
     init(plan: GlobeAtlasPlan) {
         pageCount = plan.pageSummaries.count
         allocationCount = plan.allocations.count
-        baseAllocationCount = plan.allocations.filter { $0.candidate.layer == .base }.count
-        detailAllocationCount = plan.allocations.filter { $0.candidate.layer == .detail }.count
         downgradedAllocationCount = plan.downgradedAllocationCount
         skippedAllocationCount = plan.skippedAllocationCount
 
         slotCountsByDepth = Dictionary(grouping: plan.allocations, by: \.atlasDepth)
             .mapValues(\.count)
-        fallbackHighResolutionCount = plan.allocations.reduce(into: 0) { count, allocation in
-            guard allocation.candidate.isFallback,
-                  allocation.atlasDepth != .depth4,
-                  allocation.atlasDepth.rawValue <= allocation.candidate.desiredDepth.rawValue else {
-                return
-            }
-            count += 1
-        }
     }
 
     func slotCount(depth: GlobeAtlasSlotDepth) -> Int {

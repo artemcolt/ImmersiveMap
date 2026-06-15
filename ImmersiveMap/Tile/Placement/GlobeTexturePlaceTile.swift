@@ -1,14 +1,8 @@
 // Copyright (c) 2025-2026 Artem Bobkin.
 // SPDX-License-Identifier: MIT
 
-enum GlobeTextureLayer: Int, Hashable {
-    case base = 0
-    case detail = 1
-}
-
 struct GlobeTexturePlaceTile: Hashable {
     let placeTile: PlaceTile
-    let layer: GlobeTextureLayer
 
     var metalTile: MetalTile {
         placeTile.metalTile

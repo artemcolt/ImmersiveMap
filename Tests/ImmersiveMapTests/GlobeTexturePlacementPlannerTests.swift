@@ -6,39 +6,31 @@ import MetalKit
 import XCTest
 
 final class GlobeTexturePlacementPlannerTests: XCTestCase {
-    func testBuildPlacementsKeepsBaseAndDetailInSeparateLayers() throws {
+    func testBuildPlacementsKeepsOnlyBaseTargets() throws {
         let baseTile = Tile(x: 1, y: 1, z: 1)
-        let detailTile = Tile(x: 5, y: 4, z: 3)
         let baseMetalTile = MetalTile(tile: baseTile, tileBuffers: try makeTileBuffers())
-        let detailMetalTile = MetalTile(tile: detailTile, tileBuffers: try makeTileBuffers())
 
         let context = GlobeTexturePlacementPlanner.buildPlacements(
             baseTargets: [VisibleTile(tile: baseTile)],
-            detailTargets: [VisibleTile(tile: detailTile)],
             readyTilesBySource: [
-                baseTile: baseMetalTile,
-                detailTile: detailMetalTile
+                baseTile: baseMetalTile
             ],
             baseZoom: 1,
             previousBaseZoom: 1,
             previousContext: .empty
         )
 
-        XCTAssertEqual(context.tilePlacements.map(\.layer), [.base, .detail])
-        XCTAssertEqual(context.tilePlacements.map(\.placeIn.tile), [baseTile, detailTile])
+        XCTAssertEqual(context.tilePlacements.map(\.placeIn.tile), [baseTile])
     }
 
-    func testBuildPlacementsSkipsMissingDetailWithoutRemovingBaseCoverage() throws {
+    func testBuildPlacementsUsesBaseReplacementRules() throws {
         let baseTile = Tile(x: 1, y: 1, z: 1)
-        let detailTile = Tile(x: 5, y: 4, z: 3)
         let baseMetalTile = MetalTile(tile: baseTile, tileBuffers: try makeTileBuffers())
 
         let context = GlobeTexturePlacementPlanner.buildPlacements(
             baseTargets: [VisibleTile(tile: baseTile)],
-            detailTargets: [VisibleTile(tile: detailTile)],
             readyTilesBySource: [
-                baseTile: baseMetalTile,
-                detailTile: nil
+                baseTile: baseMetalTile
             ],
             baseZoom: 1,
             previousBaseZoom: 1,
@@ -46,7 +38,6 @@ final class GlobeTexturePlacementPlannerTests: XCTestCase {
         )
 
         XCTAssertEqual(context.tilePlacements.count, 1)
-        XCTAssertEqual(context.tilePlacements.first?.layer, .base)
         XCTAssertEqual(context.tilePlacements.first?.placeIn.tile, baseTile)
     }
 

@@ -7,14 +7,11 @@ import simd
 
 struct GlobeAtlasPlacementPlanner {
     let pageSizePx: Int
-    let maxPageCount: Int
     let qualityScale: Float
 
     init(pageSizePx: Int = 4096,
-         maxPageCount: Int = 3,
          qualityScale: Float = 1.0) {
         self.pageSizePx = pageSizePx
-        self.maxPageCount = max(1, maxPageCount)
         self.qualityScale = max(0.25, qualityScale)
     }
 
@@ -26,7 +23,6 @@ struct GlobeAtlasPlacementPlanner {
         let demand = Float(max(screenBoundsPx.width, screenBoundsPx.height))
         return GlobeAtlasCandidate(placementIndex: placementIndex,
                                    placeTile: placeTile,
-                                   layer: .base,
                                    screenDemandPx: demand,
                                    distanceToCamera: 0,
                                    desiredDepth: GlobeAtlasSlotDepth.desired(forScreenDemandPx: demand,
@@ -64,7 +60,7 @@ struct GlobeAtlasPlacementPlanner {
     func makeCandidates(placeTiles: [PlaceTile],
                         frameContext: FrameContext) -> [GlobeAtlasCandidate] {
         let texturePlaceTiles = placeTiles.map {
-            GlobeTexturePlaceTile(placeTile: $0, layer: .base)
+            GlobeTexturePlaceTile(placeTile: $0)
         }
         return makeCandidates(placeTiles: texturePlaceTiles,
                               frameContext: frameContext)
@@ -81,7 +77,6 @@ struct GlobeAtlasPlacementPlanner {
             let demand = Float(max(footprint.bounds.width, footprint.bounds.height))
             return GlobeAtlasCandidate(placementIndex: index,
                                        placeTile: placeTile.placeTile,
-                                       layer: placeTile.layer,
                                        screenDemandPx: demand,
                                        distanceToCamera: footprint.minimumDepth,
                                        desiredDepth: GlobeAtlasSlotDepth.desired(forScreenDemandPx: demand,
@@ -97,17 +92,10 @@ struct GlobeAtlasPlacementPlanner {
         var allocations: [GlobeAtlasAllocation] = []
         var downgradedAllocationCount = 0
         var skippedAllocationCount = 0
-        let baseCandidates = candidates.filter { $0.layer == .base }
-        let detailCandidates = candidates.filter { $0.layer == .detail }
-        let baseCoverageDepth = coverageDepth(candidateCount: baseCandidates.count)
-
-        let orderedCandidates = baseCandidates.sorted(by: { shouldPlaceBefore($0, $1, baseCoverageDepth: baseCoverageDepth) }) +
-            detailCandidates.sorted(by: { shouldPlaceBefore($0, $1, baseCoverageDepth: baseCoverageDepth) })
+        let orderedCandidates = candidates.sorted(by: shouldPlaceBefore)
 
         for candidate in orderedCandidates {
-            guard let allocation = allocate(candidate: candidate,
-                                            baseCoverageDepth: baseCoverageDepth,
-                                            pages: &pages) else {
+            guard let allocation = allocate(candidate: candidate, pages: &pages) else {
                 skippedAllocationCount += 1
                 continue
             }
@@ -125,10 +113,9 @@ struct GlobeAtlasPlacementPlanner {
     }
 
     private func shouldPlaceBefore(_ lhs: GlobeAtlasCandidate,
-                                   _ rhs: GlobeAtlasCandidate,
-                                   baseCoverageDepth: GlobeAtlasSlotDepth) -> Bool {
-        let lhsDepth = preferredDepth(for: lhs, baseCoverageDepth: baseCoverageDepth)
-        let rhsDepth = preferredDepth(for: rhs, baseCoverageDepth: baseCoverageDepth)
+                                   _ rhs: GlobeAtlasCandidate) -> Bool {
+        let lhsDepth = desiredDepth(for: lhs)
+        let rhsDepth = desiredDepth(for: rhs)
         if lhsDepth != rhsDepth {
             return lhsDepth < rhsDepth
         }
@@ -145,15 +132,8 @@ struct GlobeAtlasPlacementPlanner {
     }
 
     private func allocate(candidate: GlobeAtlasCandidate,
-                          baseCoverageDepth: GlobeAtlasSlotDepth,
                           pages: inout [Page]) -> GlobeAtlasAllocation? {
-        let preferredDepth = preferredDepth(for: candidate, baseCoverageDepth: baseCoverageDepth)
-        for depth in GlobeAtlasSlotDepth.allCases where depth.rawValue >= preferredDepth.rawValue {
-            if let allocation = allocate(candidate: candidate, depth: depth, pages: &pages) {
-                return allocation
-            }
-        }
-        return nil
+        allocate(candidate: candidate, depth: desiredDepth(for: candidate), pages: &pages)
     }
 
     private func allocate(candidate: GlobeAtlasCandidate,
@@ -170,8 +150,6 @@ struct GlobeAtlasPlacementPlanner {
             }
         }
 
-        guard pages.count < maxPageCount else { return nil }
-
         let page = Page(pageIndex: pages.count)
         pages.append(page)
         guard let placedPosition = pages[pages.count - 1].add(depth: depth) else {
@@ -185,34 +163,11 @@ struct GlobeAtlasPlacementPlanner {
                                     cellSizePx: depth.cellSize(pageSizePx: pageSizePx))
     }
 
-    private func totalSlotCapacity(at depth: GlobeAtlasSlotDepth) -> Int {
-        let slotsPerAxis = 1 << Int(depth.rawValue)
-        return maxPageCount * slotsPerAxis * slotsPerAxis
-    }
-
-    private func coverageDepth(candidateCount: Int) -> GlobeAtlasSlotDepth {
-        guard candidateCount > 0 else { return .depth0 }
-        for depth in GlobeAtlasSlotDepth.allCases {
-            if totalSlotCapacity(at: depth) >= candidateCount {
-                return depth
-            }
-        }
-        return .depth4
-    }
-
     private func desiredDepth(for candidate: GlobeAtlasCandidate) -> GlobeAtlasSlotDepth {
         guard qualityScale != 1.0 else { return candidate.desiredDepth }
         return GlobeAtlasSlotDepth.desired(forScreenDemandPx: candidate.screenDemandPx,
                                            pageSizePx: pageSizePx,
                                            qualityScale: qualityScale)
-    }
-
-    private func preferredDepth(for candidate: GlobeAtlasCandidate,
-                                baseCoverageDepth: GlobeAtlasSlotDepth) -> GlobeAtlasSlotDepth {
-        guard candidate.layer == .detail else {
-            return baseCoverageDepth
-        }
-        return desiredDepth(for: candidate)
     }
 
     private func estimateScreenFootprint(placeTile: PlaceTile,

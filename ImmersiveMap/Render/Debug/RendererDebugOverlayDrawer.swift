@@ -73,8 +73,7 @@ enum RendererDebugOverlayDrawer {
             .joined(separator: " ")
         return [
             "atlas pages:\(summary.pageCount) alloc:\(summary.allocationCount) down:\(summary.downgradedAllocationCount) skip:\(summary.skippedAllocationCount)",
-            "atlas layers base:\(summary.baseAllocationCount) detail:\(summary.detailAllocationCount)",
-            "atlas \(depthCounts) fbHi:\(summary.fallbackHighResolutionCount)"
+            "atlas \(depthCounts)"
         ]
     }
 

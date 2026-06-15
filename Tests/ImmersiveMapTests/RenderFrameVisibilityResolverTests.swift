@@ -7,7 +7,7 @@ import simd
 import XCTest
 
 final class RenderFrameVisibilityResolverTests: XCTestCase {
-    func testGlobeModeResolvesBaseAndDetailVisibleTiles() {
+    func testGlobeModeResolvesOnlyBaseVisibleTiles() {
         let culling = RecordingTileCulling()
         let resolver = RenderFrameVisibilityResolver(tileCulling: culling)
 
@@ -15,11 +15,9 @@ final class RenderFrameVisibilityResolverTests: XCTestCase {
                                       resolvedPresentation: makePresentation(renderSurfaceMode: .spherical),
                                       tileSettings: ImmersiveMapSettings.default.tiles)
 
-        XCTAssertEqual(culling.targetZooms, [1, 3])
+        XCTAssertEqual(culling.targetZooms, [1])
         XCTAssertEqual(result.tileZoomLevel, 1)
         XCTAssertEqual(result.visibleTiles, [VisibleTile(x: 1, y: 1, z: 1)])
-        XCTAssertEqual(result.globeDetailTileZoomLevel, 3)
-        XCTAssertEqual(result.globeDetailVisibleTiles, [VisibleTile(x: 3, y: 3, z: 3)])
     }
 
     func testFlatModeResolvesOnlyBaseVisibleTiles() {
@@ -33,8 +31,6 @@ final class RenderFrameVisibilityResolverTests: XCTestCase {
         XCTAssertEqual(culling.targetZooms, [1])
         XCTAssertEqual(result.tileZoomLevel, 1)
         XCTAssertEqual(result.visibleTiles, [VisibleTile(x: 1, y: 1, z: 1)])
-        XCTAssertNil(result.globeDetailTileZoomLevel)
-        XCTAssertTrue(result.globeDetailVisibleTiles.isEmpty)
     }
 
     private func makeCameraFrameState(zoom: Double) -> CameraFrameState {
@@ -88,8 +84,6 @@ private final class RecordingTileCulling: TileCulling {
                                    center: Center(tileX: 0, tileY: 0),
                                    visibleTiles: [VisibleTile(x: targetZoom, y: targetZoom, z: targetZoom)],
                                    tileZoomLevel: targetZoom,
-                                   globeDetailVisibleTiles: [],
-                                   globeDetailTileZoomLevel: nil,
                                    coverageVersion: UInt64(targetZoom))
     }
 }
