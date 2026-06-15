@@ -7,6 +7,7 @@ enum RenderGraphFactory {
     static func makeDefaultGraph(context: RenderPersistentContext,
                                  settings: ImmersiveMapSettings,
                                  initialZoom: Int,
+                                 debugOverlayControls: DebugOverlayControlState,
                                  buildingWinnerIDTextureProvider: @escaping () -> MTLTexture?) -> RenderGraph {
         let tileDemandPlacementSubsystem = TileDemandPlacementSubsystem(tileRenderStore: context.tileRenderStore,
                                                                         initialZoom: initialZoom)
@@ -47,7 +48,8 @@ enum RenderGraphFactory {
                                                         tilesTexture: context.tilesTexture)
         let debugSubsystem = DebugOverlayRenderSubsystem(polygonPipeline: context.polygonPipeline,
                                                          debugOverlayRenderer: context.debugOverlayRenderer,
-                                                         textRenderer: context.textRenderer)
+                                                         textRenderer: context.textRenderer,
+                                                         controls: debugOverlayControls)
 
         let subsystems: [any RenderSubsystem] = [
             tileDemandPlacementSubsystem,

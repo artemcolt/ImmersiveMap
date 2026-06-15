@@ -13,17 +13,20 @@ final class ImmersiveMapRendererBuilder {
     private let renderRuntime: ImmersiveMapRenderRuntime
     private let selectionHandler: ImmersiveMapSelectionHandler
     private let debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime
+    private let debugOverlayControls: DebugOverlayControlState
 
     init(cameraRuntime: ImmersiveMapCameraRuntime,
          avatarRuntime: ImmersiveMapAvatarRuntime,
          renderRuntime: ImmersiveMapRenderRuntime,
          selectionHandler: ImmersiveMapSelectionHandler,
-         debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime) {
+         debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime,
+         debugOverlayControls: DebugOverlayControlState) {
         self.cameraRuntime = cameraRuntime
         self.avatarRuntime = avatarRuntime
         self.renderRuntime = renderRuntime
         self.selectionHandler = selectionHandler
         self.debugOverlayRuntime = debugOverlayRuntime
+        self.debugOverlayControls = debugOverlayControls
     }
 
     func makeRenderer(layer: CAMetalLayer,
@@ -37,6 +40,7 @@ final class ImmersiveMapRendererBuilder {
         return RenderFrameEngine(layer: layer,
                                  avatarSource: avatarRuntime,
                                  settings: settings,
+                                 debugOverlayControls: debugOverlayControls,
                                  renderCamera: renderCamera,
                                  presentationStateResolver: cameraRuntime.presentationStateResolver,
                                  eventSink: eventSink)

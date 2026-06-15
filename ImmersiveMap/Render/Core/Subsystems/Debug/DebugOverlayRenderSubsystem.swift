@@ -14,19 +14,23 @@ final class DebugOverlayRenderSubsystem: RenderSubsystem, RenderPassAvailability
     private let polygonPipeline: PolygonsPipeline
     private let debugOverlayRenderer: DebugOverlayRenderer
     private let textRenderer: TextRenderer
+    private let controls: DebugOverlayControlState
 
     init(polygonPipeline: PolygonsPipeline,
          debugOverlayRenderer: DebugOverlayRenderer,
-         textRenderer: TextRenderer) {
+         textRenderer: TextRenderer,
+         controls: DebugOverlayControlState) {
         self.polygonPipeline = polygonPipeline
         self.debugOverlayRenderer = debugOverlayRenderer
         self.textRenderer = textRenderer
+        self.controls = controls
     }
 
     func contributePassAvailability(settings: ImmersiveMapSettings,
                                     builder: inout RenderPassAvailabilityBuilder) {
         builder.debugOverlayEnabled = builder.debugOverlayEnabled
-            || RenderDebugOverlayPolicy.shouldEncode(settings.debug)
+            || RenderDebugOverlayPolicy.shouldEncode(settings.debug,
+                                                     controls: controls.snapshot())
     }
 
     func update(frameContext: FrameContext) {}
@@ -39,7 +43,8 @@ final class DebugOverlayRenderSubsystem: RenderSubsystem, RenderPassAvailability
                                         frameContext: frameContext,
                                         polygonPipeline: polygonPipeline,
                                         debugOverlayRenderer: debugOverlayRenderer,
-                                        textRenderer: textRenderer)
+                                        textRenderer: textRenderer,
+                                        controls: controls.snapshot())
     }
 
     func handleMemoryWarning() {}

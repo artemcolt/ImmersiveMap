@@ -11,8 +11,16 @@ enum RendererDebugOverlayDrawer {
                      frameContext: FrameContext,
                      polygonPipeline: PolygonsPipeline,
                      debugOverlayRenderer: DebugOverlayRenderer,
-                     textRenderer: TextRenderer) {
-        if debugOverlayRenderer.tileOverlayEnabled {
+                     textRenderer: TextRenderer,
+                     controls: DebugOverlayControlSnapshot) {
+        if controls.axesEnabled {
+            debugOverlayRenderer.drawAxes(renderEncoder: renderEncoder,
+                                          polygonPipeline: polygonPipeline,
+                                          cameraUniform: CameraUniform(matrix: frameContext.cameraMatrices.projectionView,
+                                                                       eye: frameContext.cameraEye,
+                                                                       padding: 0.0))
+        }
+        if controls.tileLayersEnabled {
             debugOverlayRenderer.drawTileOverlay(renderEncoder: renderEncoder,
                                                  polygonPipeline: polygonPipeline,
                                                  textRenderer: textRenderer,

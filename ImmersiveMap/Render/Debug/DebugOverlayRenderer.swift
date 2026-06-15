@@ -24,6 +24,8 @@ private struct TileTextCornerAnchor {
 
 final class DebugOverlayRenderer {
     private var settings: ImmersiveMapSettings.DebugSettings
+    private let axesVertexBuffer: MTLBuffer
+    private let axesVerticesCount: Int
     private let tileTextVertexBufferStore: FrameSlottedDynamicMetalBuffer<TextVertex>
     private let lineVertexBufferStore: FrameSlottedDynamicMetalBuffer<PolygonsPipeline.Vertex>
     private let tilePointScreenProjector = TilePointScreenProjector()
@@ -48,6 +50,20 @@ final class DebugOverlayRenderer {
                                                                     slotsCount: InFlightFramePool.inFlightFramesCount,
                                                                     options: [.storageModeShared],
                                                                     minimumCapacity: 512)
+        let axesVertices: [PolygonsPipeline.Vertex] = [
+            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 0.0, 1.0), color: SIMD4<Float>(1, 0, 0, 1)),
+            PolygonsPipeline.Vertex(position: SIMD4<Float>(1.0, 0.0, 0.0, 1.0), color: SIMD4<Float>(1, 0, 0, 1)),
+
+            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 0.0, 1.0), color: SIMD4<Float>(0, 1, 0, 1)),
+            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 1.0, 0.0, 1.0), color: SIMD4<Float>(0, 1, 0, 1)),
+
+            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 0.0, 1.0), color: SIMD4<Float>(0, 0, 1, 1)),
+            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 1.0, 1.0), color: SIMD4<Float>(0, 0, 1, 1)),
+        ]
+        axesVerticesCount = axesVertices.count
+        axesVertexBuffer = metalDevice.makeBuffer(bytes: axesVertices,
+                                                  length: axesVertices.count * MemoryLayout<PolygonsPipeline.Vertex>.stride,
+                                                  options: [])!
     }
 
     convenience init(metalDevice: MTLDevice) {
@@ -56,10 +72,6 @@ final class DebugOverlayRenderer {
 
     func apply(settings: ImmersiveMapSettings.DebugSettings) {
         self.settings = settings
-    }
-
-    var tileOverlayEnabled: Bool {
-        settings.tileOverlayEnabled
     }
 
     static func makeCoordinateTextLines(zoom: Double,
@@ -71,6 +83,16 @@ final class DebugOverlayRenderer {
         let latText = latitude.formatted(numberStyle.precision(.fractionLength(3)))
         let lonText = longitude.formatted(numberStyle.precision(.fractionLength(3)))
         return (zoom: zoomLine, latLon: "lat: \(latText) lon: \(lonText)")
+    }
+
+    func drawAxes(renderEncoder: MTLRenderCommandEncoder,
+                  polygonPipeline: PolygonsPipeline,
+                  cameraUniform: CameraUniform) {
+        polygonPipeline.setPipelineState(renderEncoder: renderEncoder)
+        renderEncoder.setVertexBuffer(axesVertexBuffer, offset: 0, index: 0)
+        var uniform = cameraUniform
+        renderEncoder.setVertexBytes(&uniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
+        renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: axesVerticesCount)
     }
 
     func drawTileOverlay(renderEncoder: MTLRenderCommandEncoder,

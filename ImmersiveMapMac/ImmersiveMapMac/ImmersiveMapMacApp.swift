@@ -93,17 +93,17 @@ struct HostMapScreen: View {
             settings.tiles.network.authorizationMode = .bearerHeader
         }
         settings.renderLoop.forceContinuousRendering = false
-        settings.debug.overlayEnabled = Self.environmentFlag("IMMERSIVE_MAP_DEBUG_OVERLAY",
-                                                             environment: environment)
-        settings.debug.tileOverlayEnabled = Self.environmentFlag("IMMERSIVE_MAP_TILE_OVERLAY",
-                                                                 environment: environment)
+        settings.debug.enableDebugPanel = Self.environmentFlag("IMMERSIVE_MAP_DEBUG_PANEL",
+                                                               environment: environment,
+                                                               defaultValue: true)
         return settings
     }
 
     private static func environmentFlag(_ key: String,
-                                        environment: [String: String]) -> Bool {
+                                        environment: [String: String],
+                                        defaultValue: Bool = false) -> Bool {
         guard let value = environment[key]?.lowercased() else {
-            return false
+            return defaultValue
         }
         return value == "1" || value == "true" || value == "yes"
     }

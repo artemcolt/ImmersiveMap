@@ -94,6 +94,7 @@ public class ImmersiveMapUIView: UIView {
                                                 layer: metalLayer,
                                                 settings: settings,
                                                 initialCameraPosition: initialCameraPosition)
+        debugOverlayRuntime.apply(settings: settings.debug)
 
         createRenderer(settings: settings,
                        cameraPosition: initialCameraPosition)

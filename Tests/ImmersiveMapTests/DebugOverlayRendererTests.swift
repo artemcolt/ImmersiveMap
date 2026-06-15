@@ -5,25 +5,45 @@
 import XCTest
 
 final class DebugOverlayRendererTests: XCTestCase {
-    func testHudOverlayDoesNotRequireMetalDebugPass() {
+    func testDebugPanelHudDoesNotRequireMetalDebugPass() {
         var settings = ImmersiveMapSettings.default.debug
-        settings.overlayEnabled = true
-        settings.tileOverlayEnabled = false
+        settings.enableDebugPanel = true
+        let controls = DebugOverlayControlState()
 
-        XCTAssertFalse(RenderDebugOverlayPolicy.shouldEncode(settings))
+        XCTAssertFalse(RenderDebugOverlayPolicy.shouldEncode(settings, controls: controls.snapshot()))
     }
 
-    func testTileOverlayRequiresMetalDebugPass() {
+    func testTileLayerDebugRequiresMetalDebugPass() {
         var settings = ImmersiveMapSettings.default.debug
-        settings.overlayEnabled = false
-        settings.tileOverlayEnabled = true
+        settings.enableDebugPanel = true
+        let controls = DebugOverlayControlState()
+        controls.setTileLayersEnabled(true)
 
-        XCTAssertTrue(RenderDebugOverlayPolicy.shouldEncode(settings))
+        XCTAssertTrue(RenderDebugOverlayPolicy.shouldEncode(settings, controls: controls.snapshot()))
     }
 
-    func testHudSnapshotIsNilWhenOverlayIsDisabled() {
+    func testAxesDebugRequiresMetalDebugPass() {
         var settings = ImmersiveMapSettings.default.debug
-        settings.overlayEnabled = false
+        settings.enableDebugPanel = true
+        let controls = DebugOverlayControlState()
+        controls.setAxesEnabled(true)
+
+        XCTAssertTrue(RenderDebugOverlayPolicy.shouldEncode(settings, controls: controls.snapshot()))
+    }
+
+    func testDebugControlsDoNotEncodeWhenPanelIsDisabled() {
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = false
+        let controls = DebugOverlayControlState()
+        controls.setAxesEnabled(true)
+        controls.setTileLayersEnabled(true)
+
+        XCTAssertFalse(RenderDebugOverlayPolicy.shouldEncode(settings, controls: controls.snapshot()))
+    }
+
+    func testHudSnapshotIsNilWhenDebugPanelIsDisabled() {
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = false
 
         let snapshot = DebugOverlayHUDSnapshot.make(
             settings: settings,
@@ -39,7 +59,7 @@ final class DebugOverlayRendererTests: XCTestCase {
 
     func testHudSnapshotIncludesCoordinatesAndDiagnosticsLines() {
         var settings = ImmersiveMapSettings.default.debug
-        settings.overlayEnabled = true
+        settings.enableDebugPanel = true
         let diagnostics = FrameDiagnostics(frameIndex: 42, frameTime: 16.7)
 
         let snapshot = DebugOverlayHUDSnapshot.make(

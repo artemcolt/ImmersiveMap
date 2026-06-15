@@ -259,7 +259,7 @@ settings.tiles.network.authorizationMode = .accessTokenQuery(parameterName: "acc
 settings.renderLoop.forceContinuousRendering = false
 settings.camera.maximumZoom = 18
 settings.camera.maximumPitch = Float.pi * 65 / 180
-settings.debug.overlayEnabled = false
+settings.debug.enableDebugPanel = false
 ```
 
 ## Build This Package

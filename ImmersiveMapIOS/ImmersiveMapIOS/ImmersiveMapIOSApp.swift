@@ -54,8 +54,7 @@ struct HostMapScreen: View {
             settings.tiles.network.authorizationMode = .bearerHeader
         }
         settings.renderLoop.forceContinuousRendering = false
-        settings.debug.overlayEnabled = false
-        settings.debug.tileOverlayEnabled = false
+        settings.debug.enableDebugPanel = true
         return settings
     }
 

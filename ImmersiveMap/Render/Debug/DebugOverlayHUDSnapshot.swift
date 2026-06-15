@@ -25,7 +25,7 @@ struct DebugOverlayHUDSnapshot: Equatable {
                      longitude: Double,
                      cameraDebugLines: [String],
                      diagnostics: FrameDiagnostics?) -> DebugOverlayHUDSnapshot? {
-        guard settings.overlayEnabled else {
+        guard settings.enableDebugPanel else {
             return nil
         }
 

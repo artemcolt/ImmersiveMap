@@ -49,7 +49,10 @@ final class ImmersiveMapRuntimeGraph {
         let selectionHandler = ImmersiveMapSelectionHandler(avatarRuntime: avatarRuntime,
                                                             viewportRuntime: viewportRuntime,
                                                             renderRuntime: renderRuntime)
-        let debugOverlayRuntime = ImmersiveMapDebugOverlayRuntime(mapView: mapView)
+        let debugOverlayControls = DebugOverlayControlState()
+        let debugOverlayRuntime = ImmersiveMapDebugOverlayRuntime(mapView: mapView,
+                                                                  controls: debugOverlayControls,
+                                                                  renderRuntime: renderRuntime)
         let tapHandler = ImmersiveMapTapHandler(controlsRuntime: controlsRuntime,
                                                 selectionHandler: selectionHandler,
                                                 cameraRuntime: cameraRuntime)
@@ -57,7 +60,8 @@ final class ImmersiveMapRuntimeGraph {
                                                           avatarRuntime: avatarRuntime,
                                                           renderRuntime: renderRuntime,
                                                           selectionHandler: selectionHandler,
-                                                          debugOverlayRuntime: debugOverlayRuntime)
+                                                          debugOverlayRuntime: debugOverlayRuntime,
+                                                          debugOverlayControls: debugOverlayControls)
         let frameRenderDelegate = ImmersiveMapFrameRenderDelegate(layer: layer,
                                                                   renderRuntime: renderRuntime,
                                                                   viewportRuntime: viewportRuntime,

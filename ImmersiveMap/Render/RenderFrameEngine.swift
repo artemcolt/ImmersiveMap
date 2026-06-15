@@ -17,6 +17,7 @@ final class RenderFrameEngine {
     private let eventSink: RenderFrameEventSink
     private let passEncoder: RenderFramePassEncoder
     private let visibilityResolver: RenderFrameVisibilityResolver
+    private let debugOverlayControls: DebugOverlayControlState
 
     // MARK: - Settings State
 
@@ -35,6 +36,7 @@ final class RenderFrameEngine {
     init(layer: CAMetalLayer,
          avatarSource: AvatarRenderSource,
          settings: ImmersiveMapSettings = .default,
+         debugOverlayControls: DebugOverlayControlState = DebugOverlayControlState(),
          renderCamera: FrameCameraStateResolver,
          presentationStateResolver: MapPresentationStateController,
          eventSink: RenderFrameEventSink) {
@@ -47,11 +49,13 @@ final class RenderFrameEngine {
         let renderGraph = RenderGraphFactory.makeDefaultGraph(context: persistentContext,
                                                               settings: settings,
                                                               initialZoom: Int(renderCamera.currentCameraState().zoom),
+                                                              debugOverlayControls: debugOverlayControls,
                                                               buildingWinnerIDTextureProvider: { [attachments] in
                                                                   attachments.currentBuildingWinnerIDTexture
                                                               })
 
         self.settings = settings
+        self.debugOverlayControls = debugOverlayControls
         self.persistentContext = persistentContext
         self.renderCamera = renderCamera
         self.presentationStateResolver = presentationStateResolver

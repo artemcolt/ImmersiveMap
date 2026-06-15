@@ -509,8 +509,7 @@ public struct ImmersiveMapSettings: Equatable {
     }
 
     public struct DebugSettings: Equatable {
-        public var overlayEnabled: Bool
-        public var tileOverlayEnabled: Bool
+        public var enableDebugPanel: Bool
         public var coordinateScale: Float
         public var diagnosticsScale: Float
         public var leftPadding: Float
@@ -518,16 +517,14 @@ public struct ImmersiveMapSettings: Equatable {
         public var sectionSpacing: Float
         public var textColor: SIMD3<Float>
 
-        public init(overlayEnabled: Bool,
-                    tileOverlayEnabled: Bool,
+        public init(enableDebugPanel: Bool,
                     coordinateScale: Float,
                     diagnosticsScale: Float,
                     leftPadding: Float,
                     topPadding: Float,
                     sectionSpacing: Float,
                     textColor: SIMD3<Float>) {
-            self.overlayEnabled = overlayEnabled
-            self.tileOverlayEnabled = tileOverlayEnabled
+            self.enableDebugPanel = enableDebugPanel
             self.coordinateScale = coordinateScale
             self.diagnosticsScale = diagnosticsScale
             self.leftPadding = leftPadding
@@ -648,14 +645,6 @@ public struct ImmersiveMapSettings: Equatable {
         self.debug = debug
     }
 
-    private static var defaultDebugOverlayEnabled: Bool {
-        #if DEBUG
-        true
-        #else
-        false
-        #endif
-    }
-
     public static let `default` = ImmersiveMapSettings(
         renderLoop: RenderLoopSettings(forceContinuousRendering: false,
                                        interactionFramesPerSecond: 60,
@@ -748,8 +737,7 @@ public struct ImmersiveMapSettings: Equatable {
                                 springK: 0.25,
                                 smoothing: 0.6),
         attribution: AttributionSettings(),
-        debug: DebugSettings(overlayEnabled: defaultDebugOverlayEnabled,
-                             tileOverlayEnabled: false,
+        debug: DebugSettings(enableDebugPanel: false,
                              coordinateScale: 80.0,
                              diagnosticsScale: 60.0,
                              leftPadding: 100.0,
