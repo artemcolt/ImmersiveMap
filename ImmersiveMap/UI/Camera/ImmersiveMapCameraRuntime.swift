@@ -11,7 +11,6 @@ import Foundation
 final class ImmersiveMapCameraRuntime {
     private let initialCameraPosition: ImmersiveMapCameraPosition?
     let presentationStateResolver: MapPresentationStateController
-    private let anchoredZoomHandler = AnchoredCameraZoomHandler()
     private let renderRuntime: ImmersiveMapRenderRuntime
     private let controlsRuntime: ImmersiveMapControlsRuntime
     private weak var controller: ImmersiveMapCameraController?
@@ -220,28 +219,6 @@ final class ImmersiveMapCameraRuntime {
     func zoomCamera(delta: Double) {
         renderCamera?.zoomCamera(delta: delta)
         applyCurrentCameraConstraints()
-        notifyCameraPositionChanged()
-        syncPitchControlValue()
-        renderRuntime.requestFrame()
-    }
-
-    func zoomCamera(delta: Double,
-                    anchorDrawablePoint: CGPoint,
-                    drawableSize: CGSize) {
-        guard let renderCamera else {
-            return
-        }
-
-        anchoredZoomHandler.zoomCamera(renderCamera,
-                                       delta: delta,
-                                       anchorDrawablePoint: anchorDrawablePoint,
-                                       drawableSize: drawableSize,
-                                       resolvePresentation: { [presentationStateResolver] cameraState in
-                                           presentationStateResolver.resolve(cameraState: cameraState)
-                                       },
-                                       applyCameraConstraints: { [weak self] in
-                                           self?.applyCurrentCameraConstraints()
-                                       })
         notifyCameraPositionChanged()
         syncPitchControlValue()
         renderRuntime.requestFrame()

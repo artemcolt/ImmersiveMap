@@ -73,12 +73,7 @@ final class ZoomControlZone {
                                                    zoomFactor: settings.camera.dragZoomFactor,
                                                    velocityFactor: settings.camera.dragZoomVelocityFactor,
                                                    velocityLimit: settings.camera.dragZoomVelocityLimit)
-            let anchorPoint = gesture.location(in: mapView)
-            let scale = mapView.metalLayer.contentsScale
-            mapView.cameraRuntime.zoomCamera(delta: delta,
-                                             anchorDrawablePoint: CGPoint(x: anchorPoint.x * scale,
-                                                                          y: anchorPoint.y * scale),
-                                             drawableSize: mapView.metalLayer.drawableSize)
+            mapView.cameraRuntime.zoomCamera(delta: delta)
             gesture.setTranslation(.zero, in: mapView)
         case .ended, .cancelled, .failed:
             setScrollInteractionActive(false)
