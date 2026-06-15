@@ -54,13 +54,6 @@ class TileCulling {
                         globeRenderState: GlobeRenderState,
                         cameraFrustum: Frustum?,
                         cameraEye: SIMD3<Float>) -> GlobeVisibleTileResolution {
-        let tileX = Int(center.tileX)
-        let tileY = Int(center.tileY)
-
-        #if DEBUG
-        print("[CENTER] \(tileX), \(tileY), \(targetZoom)")
-        #endif
-
         return globeVisibleTileResolver.resolveVisibleTiles(targetZoom: targetZoom,
                                                             globe: globeRenderState.globeUniform,
                                                             cameraFrustum: cameraFrustum,
@@ -71,13 +64,6 @@ class TileCulling {
                        center: Center,
                        flatRenderState: FlatRenderState,
                        cameraMatrix: matrix_float4x4?) -> Set<VisibleTile> {
-        let tileX = Int(center.tileX)
-        let tileY = Int(center.tileY)
-
-        #if DEBUG
-        print("[CENTER] \(tileX), \(tileY), \(targetZoom)")
-        #endif
-
         return FlatVisibleTileResolver.resolveVisibleTiles(targetZoom: targetZoom,
                                                            flatRenderState: flatRenderState,
                                                            cameraMatrix: cameraMatrix)

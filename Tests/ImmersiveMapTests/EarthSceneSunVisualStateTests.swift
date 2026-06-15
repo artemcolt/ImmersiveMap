@@ -151,9 +151,9 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertFalse(state.hasVisibleContribution(earthScene: earthScene))
     }
 
-    func testSunInsideGlobeSilhouetteNearLimbSuppressesDiskAndKeepsHalo() {
+    func testSunBehindGlobeLimbPastDiskRadiusSuppressesDiskAndKeepsHalo() {
         var earthScene = Self.earthScene(limbHaloIntensity: 1)
-        let direction = normalize(SIMD3<Float>(0.48, 0, 0.88))
+        let direction = normalize(SIMD3<Float>(0.415, 0, 0.91))
         earthScene.sunDirection = direction
         let expectedGlobeRadius: Float = 0.5
         let expectedScreenCenter = SIMD2<Float>(
@@ -179,6 +179,49 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
         XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
         XCTAssertEqual(state.limbHaloAlpha, expectedHalo, accuracy: 0.0001)
+    }
+
+    func testSunPartiallyBehindGlobeLimbKeepsFadedDiskContribution() {
+        var earthScene = Self.earthScene(limbHaloIntensity: 1)
+        earthScene.sunDiskAngularSize = 0.075
+        let direction = normalize(SIMD3<Float>(0.47, 0, 0.88))
+        earthScene.sunDirection = direction
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: matrix_identity_float4x4,
+            drawSize: CGSize(width: 1000, height: 1000),
+            starfieldRadiusScale: 2
+        )
+
+        XCTAssertEqual(state.isEnabled, 1)
+        XCTAssertGreaterThan(state.diskAlpha, 0.0)
+        XCTAssertLessThan(state.diskAlpha, 1.0)
+        XCTAssertEqual(state.edgeGlareAlpha, 0.0, accuracy: 0.0001)
+        XCTAssertGreaterThan(state.limbHaloAlpha, 0.0)
+    }
+
+    func testSunJustOutsideGlobeLimbAlreadyHasLimbHaloContribution() {
+        var earthScene = Self.earthScene(limbHaloIntensity: 1)
+        let direction = SIMD3<Float>(0.56, 0, sqrt(1 - 0.56 * 0.56))
+        earthScene.sunDirection = direction
+        var cameraMatrix = matrix_identity_float4x4
+        cameraMatrix[0][0] = 0.5
+        cameraMatrix[1][1] = 0.5
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: cameraMatrix,
+            drawSize: CGSize(width: 1000, height: 1000),
+            starfieldRadiusScale: 2
+        )
+
+        XCTAssertEqual(state.isEnabled, 1)
+        XCTAssertEqual(state.diskAlpha, 1.0, accuracy: 0.0001)
+        XCTAssertGreaterThan(state.limbHaloAlpha, 0.0)
+        XCTAssertLessThan(state.limbHaloAlpha, 1.0)
     }
 
     func testWideViewportUsesAspectScaledGlobeRadius() {

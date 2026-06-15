@@ -131,9 +131,6 @@ final class RenderFrameEngine {
                                                          avatarAnimationRenderingActive: hasActiveAvatarAnimations))
 
         currentDiagnostics = frameContext.diagnostics
-        #if DEBUG
-        print(frameContext.diagnostics.summaryLine())
-        #endif
         return didSchedule
     }
 
@@ -231,8 +228,5 @@ final class RenderFrameEngine {
         diagnostics.recordStage(.encodePasses, duration: 0)
         diagnostics.recordStage(.presentFrame, duration: 0)
         currentDiagnostics = diagnostics
-        #if DEBUG
-        print(diagnostics.summaryLine())
-        #endif
     }
 }
