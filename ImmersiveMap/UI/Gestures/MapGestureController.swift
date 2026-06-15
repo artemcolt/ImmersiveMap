@@ -30,7 +30,6 @@ final class MapGestureController: NSObject, UIGestureRecognizerDelegate {
     private weak var mapView: ImmersiveMapUIView?
     let panGesture: UIPanGestureRecognizer
     private let tapGesture: UITapGestureRecognizer
-    private let doubleTapGesture: UITapGestureRecognizer
     private let rotationGesture: UIRotationGestureRecognizer
     private let pinchGesture: UIPinchGestureRecognizer
 
@@ -38,7 +37,6 @@ final class MapGestureController: NSObject, UIGestureRecognizerDelegate {
         self.mapView = mapView
         self.panGesture = UIPanGestureRecognizer()
         self.tapGesture = UITapGestureRecognizer()
-        self.doubleTapGesture = UITapGestureRecognizer()
         self.rotationGesture = UIRotationGestureRecognizer()
         self.pinchGesture = UIPinchGestureRecognizer()
         super.init()
@@ -77,19 +75,6 @@ final class MapGestureController: NSObject, UIGestureRecognizerDelegate {
         pinchGesture.addTarget(self, action: #selector(handlePinch(_:)))
         pinchGesture.delegate = self
         mapView.addGestureRecognizer(pinchGesture)
-
-        doubleTapGesture.addTarget(self, action: #selector(handleDoubleTap(_:)))
-        doubleTapGesture.numberOfTapsRequired = 2
-        mapView.addGestureRecognizer(doubleTapGesture)
-        tapGesture.require(toFail: doubleTapGesture)
-    }
-
-    @objc private func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
-        guard let mapView else { return }
-
-        _ = gesture.location(in: mapView)
-        mapView.cameraAnimationRuntime.cancelAnimations()
-        mapView.cameraRuntime.switchRenderMode()
     }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {

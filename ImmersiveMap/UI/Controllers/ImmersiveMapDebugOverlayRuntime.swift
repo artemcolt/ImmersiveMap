@@ -13,7 +13,9 @@ final class ImmersiveMapDebugOverlayRuntime {
 
     init(mapView: ImmersiveMapUIView,
          controls: DebugOverlayControlState,
-         renderRuntime: ImmersiveMapRenderRuntime) {
+         renderRuntime: ImmersiveMapRenderRuntime,
+         cameraRuntime: ImmersiveMapCameraRuntime,
+         cameraAnimationRuntime: ImmersiveMapCameraAnimationRuntime) {
         self.controls = controls
         self.renderRuntime = renderRuntime
         hudView.onAxesEnabledChanged = { [weak controls, weak renderRuntime] isEnabled in
@@ -23,6 +25,10 @@ final class ImmersiveMapDebugOverlayRuntime {
         hudView.onTileLayersEnabledChanged = { [weak controls, weak renderRuntime] isEnabled in
             controls?.setTileLayersEnabled(isEnabled)
             renderRuntime?.requestFrame(reason: .externalStateChanged)
+        }
+        hudView.onSurfaceModeSwitchRequested = { [weak cameraRuntime, weak cameraAnimationRuntime] in
+            cameraAnimationRuntime?.cancelAnimations()
+            cameraRuntime?.switchRenderMode()
         }
         mapView.addSubview(hudView)
     }

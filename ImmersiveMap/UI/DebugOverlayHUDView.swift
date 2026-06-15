@@ -27,6 +27,7 @@ final class DebugOverlayHUDView: UIView {
     private let axesSwitch = UISwitch()
     private let tileLayersLabel = UILabel()
     private let tileLayersSwitch = UISwitch()
+    private let surfaceModeButton = UIButton(type: .system)
     private let zoomLabel = UILabel()
     private let latLonLabel = UILabel()
     private let diagnosticsLabel = UILabel()
@@ -36,6 +37,7 @@ final class DebugOverlayHUDView: UIView {
 
     var onAxesEnabledChanged: ((Bool) -> Void)?
     var onTileLayersEnabledChanged: ((Bool) -> Void)?
+    var onSurfaceModeSwitchRequested: (() -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -67,6 +69,8 @@ final class DebugOverlayHUDView: UIView {
         containerView.addSubview(axesSwitch)
         containerView.addSubview(tileLayersLabel)
         containerView.addSubview(tileLayersSwitch)
+        configureSurfaceModeButton()
+        containerView.addSubview(surfaceModeButton)
 
         [zoomLabel, latLonLabel, diagnosticsLabel].forEach { label in
             label.numberOfLines = 0
@@ -131,7 +135,7 @@ final class DebugOverlayHUDView: UIView {
         let diagnosticsSize = diagnosticsLabel.sizeThatFits(constrainedSize)
         let textContentWidth = min(max(zoomSize.width, latLonSize.width, diagnosticsSize.width), maxContentWidth)
         let contentWidth = max(Layout.expandedMinimumWidth, textContentWidth)
-        let controlsHeight = Layout.controlRowHeight * 2 + Layout.controlSpacing
+        let controlsHeight = Layout.controlRowHeight * 3 + Layout.controlSpacing * 2
         let contentHeight = Layout.headerHeight
             + Layout.contentInset
             + controlsHeight
@@ -169,8 +173,12 @@ final class DebugOverlayHUDView: UIView {
                                         y: tileLayersLabel.frame.minY + (Layout.controlRowHeight - switchSize.height) / 2,
                                         width: switchSize.width,
                                         height: switchSize.height)
+        surfaceModeButton.frame = CGRect(x: Layout.contentInset,
+                                         y: tileLayersLabel.frame.maxY + Layout.controlSpacing,
+                                         width: contentWidth,
+                                         height: Layout.controlRowHeight)
 
-        let textTop = tileLayersLabel.frame.maxY + sectionSpacing
+        let textTop = surfaceModeButton.frame.maxY + sectionSpacing
         zoomLabel.frame = CGRect(x: Layout.contentInset,
                                  y: textTop,
                                  width: contentWidth,
@@ -195,7 +203,7 @@ final class DebugOverlayHUDView: UIView {
                                       y: 0,
                                       width: buttonSide,
                                       height: buttonSide)
-        let contentViews = [axesLabel, axesSwitch, tileLayersLabel, tileLayersSwitch, zoomLabel, latLonLabel, diagnosticsLabel]
+        let contentViews = [axesLabel, axesSwitch, tileLayersLabel, tileLayersSwitch, surfaceModeButton, zoomLabel, latLonLabel, diagnosticsLabel]
         contentViews.forEach { $0.isHidden = isCollapsed }
     }
 
@@ -233,6 +241,31 @@ final class DebugOverlayHUDView: UIView {
         label.font = UIFont.systemFont(ofSize: 13, weight: .medium)
     }
 
+    private func configureSurfaceModeButton() {
+        surfaceModeButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        surfaceModeButton.layer.cornerRadius = 6
+        surfaceModeButton.layer.masksToBounds = true
+        surfaceModeButton.addTarget(self, action: #selector(surfaceModeButtonTapped), for: .touchUpInside)
+        if #available(iOS 15.0, *) {
+            var configuration = UIButton.Configuration.plain()
+            configuration.title = "Switch globe / flat"
+            configuration.image = UIImage(systemName: "arrow.triangle.2.circlepath")
+            configuration.imagePadding = 6
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8)
+            configuration.baseForegroundColor = .white
+            configuration.background.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+            configuration.cornerStyle = .fixed
+            surfaceModeButton.configuration = configuration
+        } else {
+            surfaceModeButton.setTitle("Switch globe / flat", for: .normal)
+            surfaceModeButton.setImage(UIImage(systemName: "arrow.triangle.2.circlepath"), for: .normal)
+            surfaceModeButton.tintColor = .white
+            surfaceModeButton.setTitleColor(.white, for: .normal)
+            surfaceModeButton.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+            surfaceModeButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: -4, bottom: 0, right: 4)
+        }
+    }
+
     private func updateCollapseButtonImage() {
         let imageName = isCollapsed ? "chevron.down" : "chevron.up"
         collapseButton.setImage(UIImage(systemName: imageName), for: .normal)
@@ -253,6 +286,10 @@ final class DebugOverlayHUDView: UIView {
         onTileLayersEnabledChanged?(tileLayersSwitch.isOn)
     }
 
+    @objc private func surfaceModeButtonTapped() {
+        onSurfaceModeSwitchRequested?()
+    }
+
     private func attributedText(_ text: String,
                                 fontSize: CGFloat,
                                 color: UIColor) -> NSAttributedString {
@@ -265,5 +302,13 @@ final class DebugOverlayHUDView: UIView {
         )
     }
 }
+
+#if DEBUG
+extension DebugOverlayHUDView {
+    func simulateSurfaceModeSwitchForTesting() {
+        surfaceModeButtonTapped()
+    }
+}
+#endif
 
 #endif

@@ -52,7 +52,9 @@ final class ImmersiveMapRuntimeGraph {
         let debugOverlayControls = DebugOverlayControlState()
         let debugOverlayRuntime = ImmersiveMapDebugOverlayRuntime(mapView: mapView,
                                                                   controls: debugOverlayControls,
-                                                                  renderRuntime: renderRuntime)
+                                                                  renderRuntime: renderRuntime,
+                                                                  cameraRuntime: cameraRuntime,
+                                                                  cameraAnimationRuntime: cameraAnimationRuntime)
         let tapHandler = ImmersiveMapTapHandler(controlsRuntime: controlsRuntime,
                                                 selectionHandler: selectionHandler,
                                                 cameraRuntime: cameraRuntime)
