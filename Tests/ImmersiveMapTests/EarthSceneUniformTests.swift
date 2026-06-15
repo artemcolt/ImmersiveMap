@@ -36,6 +36,7 @@ final class EarthSceneUniformTests: XCTestCase {
         XCTAssertEqual(uniform.sunDirection.y, expectedDirection.y, accuracy: 0.0001)
         XCTAssertEqual(uniform.sunDirection.z, expectedDirection.z, accuracy: 0.0001)
         XCTAssertEqual(simd_length(uniform.sunDirection), 1.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunEdgeGlareIntensity, 0.0, accuracy: 0.0001)
     }
 
     func testShaderFacingFloatValuesAreClampedAndResolvedSafely() {

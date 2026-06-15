@@ -389,6 +389,7 @@ public struct ImmersiveMapSettings: Equatable {
             /// Surrounding glow contribution multiplier. Expected range: `0...1`.
             public var glowIntensity: Float
             /// Viewport-edge glare contribution multiplier. Expected range: `0...1`.
+            /// Defaults to zero so offscreen Sun direction is not emphasized at the viewport edge.
             public var edgeGlareIntensity: Float
             /// Globe limb halo contribution multiplier. Expected range: `0...1`.
             public var limbHaloIntensity: Float
@@ -407,7 +408,7 @@ public struct ImmersiveMapSettings: Equatable {
                         diskAngularSize: Float = 0.075,
                         diskIntensity: Float = 1.0,
                         glowIntensity: Float = 0.75,
-                        edgeGlareIntensity: Float = 0.55,
+                        edgeGlareIntensity: Float = 0.0,
                         limbHaloIntensity: Float = 0.35,
                         limbHaloWidth: Float = 0.10) {
                 self.isEnabled = isEnabled

@@ -20,7 +20,7 @@ final class EarthSceneSettingsTests: XCTestCase {
         XCTAssertEqual(earth.sun.diskAngularSize, 0.075, accuracy: 0.0001)
         XCTAssertEqual(earth.sun.diskIntensity, 1.0, accuracy: 0.0001)
         XCTAssertEqual(earth.sun.glowIntensity, 0.75, accuracy: 0.0001)
-        XCTAssertEqual(earth.sun.edgeGlareIntensity, 0.55, accuracy: 0.0001)
+        XCTAssertEqual(earth.sun.edgeGlareIntensity, 0.0, accuracy: 0.0001)
         XCTAssertEqual(earth.sun.limbHaloIntensity, 0.35, accuracy: 0.0001)
         XCTAssertEqual(earth.sun.limbHaloWidth, 0.10, accuracy: 0.0001)
     }
