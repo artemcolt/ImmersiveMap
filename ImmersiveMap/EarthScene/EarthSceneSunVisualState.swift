@@ -95,17 +95,21 @@ struct EarthSceneSunVisualState {
             Self.clampedUnit(screenCenter.y)
         )
         let distanceToGlobeCenter = simd_length((screenCenter - globeProjection.center) * aspectScale)
-        let isOffscreen = screenCenter.x < 0 || screenCenter.x > 1 || screenCenter.y < 0 || screenCenter.y > 1
+        let viewportDistance = simd_length((screenCenter - clampedScreenCenter) * aspectScale)
 
         let signedLimbDistance = distanceToGlobeCenter - globeProjection.radius
         let diskFadeWidth = max(earthScene.sunDiskAngularSize, EarthSceneUniform.minimumFadeWidth)
-        let diskAlpha = isOffscreen ? 0 : Self.smoothstep(edge0: -diskFadeWidth,
-                                                          edge1: 0,
-                                                          x: signedLimbDistance)
+        let viewportFadeWidth = max(earthScene.sunDiskAngularSize * 3.5, EarthSceneUniform.minimumFadeWidth)
+        let viewportAlpha = 1 - Self.smoothstep(edge0: 0,
+                                                edge1: viewportFadeWidth,
+                                                x: viewportDistance)
+        let diskAlpha = viewportAlpha * Self.smoothstep(edge0: -diskFadeWidth,
+                                                        edge1: 0,
+                                                        x: signedLimbDistance)
         let edgeGlareAlpha: Float
         let limbDistance = abs(signedLimbDistance)
         let haloWidth = max(earthScene.sunLimbHaloWidth, EarthSceneUniform.minimumFadeWidth)
-        let limbHaloAlpha = isOffscreen ? 0 : Self.clampedUnit(1 - limbDistance / haloWidth)
+        let limbHaloAlpha = viewportAlpha * Self.clampedUnit(1 - limbDistance / haloWidth)
         if signedLimbDistance <= 0 {
             edgeGlareAlpha = 0
         } else {

@@ -224,6 +224,27 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         XCTAssertLessThan(state.limbHaloAlpha, 1.0)
     }
 
+    func testSunJustOutsideViewportKeepsFadedDiskContribution() {
+        var earthScene = Self.earthScene(limbHaloIntensity: 0)
+        earthScene.sunDiskAngularSize = 0.075
+        let direction = normalize(SIMD3<Float>(0.53, 0, 0.85))
+        earthScene.sunDirection = direction
+
+        let state = EarthSceneSunVisualState.make(
+            earthScene: earthScene,
+            globe: Self.globe,
+            cameraMatrix: matrix_identity_float4x4,
+            drawSize: CGSize(width: 1000, height: 1000),
+            starfieldRadiusScale: 2
+        )
+
+        XCTAssertEqual(state.isEnabled, 1)
+        XCTAssertGreaterThan(state.screenCenter.x, 1.0)
+        XCTAssertEqual(state.clampedScreenCenter.x, 1.0, accuracy: 0.0001)
+        XCTAssertGreaterThan(state.diskAlpha, 0.0)
+        XCTAssertLessThan(state.diskAlpha, 1.0)
+    }
+
     func testWideViewportUsesAspectScaledGlobeRadius() {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = SIMD3<Float>(0, 0.5, Float(sqrt(0.75)))
