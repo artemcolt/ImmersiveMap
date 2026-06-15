@@ -18,7 +18,7 @@ struct HostMapScreen: View {
     private static let initialCameraPosition = ImmersiveMapCameraPosition(
         latitudeDegrees: 55.7558,
         longitudeDegrees: 37.6173,
-        zoom: 13.2,
+        zoom: 0,
         bearing: .pi / 10,
         pitch: .pi / 5
     )
