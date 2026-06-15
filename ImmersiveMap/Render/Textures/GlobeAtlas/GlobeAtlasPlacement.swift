@@ -72,12 +72,67 @@ struct GlobeAtlasPlan: Equatable {
                                       skippedAllocationCount: 0)
 }
 
+struct GlobeAtlasDebugAllocation: Equatable {
+    let pageIndex: Int
+    let slotColumn: Int
+    let slotRow: Int
+    let slotsPerSide: Int
+    let cellSizePx: Int
+    let atlasDepth: GlobeAtlasSlotDepth
+    let sourceTile: Tile
+    let targetTile: Tile
+    let screenDemandPx: Float
+    let isFallback: Bool
+
+    init(pageIndex: Int,
+         slotColumn: Int,
+         slotRow: Int,
+         slotsPerSide: Int,
+         cellSizePx: Int,
+         atlasDepth: GlobeAtlasSlotDepth,
+         sourceTile: Tile,
+         targetTile: Tile,
+         screenDemandPx: Float,
+         isFallback: Bool) {
+        self.pageIndex = pageIndex
+        self.slotColumn = slotColumn
+        self.slotRow = slotRow
+        self.slotsPerSide = slotsPerSide
+        self.cellSizePx = cellSizePx
+        self.atlasDepth = atlasDepth
+        self.sourceTile = sourceTile
+        self.targetTile = targetTile
+        self.screenDemandPx = screenDemandPx
+        self.isFallback = isFallback
+    }
+
+    init(allocation: GlobeAtlasAllocation) {
+        let candidate = allocation.candidate
+        pageIndex = allocation.pageIndex
+        slotColumn = Int(allocation.placedPosition.x)
+        slotRow = Int(allocation.placedPosition.y)
+        slotsPerSide = 1 << Int(allocation.atlasDepth.rawValue)
+        cellSizePx = allocation.cellSizePx
+        atlasDepth = allocation.atlasDepth
+        sourceTile = candidate.placeTile.metalTile.tile
+        targetTile = candidate.placeTile.placeIn.tile
+        screenDemandPx = candidate.screenDemandPx
+        isFallback = candidate.isFallback
+    }
+}
+
+struct GlobeAtlasDebugPage: Equatable {
+    let pageIndex: Int
+    let allocations: [GlobeAtlasDebugAllocation]
+}
+
 struct GlobeAtlasDebugSummary: Equatable {
     let pageCount: Int
     let allocationCount: Int
     let downgradedAllocationCount: Int
     let skippedAllocationCount: Int
     let slotCountsByDepth: [GlobeAtlasSlotDepth: Int]
+    let pages: [GlobeAtlasDebugPage]
 
     init(plan: GlobeAtlasPlan) {
         pageCount = plan.pageSummaries.count
@@ -87,9 +142,24 @@ struct GlobeAtlasDebugSummary: Equatable {
 
         slotCountsByDepth = Dictionary(grouping: plan.allocations, by: \.atlasDepth)
             .mapValues(\.count)
+        pages = Dictionary(grouping: plan.allocations.map(GlobeAtlasDebugAllocation.init), by: \.pageIndex)
+            .map { GlobeAtlasDebugPage(pageIndex: $0.key,
+                                       allocations: $0.value.sorted(by: Self.shouldPlaceDebugAllocationBefore)) }
+            .sorted { $0.pageIndex < $1.pageIndex }
     }
 
     func slotCount(depth: GlobeAtlasSlotDepth) -> Int {
         slotCountsByDepth[depth] ?? 0
+    }
+
+    private static func shouldPlaceDebugAllocationBefore(_ lhs: GlobeAtlasDebugAllocation,
+                                                         _ rhs: GlobeAtlasDebugAllocation) -> Bool {
+        if lhs.atlasDepth != rhs.atlasDepth {
+            return lhs.atlasDepth < rhs.atlasDepth
+        }
+        if lhs.slotRow != rhs.slotRow {
+            return lhs.slotRow < rhs.slotRow
+        }
+        return lhs.slotColumn < rhs.slotColumn
     }
 }

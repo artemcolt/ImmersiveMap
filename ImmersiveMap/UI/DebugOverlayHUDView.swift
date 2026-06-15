@@ -6,6 +6,11 @@
 import UIKit
 
 final class DebugOverlayHUDView: UIView {
+    private enum SelectedTab: Int {
+        case stats = 0
+        case atlas = 1
+    }
+
     private enum Layout {
         static let coordinateFontScale: CGFloat = 0.56
         static let diagnosticsFontScale: CGFloat = 0.50
@@ -28,12 +33,16 @@ final class DebugOverlayHUDView: UIView {
     private let tileLayersLabel = UILabel()
     private let tileLayersSwitch = UISwitch()
     private let surfaceModeButton = UIButton(type: .system)
+    private let tabControl = UISegmentedControl(items: ["Stats", "Atlas"])
     private let zoomLabel = UILabel()
     private let latLonLabel = UILabel()
     private let diagnosticsLabel = UILabel()
+    private let atlasLayoutView = DebugOverlayAtlasLayoutView()
+    private let atlasDetailsLabel = UILabel()
     private var snapshot: DebugOverlayHUDSnapshot?
     private var isPanelEnabled = false
     private var isCollapsed = false
+    private var selectedTab: SelectedTab = .stats
 
     var onAxesEnabledChanged: ((Bool) -> Void)?
     var onTileLayersEnabledChanged: ((Bool) -> Void)?
@@ -71,6 +80,9 @@ final class DebugOverlayHUDView: UIView {
         containerView.addSubview(tileLayersSwitch)
         configureSurfaceModeButton()
         containerView.addSubview(surfaceModeButton)
+        tabControl.selectedSegmentIndex = SelectedTab.stats.rawValue
+        tabControl.addTarget(self, action: #selector(tabControlChanged), for: .valueChanged)
+        containerView.addSubview(tabControl)
 
         [zoomLabel, latLonLabel, diagnosticsLabel].forEach { label in
             label.numberOfLines = 0
@@ -78,6 +90,11 @@ final class DebugOverlayHUDView: UIView {
             label.adjustsFontSizeToFitWidth = false
             containerView.addSubview(label)
         }
+        atlasDetailsLabel.numberOfLines = 0
+        atlasDetailsLabel.lineBreakMode = .byWordWrapping
+        atlasDetailsLabel.adjustsFontSizeToFitWidth = false
+        containerView.addSubview(atlasLayoutView)
+        containerView.addSubview(atlasDetailsLabel)
         updateCollapseButtonImage()
         updateVisibility()
     }
@@ -133,17 +150,27 @@ final class DebugOverlayHUDView: UIView {
         let zoomSize = zoomLabel.sizeThatFits(constrainedSize)
         let latLonSize = latLonLabel.sizeThatFits(constrainedSize)
         let diagnosticsSize = diagnosticsLabel.sizeThatFits(constrainedSize)
-        let textContentWidth = min(max(zoomSize.width, latLonSize.width, diagnosticsSize.width), maxContentWidth)
+        let atlasDetailsSize = atlasDetailsLabel.sizeThatFits(constrainedSize)
+        let atlasPreviewHeight = atlasLayoutView.preferredHeight(forWidth: maxContentWidth)
+        let textContentWidth = min(max(zoomSize.width,
+                                       latLonSize.width,
+                                       diagnosticsSize.width,
+                                       atlasDetailsSize.width), maxContentWidth)
         let contentWidth = max(Layout.expandedMinimumWidth, textContentWidth)
-        let controlsHeight = Layout.controlRowHeight * 3 + Layout.controlSpacing * 2
+        let controlsHeight = Layout.controlRowHeight * 4 + Layout.controlSpacing * 3
+        let statsBodyHeight = zoomSize.height
+            + latLonSize.height
+            + sectionSpacing
+            + diagnosticsSize.height
+        let atlasBodyHeight = atlasPreviewHeight
+            + sectionSpacing
+            + atlasDetailsSize.height
+        let bodyHeight = selectedTab == .atlas ? atlasBodyHeight : statsBodyHeight
         let contentHeight = Layout.headerHeight
             + Layout.contentInset
             + controlsHeight
             + sectionSpacing
-            + zoomSize.height
-            + latLonSize.height
-            + sectionSpacing
-            + diagnosticsSize.height
+            + bodyHeight
             + Layout.contentInset
         let containerSize = CGSize(width: contentWidth + Layout.contentInset * 2,
                                    height: contentHeight)
@@ -177,8 +204,12 @@ final class DebugOverlayHUDView: UIView {
                                          y: tileLayersLabel.frame.maxY + Layout.controlSpacing,
                                          width: contentWidth,
                                          height: Layout.controlRowHeight)
+        tabControl.frame = CGRect(x: Layout.contentInset,
+                                  y: surfaceModeButton.frame.maxY + Layout.controlSpacing,
+                                  width: contentWidth,
+                                  height: Layout.controlRowHeight)
 
-        let textTop = surfaceModeButton.frame.maxY + sectionSpacing
+        let textTop = tabControl.frame.maxY + sectionSpacing
         zoomLabel.frame = CGRect(x: Layout.contentInset,
                                  y: textTop,
                                  width: contentWidth,
@@ -191,6 +222,15 @@ final class DebugOverlayHUDView: UIView {
                                         y: latLonLabel.frame.maxY + sectionSpacing,
                                         width: contentWidth,
                                         height: diagnosticsSize.height)
+        atlasLayoutView.frame = CGRect(x: Layout.contentInset,
+                                       y: textTop,
+                                       width: contentWidth,
+                                       height: atlasPreviewHeight)
+        atlasDetailsLabel.frame = CGRect(x: Layout.contentInset,
+                                         y: atlasLayoutView.frame.maxY + sectionSpacing,
+                                         width: contentWidth,
+                                         height: atlasDetailsSize.height)
+        updateContentVisibility()
     }
 
     private func layoutHeader(width: CGFloat) {
@@ -203,8 +243,7 @@ final class DebugOverlayHUDView: UIView {
                                       y: 0,
                                       width: buttonSide,
                                       height: buttonSide)
-        let contentViews = [axesLabel, axesSwitch, tileLayersLabel, tileLayersSwitch, surfaceModeButton, zoomLabel, latLonLabel, diagnosticsLabel]
-        contentViews.forEach { $0.isHidden = isCollapsed }
+        updateContentVisibility()
     }
 
     private func updateText() {
@@ -212,6 +251,8 @@ final class DebugOverlayHUDView: UIView {
             zoomLabel.attributedText = nil
             latLonLabel.attributedText = nil
             diagnosticsLabel.attributedText = nil
+            atlasDetailsLabel.attributedText = nil
+            atlasLayoutView.apply(pages: [])
             return
         }
 
@@ -229,6 +270,10 @@ final class DebugOverlayHUDView: UIView {
         diagnosticsLabel.attributedText = attributedText(snapshot.diagnosticsLines.joined(separator: "\n"),
                                                         fontSize: diagnosticsFontSize,
                                                         color: color)
+        atlasLayoutView.apply(pages: snapshot.atlasPages)
+        atlasDetailsLabel.attributedText = attributedText(atlasDetailsText(pages: snapshot.atlasPages),
+                                                         fontSize: diagnosticsFontSize,
+                                                         color: color)
     }
 
     private func updateVisibility() {
@@ -272,6 +317,43 @@ final class DebugOverlayHUDView: UIView {
         collapseButton.accessibilityLabel = isCollapsed ? "Expand debug panel" : "Collapse debug panel"
     }
 
+    private func updateContentVisibility() {
+        let isContentHidden = isCollapsed
+        let isAtlasVisible = selectedTab == .atlas && isContentHidden == false
+        let isStatsVisible = selectedTab == .stats && isContentHidden == false
+        [axesLabel, axesSwitch, tileLayersLabel, tileLayersSwitch, surfaceModeButton, tabControl].forEach {
+            $0.isHidden = isContentHidden
+        }
+        [zoomLabel, latLonLabel, diagnosticsLabel].forEach {
+            $0.isHidden = isStatsVisible == false
+        }
+        [atlasLayoutView, atlasDetailsLabel].forEach {
+            $0.isHidden = isAtlasVisible == false
+        }
+    }
+
+    private func atlasDetailsText(pages: [GlobeAtlasDebugPage]) -> String {
+        guard pages.isEmpty == false else {
+            return "atlas pages: none"
+        }
+
+        let allocationCount = pages.reduce(0) { $0 + $1.allocations.count }
+        let pageSummary = pages
+            .map { "p\($0.pageIndex):\($0.allocations.count)" }
+            .joined(separator: " ")
+        let previewLines = pages.flatMap { page in
+            page.allocations.prefix(4).map { allocation in
+                let fallback = allocation.isFallback ? " fallback" : ""
+                return "p\(page.pageIndex) d\(allocation.atlasDepth.rawValue) " +
+                    "src z\(allocation.sourceTile.z)/\(allocation.sourceTile.x)/\(allocation.sourceTile.y) " +
+                    "dst z\(allocation.targetTile.z)/\(allocation.targetTile.x)/\(allocation.targetTile.y)" +
+                    fallback
+            }
+        }
+        return (["atlas pages:\(pages.count) alloc:\(allocationCount) \(pageSummary)"] + previewLines)
+            .joined(separator: "\n")
+    }
+
     @objc private func toggleCollapsed() {
         isCollapsed.toggle()
         updateCollapseButtonImage()
@@ -290,6 +372,12 @@ final class DebugOverlayHUDView: UIView {
         onSurfaceModeSwitchRequested?()
     }
 
+    @objc private func tabControlChanged() {
+        selectedTab = SelectedTab(rawValue: tabControl.selectedSegmentIndex) ?? .stats
+        updateContentVisibility()
+        setNeedsLayout()
+    }
+
     private func attributedText(_ text: String,
                                 fontSize: CGFloat,
                                 color: UIColor) -> NSAttributedString {
@@ -303,10 +391,157 @@ final class DebugOverlayHUDView: UIView {
     }
 }
 
+private final class DebugOverlayAtlasLayoutView: UIView {
+    private enum Layout {
+        static let pageLabelHeight: CGFloat = 16
+        static let pageSpacing: CGFloat = 10
+        static let borderWidth: CGFloat = 1
+    }
+
+    private var pages: [GlobeAtlasDebugPage] = []
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    var pageCount: Int {
+        pages.count
+    }
+
+    func apply(pages: [GlobeAtlasDebugPage]) {
+        self.pages = pages
+        setNeedsDisplay()
+    }
+
+    func preferredHeight(forWidth width: CGFloat) -> CGFloat {
+        guard pages.isEmpty == false else {
+            return 48
+        }
+
+        let pageSide = Self.pageSide(forWidth: width)
+        return CGFloat(pages.count) * (Layout.pageLabelHeight + pageSide)
+            + CGFloat(max(0, pages.count - 1)) * Layout.pageSpacing
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+        guard pages.isEmpty == false else {
+            drawEmptyState(in: rect)
+            return
+        }
+
+        let pageSide = Self.pageSide(forWidth: bounds.width)
+        var y = bounds.minY
+        for page in pages {
+            drawPageLabel(page: page, y: y)
+            y += Layout.pageLabelHeight
+            let pageRect = CGRect(x: bounds.minX,
+                                  y: y,
+                                  width: pageSide,
+                                  height: pageSide)
+            drawPage(page, in: pageRect, context: context)
+            y += pageSide + Layout.pageSpacing
+        }
+    }
+
+    private static func pageSide(forWidth width: CGFloat) -> CGFloat {
+        min(max(width, 1), 260)
+    }
+
+    private func drawEmptyState(in rect: CGRect) {
+        let text = "No globe atlas pages"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: UIColor.white.withAlphaComponent(0.72)
+        ]
+        text.draw(in: rect.insetBy(dx: 2, dy: 14), withAttributes: attributes)
+    }
+
+    private func drawPageLabel(page: GlobeAtlasDebugPage, y: CGFloat) {
+        let text = "page \(page.pageIndex) slots \(page.allocations.count)"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: UIColor.white.withAlphaComponent(0.9)
+        ]
+        text.draw(in: CGRect(x: bounds.minX, y: y, width: bounds.width, height: Layout.pageLabelHeight),
+                  withAttributes: attributes)
+    }
+
+    private func drawPage(_ page: GlobeAtlasDebugPage,
+                          in pageRect: CGRect,
+                          context: CGContext) {
+        context.setFillColor(UIColor.white.withAlphaComponent(0.06).cgColor)
+        context.fill(pageRect)
+        context.setStrokeColor(UIColor.white.withAlphaComponent(0.28).cgColor)
+        context.setLineWidth(Layout.borderWidth)
+        context.stroke(pageRect)
+
+        for allocation in page.allocations {
+            drawAllocation(allocation, pageRect: pageRect, context: context)
+        }
+    }
+
+    private func drawAllocation(_ allocation: GlobeAtlasDebugAllocation,
+                                pageRect: CGRect,
+                                context: CGContext) {
+        let slots = CGFloat(max(allocation.slotsPerSide, 1))
+        let cell = pageRect.width / slots
+        let displayRow = CGFloat(max(0, allocation.slotsPerSide - 1 - allocation.slotRow))
+        let allocationRect = CGRect(x: pageRect.minX + CGFloat(allocation.slotColumn) * cell,
+                                    y: pageRect.minY + displayRow * cell,
+                                    width: cell,
+                                    height: cell)
+        let color = color(for: allocation)
+        context.setFillColor(color.withAlphaComponent(0.26).cgColor)
+        context.fill(allocationRect)
+        context.setStrokeColor(color.cgColor)
+        context.setLineWidth(allocation.isFallback ? 2 : 1)
+        context.stroke(allocationRect.insetBy(dx: 0.5, dy: 0.5))
+    }
+
+    private func color(for allocation: GlobeAtlasDebugAllocation) -> UIColor {
+        if allocation.isFallback {
+            return UIColor.systemOrange
+        }
+
+        switch allocation.atlasDepth {
+        case .depth0:
+            return UIColor.systemRed
+        case .depth1:
+            return UIColor.systemYellow
+        case .depth2:
+            return UIColor.systemGreen
+        case .depth3:
+            return UIColor.systemTeal
+        case .depth4:
+            return UIColor.systemBlue
+        }
+    }
+}
+
 #if DEBUG
 extension DebugOverlayHUDView {
     func simulateSurfaceModeSwitchForTesting() {
         surfaceModeButtonTapped()
+    }
+
+    func simulateAtlasTabSelectionForTesting() {
+        tabControl.selectedSegmentIndex = SelectedTab.atlas.rawValue
+        tabControlChanged()
+    }
+
+    var isAtlasTabSelectedForTesting: Bool {
+        selectedTab == .atlas
+    }
+
+    var atlasPreviewPageCountForTesting: Int {
+        atlasLayoutView.pageCount
     }
 }
 #endif

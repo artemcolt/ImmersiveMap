@@ -306,6 +306,37 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         XCTAssertEqual(summary.slotCount(depth: .depth4), 1)
     }
 
+    func testGlobeAtlasDebugSummaryIncludesPageAllocationLayout() throws {
+        let fallback = try makeCandidate(index: 0,
+                                         source: Tile(x: 4, y: 2, z: 3),
+                                         target: Tile(x: 17, y: 10, z: 5),
+                                         screenDemandPx: 1700,
+                                         distanceToCamera: 0.1)
+        let exact = try makeCandidate(index: 1,
+                                      source: Tile(x: 18, y: 10, z: 5),
+                                      target: Tile(x: 18, y: 10, z: 5),
+                                      screenDemandPx: 260,
+                                      distanceToCamera: 0.2)
+        let plan = GlobeAtlasPlacementPlanner(pageSizePx: 4096)
+            .plan(candidates: [exact, fallback])
+
+        let summary = GlobeAtlasDebugSummary(plan: plan)
+
+        XCTAssertEqual(summary.pages.count, 1)
+        XCTAssertEqual(summary.pages[0].pageIndex, 0)
+        XCTAssertEqual(summary.pages[0].allocations.count, 2)
+        XCTAssertEqual(summary.pages[0].allocations[0].sourceTile, Tile(x: 4, y: 2, z: 3))
+        XCTAssertEqual(summary.pages[0].allocations[0].targetTile, Tile(x: 17, y: 10, z: 5))
+        XCTAssertEqual(summary.pages[0].allocations[0].atlasDepth, .depth1)
+        XCTAssertEqual(summary.pages[0].allocations[0].cellSizePx, 2048)
+        XCTAssertTrue(summary.pages[0].allocations[0].isFallback)
+        XCTAssertEqual(summary.pages[0].allocations[1].sourceTile, Tile(x: 18, y: 10, z: 5))
+        XCTAssertEqual(summary.pages[0].allocations[1].targetTile, Tile(x: 18, y: 10, z: 5))
+        XCTAssertEqual(summary.pages[0].allocations[1].atlasDepth, .depth3)
+        XCTAssertEqual(summary.pages[0].allocations[1].cellSizePx, 512)
+        XCTAssertFalse(summary.pages[0].allocations[1].isFallback)
+    }
+
     func testTextureTreeRejectsParentSlotAfterChildSlotAllocated() {
         let tree = GlobeTileTextureTree()
 

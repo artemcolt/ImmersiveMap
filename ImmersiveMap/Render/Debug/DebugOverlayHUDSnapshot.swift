@@ -12,6 +12,7 @@ struct DebugOverlayCoordinateLines: Equatable {
 struct DebugOverlayHUDSnapshot: Equatable {
     let coordinateLines: DebugOverlayCoordinateLines
     let diagnosticsLines: [String]
+    let atlasPages: [GlobeAtlasDebugPage]
     let coordinateScale: Float
     let diagnosticsScale: Float
     let leftPadding: Float
@@ -24,7 +25,8 @@ struct DebugOverlayHUDSnapshot: Equatable {
                      latitude: Double,
                      longitude: Double,
                      cameraDebugLines: [String],
-                     diagnostics: FrameDiagnostics?) -> DebugOverlayHUDSnapshot? {
+                     diagnostics: FrameDiagnostics?,
+                     atlasDebugSummary: GlobeAtlasDebugSummary? = nil) -> DebugOverlayHUDSnapshot? {
         guard settings.enableDebugPanel else {
             return nil
         }
@@ -37,6 +39,7 @@ struct DebugOverlayHUDSnapshot: Equatable {
                                                         latLon: coordinateLines.latLon),
             diagnosticsLines: DebugOverlayRenderer.makeOverlayDiagnosticsTextLines(cameraDebugLines: cameraDebugLines,
                                                                                   diagnostics: diagnostics),
+            atlasPages: atlasDebugSummary?.pages ?? [],
             coordinateScale: settings.coordinateScale,
             diagnosticsScale: settings.diagnosticsScale,
             leftPadding: settings.leftPadding,
@@ -55,7 +58,8 @@ struct DebugOverlayHUDSnapshot: Equatable {
                     latitude: cameraPosition.latitudeDegrees,
                     longitude: cameraPosition.longitudeDegrees,
                     cameraDebugLines: makeCameraDebugLines(frameContext: frameContext),
-                    diagnostics: diagnostics)
+                    diagnostics: diagnostics,
+                    atlasDebugSummary: frameContext.sharedState.globeAtlasDebugSummary)
     }
 
     private static func makeCameraDebugLines(frameContext: FrameContext) -> [String] {
