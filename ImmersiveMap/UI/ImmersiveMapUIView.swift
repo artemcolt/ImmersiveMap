@@ -35,6 +35,7 @@ public class ImmersiveMapUIView: UIView {
     var interactionRuntime: ImmersiveMapInteractionRuntime { runtimeGraph.interactionRuntime }
     var cameraAnimationRuntime: ImmersiveMapCameraAnimationRuntime { runtimeGraph.cameraAnimationRuntime }
     var selectionHandler: ImmersiveMapSelectionHandler { runtimeGraph.selectionHandler }
+    var debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime { runtimeGraph.debugOverlayRuntime }
     var tapHandler: ImmersiveMapTapHandler { runtimeGraph.tapHandler }
     var rendererBuilder: ImmersiveMapRendererBuilder { runtimeGraph.rendererBuilder }
 
@@ -115,6 +116,7 @@ public class ImmersiveMapUIView: UIView {
 
         controlsRuntime.layout(in: bounds,
                                safeAreaInsets: safeAreaInsets)
+        debugOverlayRuntime.layout(in: bounds)
     }
 
     // MARK: - Updates
@@ -153,6 +155,7 @@ public class ImmersiveMapUIView: UIView {
                                      notifiesCameraPositionChanged: plan.requiresRendererRecreation == false)
         cameraAnimationRuntime.updateSettings()
         controlsRuntime.applyAttributionSettings(settings.attribution)
+        debugOverlayRuntime.apply(settings: settings.debug)
         setNeedsLayout()
         renderRuntime.updateRenderLoopSettings(settings.renderLoop)
         if plan.requiresRendererRecreation {

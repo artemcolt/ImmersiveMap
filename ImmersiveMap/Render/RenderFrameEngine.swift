@@ -129,6 +129,7 @@ final class RenderFrameEngine {
         eventSink.applyActivityState(RenderActivityState(labelFadeRenderingActive: hasActiveLabelFadeAnimations,
                                                          labelVisibilityCycleRenderingActive: hasActiveLabelVisibilityCycle,
                                                          avatarAnimationRenderingActive: hasActiveAvatarAnimations))
+        publishDebugOverlayHUDSnapshot(frameContext: frameContext)
 
         currentDiagnostics = frameContext.diagnostics
         return didSchedule
@@ -196,6 +197,19 @@ final class RenderFrameEngine {
         frameContext.services.diagnostics.setCounter(.resourceBufferCount, value: counts.buffers)
         frameContext.services.diagnostics.setCounter(.resourceTextureCount, value: counts.textures)
         frameContext.services.diagnostics.setCounter(.resourcePipelineCount, value: counts.pipelines)
+    }
+
+    private func publishDebugOverlayHUDSnapshot(frameContext: FrameContext) {
+        #if DEBUG
+        let diagnosticsOverlay: FrameDiagnostics? = frameContext.diagnostics
+        #else
+        let diagnosticsOverlay: FrameDiagnostics? = nil
+        #endif
+        eventSink.updateDebugOverlayHUDSnapshot(
+            DebugOverlayHUDSnapshot.make(settings: settings.debug,
+                                         frameContext: frameContext,
+                                         diagnostics: diagnosticsOverlay)
+        )
     }
 
     private func presentFrame(frameContext: FrameContext,

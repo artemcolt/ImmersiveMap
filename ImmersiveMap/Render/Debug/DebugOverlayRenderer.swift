@@ -24,17 +24,12 @@ private struct TileTextCornerAnchor {
 
 final class DebugOverlayRenderer {
     private var settings: ImmersiveMapSettings.DebugSettings
-    private let axesVertexBuffer: MTLBuffer
-    private let axesVerticesCount: Int
-    private let hudTextVertexBufferStore: FrameSlottedDynamicMetalBuffer<TextVertex>
     private let tileTextVertexBufferStore: FrameSlottedDynamicMetalBuffer<TextVertex>
     private let lineVertexBufferStore: FrameSlottedDynamicMetalBuffer<PolygonsPipeline.Vertex>
     private let tilePointScreenProjector = TilePointScreenProjector()
     private var textVerticesScratch: [TextVertex] = []
     private var lineVerticesScratch: [PolygonsPipeline.Vertex] = []
     private var tileTextEntriesScratch: [TextEntry] = []
-    private(set) var lastLargeTextUploadSlot: Int?
-    private(set) var lastLargeTextUploadBuffer: MTLBuffer?
     private let tileOutlineThicknessPx: Float = 3.5
     private let tileLabelInsetPx = SIMD2<Float>(8.0, 8.0)
     private let tileLabelTextColor = SIMD3<Float>(1.0, 0.95, 0.2)
@@ -45,10 +40,6 @@ final class DebugOverlayRenderer {
     init(metalDevice: MTLDevice,
          settings: ImmersiveMapSettings.DebugSettings) {
         self.settings = settings
-        self.hudTextVertexBufferStore = FrameSlottedDynamicMetalBuffer(metalDevice: metalDevice,
-                                                                       slotsCount: InFlightFramePool.inFlightFramesCount,
-                                                                       options: [.storageModeShared],
-                                                                       minimumCapacity: 512)
         self.tileTextVertexBufferStore = FrameSlottedDynamicMetalBuffer(metalDevice: metalDevice,
                                                                         slotsCount: InFlightFramePool.inFlightFramesCount,
                                                                         options: [.storageModeShared],
@@ -57,22 +48,6 @@ final class DebugOverlayRenderer {
                                                                     slotsCount: InFlightFramePool.inFlightFramesCount,
                                                                     options: [.storageModeShared],
                                                                     minimumCapacity: 512)
-        let axesVertices: [PolygonsPipeline.Vertex] = [
-            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 0.0, 1.0), color: SIMD4<Float>(1, 0, 0, 1)),
-            PolygonsPipeline.Vertex(position: SIMD4<Float>(1.0, 0.0, 0.0, 1.0), color: SIMD4<Float>(1, 0, 0, 1)),
-
-            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 0.0, 1.0), color: SIMD4<Float>(0, 1, 0, 1)),
-            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 1.0, 0.0, 1.0), color: SIMD4<Float>(0, 1, 0, 1)),
-
-            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 0.0, 1.0), color: SIMD4<Float>(0, 0, 1, 1)),
-            PolygonsPipeline.Vertex(position: SIMD4<Float>(0.0, 0.0, 1.0, 1.0), color: SIMD4<Float>(0, 0, 1, 1)),
-        ]
-        axesVerticesCount = axesVertices.count
-        axesVertexBuffer = metalDevice.makeBuffer(
-            bytes: axesVertices,
-            length: axesVertices.count * MemoryLayout<PolygonsPipeline.Vertex>.stride,
-            options: []
-        )!
     }
 
     convenience init(metalDevice: MTLDevice) {
@@ -83,22 +58,8 @@ final class DebugOverlayRenderer {
         self.settings = settings
     }
 
-    var overlayEnabled: Bool {
-        settings.overlayEnabled
-    }
-
     var tileOverlayEnabled: Bool {
         settings.tileOverlayEnabled
-    }
-
-    func drawAxes(renderEncoder: MTLRenderCommandEncoder,
-                  polygonPipeline: PolygonsPipeline,
-                  cameraUniform: CameraUniform) {
-        polygonPipeline.setPipelineState(renderEncoder: renderEncoder)
-        renderEncoder.setVertexBuffer(axesVertexBuffer, offset: 0, index: 0)
-        var uniform = cameraUniform
-        renderEncoder.setVertexBytes(&uniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
-        renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: axesVerticesCount)
     }
 
     static func makeCoordinateTextLines(zoom: Double,
@@ -110,77 +71,6 @@ final class DebugOverlayRenderer {
         let latText = latitude.formatted(numberStyle.precision(.fractionLength(3)))
         let lonText = longitude.formatted(numberStyle.precision(.fractionLength(3)))
         return (zoom: zoomLine, latLon: "lat: \(latText) lon: \(lonText)")
-    }
-
-    static func makeOverlayTextEntries(drawSize: CGSize,
-                                       coordinateLines: (zoom: String, latLon: String),
-                                       diagnosticsLines: [String],
-                                       coordinateScale: Float,
-                                       diagnosticsScale: Float,
-                                       coordinateLineAdvance: Float,
-                                       diagnosticsLineAdvance: Float,
-                                       leftPadding: Float = 100,
-                                       topPadding: Float = 190,
-                                       sectionSpacing: Float = 28) -> [TextEntry] {
-        var entries: [TextEntry] = []
-        entries.reserveCapacity(2 + diagnosticsLines.count)
-
-        var currentY = Float(drawSize.height) - topPadding
-        entries.append(TextEntry(text: coordinateLines.zoom,
-                                 position: SIMD2<Float>(leftPadding, currentY),
-                                 scale: coordinateScale))
-        currentY -= coordinateLineAdvance
-        entries.append(TextEntry(text: coordinateLines.latLon,
-                                 position: SIMD2<Float>(leftPadding, currentY),
-                                 scale: coordinateScale))
-
-        if diagnosticsLines.isEmpty == false {
-            currentY -= coordinateLineAdvance + sectionSpacing
-            for line in diagnosticsLines {
-                entries.append(TextEntry(text: line,
-                                         position: SIMD2<Float>(leftPadding, currentY),
-                                         scale: diagnosticsScale))
-                currentY -= diagnosticsLineAdvance
-            }
-        }
-        return entries
-    }
-
-    func drawOverlayText(renderEncoder: MTLRenderCommandEncoder,
-                         textRenderer: TextRenderer,
-                         screenMatrix: matrix_float4x4,
-                         frameSlotIndex: Int,
-                         drawSize: CGSize,
-                         zoom: Double,
-                         latitude: Double,
-                         longitude: Double,
-                         cameraDebugLines: [String] = [],
-                         diagnostics: FrameDiagnostics?) {
-        let coordinateLines = Self.makeCoordinateTextLines(zoom: zoom,
-                                                           latitude: latitude,
-                                                           longitude: longitude)
-        let diagnosticsLines = Self.makeOverlayDiagnosticsTextLines(cameraDebugLines: cameraDebugLines,
-                                                                    diagnostics: diagnostics)
-        let coordinateScale = settings.coordinateScale
-        let diagnosticsScale = settings.diagnosticsScale
-        let coordinateLineAdvance = makeLineAdvance(textRenderer: textRenderer, scale: coordinateScale)
-        let diagnosticsLineAdvance = makeLineAdvance(textRenderer: textRenderer, scale: diagnosticsScale)
-
-        let entries = Self.makeOverlayTextEntries(drawSize: drawSize,
-                                                  coordinateLines: coordinateLines,
-                                                  diagnosticsLines: diagnosticsLines,
-                                                  coordinateScale: coordinateScale,
-                                                  diagnosticsScale: diagnosticsScale,
-                                                  coordinateLineAdvance: coordinateLineAdvance,
-                                                  diagnosticsLineAdvance: diagnosticsLineAdvance,
-                                                  leftPadding: settings.leftPadding,
-                                                  topPadding: settings.topPadding,
-                                                  sectionSpacing: settings.sectionSpacing)
-        drawTextEntries(renderEncoder: renderEncoder,
-                        textRenderer: textRenderer,
-                        screenMatrix: screenMatrix,
-                        frameSlotIndex: frameSlotIndex,
-                        entries: entries)
     }
 
     func drawTileOverlay(renderEncoder: MTLRenderCommandEncoder,
@@ -228,8 +118,7 @@ final class DebugOverlayRenderer {
                             entries: tileTextEntriesScratch,
                             style: TextStyleUniform(textColor: tileLabelTextColor,
                                                     strokeColor: tileLabelStrokeColor,
-                                                    strokeWidthPx: tileLabelStrokeWidthPx),
-                            useTileTextBuffer: true)
+                                                    strokeWidthPx: tileLabelStrokeWidthPx))
         }
     }
 
@@ -238,8 +127,7 @@ final class DebugOverlayRenderer {
                                  screenMatrix: matrix_float4x4,
                                  frameSlotIndex: Int,
                                  entries: [TextEntry],
-                                 style: TextStyleUniform? = nil,
-                                 useTileTextBuffer: Bool = false) {
+                                 style: TextStyleUniform? = nil) {
         guard entries.isEmpty == false else { return }
         textRenderer.collectMultiTextVertices(into: &textVerticesScratch, for: entries)
         guard textVerticesScratch.isEmpty == false else { return }
@@ -247,15 +135,9 @@ final class DebugOverlayRenderer {
         var textStyle = style ?? TextStyleUniform(textColor: settings.textColor)
         var matrix = screenMatrix
         renderEncoder.setRenderPipelineState(textRenderer.pipelineState)
-        if useTileTextBuffer {
-            setTileTextVertices(renderEncoder: renderEncoder,
-                                vertices: textVerticesScratch,
-                                frameSlotIndex: frameSlotIndex)
-        } else {
-            setTextVertices(renderEncoder: renderEncoder,
+        setTileTextVertices(renderEncoder: renderEncoder,
                             vertices: textVerticesScratch,
                             frameSlotIndex: frameSlotIndex)
-        }
         renderEncoder.setVertexBytes(&matrix, length: MemoryLayout<matrix_float4x4>.stride, index: 1)
         renderEncoder.setFragmentTexture(textRenderer.texture, index: 0)
         renderEncoder.setFragmentBytes(&textStyle, length: MemoryLayout<TextStyleUniform>.stride, index: 0)
@@ -433,28 +315,6 @@ final class DebugOverlayRenderer {
                                                    end: SIMD2<Float>(0.0, 1.0 - end)))
         }
         return segments
-    }
-
-    func setTextVertices(renderEncoder: MTLRenderCommandEncoder,
-                         vertices: [TextVertex],
-                         frameSlotIndex: Int) {
-        let length = MemoryLayout<TextVertex>.stride * vertices.count
-        if length <= 4096 {
-            lastLargeTextUploadSlot = nil
-            lastLargeTextUploadBuffer = nil
-            renderEncoder.setVertexBytes(vertices, length: length, index: 0)
-            return
-        }
-
-        let buffer = hudTextVertexBufferStore.ensureCapacity(slot: frameSlotIndex,
-                                                             count: vertices.count)
-        vertices.withUnsafeBytes { rawBuffer in
-            guard let baseAddress = rawBuffer.baseAddress else { return }
-            memcpy(buffer.contents(), baseAddress, rawBuffer.count)
-        }
-        lastLargeTextUploadSlot = frameSlotIndex
-        lastLargeTextUploadBuffer = buffer
-        renderEncoder.setVertexBuffer(buffer, offset: 0, index: 0)
     }
 
     private func setTileTextVertices(renderEncoder: MTLRenderCommandEncoder,

@@ -16,7 +16,7 @@ enum RenderFrameStageMeasurer {
 
 enum RenderDebugOverlayPolicy {
     static func shouldEncode(_ settings: ImmersiveMapSettings.DebugSettings) -> Bool {
-        guard settings.overlayEnabled || settings.tileOverlayEnabled else {
+        guard settings.tileOverlayEnabled else {
             return false
         }
         #if DEBUG

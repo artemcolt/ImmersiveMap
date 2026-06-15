@@ -11,11 +11,14 @@ import Foundation
 final class ImmersiveMapRenderEventSink: RenderFrameEventSink {
     private weak var renderRuntime: ImmersiveMapRenderRuntime?
     private weak var selectionHandler: ImmersiveMapSelectionHandler?
+    private weak var debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime?
 
     init(renderRuntime: ImmersiveMapRenderRuntime,
-         selectionHandler: ImmersiveMapSelectionHandler) {
+         selectionHandler: ImmersiveMapSelectionHandler,
+         debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime) {
         self.renderRuntime = renderRuntime
         self.selectionHandler = selectionHandler
+        self.debugOverlayRuntime = debugOverlayRuntime
     }
 
     func invalidate(_ reason: RenderInvalidationReason) {
@@ -29,6 +32,12 @@ final class ImmersiveMapRenderEventSink: RenderFrameEventSink {
     func updateAvatarSelectionSnapshot(_ snapshot: AvatarSelectionSnapshot) {
         Task { @MainActor [weak selectionHandler] in
             selectionHandler?.updateAvatarSelectionSnapshot(snapshot)
+        }
+    }
+
+    func updateDebugOverlayHUDSnapshot(_ snapshot: DebugOverlayHUDSnapshot?) {
+        Task { @MainActor [weak debugOverlayRuntime] in
+            debugOverlayRuntime?.apply(snapshot: snapshot)
         }
     }
 }

@@ -19,6 +19,7 @@ final class ImmersiveMapRuntimeGraph {
     let cameraAnimationRuntime: ImmersiveMapCameraAnimationRuntime
     let cameraCommandHandler: ImmersiveMapCameraCommandHandler
     let selectionHandler: ImmersiveMapSelectionHandler
+    let debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime
     let tapHandler: ImmersiveMapTapHandler
     let rendererBuilder: ImmersiveMapRendererBuilder
     let frameRenderDelegate: ImmersiveMapFrameRenderDelegate
@@ -48,13 +49,15 @@ final class ImmersiveMapRuntimeGraph {
         let selectionHandler = ImmersiveMapSelectionHandler(avatarRuntime: avatarRuntime,
                                                             viewportRuntime: viewportRuntime,
                                                             renderRuntime: renderRuntime)
+        let debugOverlayRuntime = ImmersiveMapDebugOverlayRuntime(mapView: mapView)
         let tapHandler = ImmersiveMapTapHandler(controlsRuntime: controlsRuntime,
                                                 selectionHandler: selectionHandler,
                                                 cameraRuntime: cameraRuntime)
         let rendererBuilder = ImmersiveMapRendererBuilder(cameraRuntime: cameraRuntime,
                                                           avatarRuntime: avatarRuntime,
                                                           renderRuntime: renderRuntime,
-                                                          selectionHandler: selectionHandler)
+                                                          selectionHandler: selectionHandler,
+                                                          debugOverlayRuntime: debugOverlayRuntime)
         let frameRenderDelegate = ImmersiveMapFrameRenderDelegate(layer: layer,
                                                                   renderRuntime: renderRuntime,
                                                                   viewportRuntime: viewportRuntime,
@@ -70,6 +73,7 @@ final class ImmersiveMapRuntimeGraph {
         self.cameraAnimationRuntime = cameraAnimationRuntime
         self.cameraCommandHandler = cameraCommandHandler
         self.selectionHandler = selectionHandler
+        self.debugOverlayRuntime = debugOverlayRuntime
         self.tapHandler = tapHandler
         self.rendererBuilder = rendererBuilder
         self.frameRenderDelegate = frameRenderDelegate

@@ -16,4 +16,5 @@ protocol RenderFrameEventSink: AnyObject {
     func invalidate(_ reason: RenderInvalidationReason)
     func applyActivityState(_ state: RenderActivityState)
     func updateAvatarSelectionSnapshot(_ snapshot: AvatarSelectionSnapshot)
+    func updateDebugOverlayHUDSnapshot(_ snapshot: DebugOverlayHUDSnapshot?)
 }
