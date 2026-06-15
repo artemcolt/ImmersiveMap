@@ -37,7 +37,7 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         let center = visibleContent.center
         let visibleTiles = visibleContent.visibleTiles
         let tileZoomLevel = visibleContent.tileZoomLevel
-        let globeDetailVisibleTiles: [VisibleTile] = []
+        let globeDetailVisibleTiles = visibleContent.globeDetailVisibleTiles
         
         // Visible-tiles post-processing:
         // shortens the raw visible list and substitutes distant tiles
@@ -49,8 +49,9 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         // multiple placement targets that share the same content tile (`Tile`).
         // Deduplicate before storage request to avoid repeated cache lookup/request
         // for identical source bytes.
-        let demandedSourceTiles = deduplicateSourceTiles(preprocessedVisibleTiles,
+        var demandedSourceTiles = deduplicateSourceTiles(preprocessedVisibleTiles,
                                                          parentFallbackDepth: frameContext.renderSurfaceMode == .spherical ? 2 : 0)
+        appendUniqueSourceTiles(globeDetailVisibleTiles.map(\.tile), to: &demandedSourceTiles)
         // Returns source-tile availability map for GPU rendering:
         // value contains Metal-ready tile buffers, or `nil` while still loading.
         let tileRequestResult = tileRenderStore.requestTiles(demandedSourceTiles)

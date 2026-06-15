@@ -14,22 +14,22 @@ final class TileCoverageZoomPolicyTests: XCTestCase {
         XCTAssertNil(plan.detailZoom)
     }
 
-    func testGlobeModeUsesOnlyBaseCoverageZoom() {
+    func testGlobeModeUsesCoarseBaseAndAheadDetailZoom() {
         let plan = TileCoverageZoomPolicy.resolve(cameraZoom: 1.74,
                                                   renderSurfaceMode: .spherical,
                                                   maximumZoomLevel: 20)
 
         XCTAssertEqual(plan.baseZoom, 1)
-        XCTAssertNil(plan.detailZoom)
+        XCTAssertEqual(plan.detailZoom, 3)
     }
 
-    func testGlobeModeDoesNotCreateDetailZoomNearMaximumZoom() {
+    func testGlobeDetailZoomClampsToMaximumZoom() {
         let plan = TileCoverageZoomPolicy.resolve(cameraZoom: 19.7,
                                                   renderSurfaceMode: .spherical,
                                                   maximumZoomLevel: 20)
 
         XCTAssertEqual(plan.baseZoom, 19)
-        XCTAssertNil(plan.detailZoom)
+        XCTAssertEqual(plan.detailZoom, 20)
     }
 
     func testGlobeDoesNotCreateDuplicateDetailZoomWhenBaseAlreadyAtMaximum() {

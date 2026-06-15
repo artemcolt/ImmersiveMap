@@ -23,6 +23,24 @@ final class RenderFrameVisibilityResolver {
                                                             cameraFrustum: cameraFrameState.cameraFrustum,
                                                             cameraEye: cameraFrameState.cameraEye,
                                                             diagnostics: diagnostics)
-        return baseContent
+        guard resolvedPresentation.renderSurfaceMode == .spherical,
+              let detailZoom = zoomPlan.detailZoom else {
+            return baseContent
+        }
+
+        let detailContent = tileCulling.resolveVisibleContent(cameraState: cameraFrameState.mapCameraState,
+                                                              resolvedPresentation: resolvedPresentation,
+                                                              targetZoom: detailZoom,
+                                                              cameraMatrix: cameraFrameState.cameraMatrices.projectionView,
+                                                              cameraFrustum: cameraFrameState.cameraFrustum,
+                                                              cameraEye: cameraFrameState.cameraEye,
+                                                              diagnostics: diagnostics)
+        return VisibleContentState(centerWorldMercator: baseContent.centerWorldMercator,
+                                   center: baseContent.center,
+                                   visibleTiles: baseContent.visibleTiles,
+                                   tileZoomLevel: baseContent.tileZoomLevel,
+                                   globeDetailVisibleTiles: detailContent.visibleTiles,
+                                   globeDetailTileZoomLevel: detailContent.tileZoomLevel,
+                                   coverageVersion: baseContent.coverageVersion)
     }
 }

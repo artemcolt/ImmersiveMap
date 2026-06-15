@@ -10,9 +10,15 @@ struct TileCoverageZoomPlan: Equatable {
 
 enum TileCoverageZoomPolicy {
     static func resolve(cameraZoom: Double,
-                        renderSurfaceMode _: ViewMode,
+                        renderSurfaceMode: ViewMode,
                         maximumZoomLevel: Int) -> TileCoverageZoomPlan {
         let baseZoom = min(max(0, Int(cameraZoom)), maximumZoomLevel)
-        return TileCoverageZoomPlan(baseZoom: baseZoom, detailZoom: nil)
+        guard renderSurfaceMode == .spherical else {
+            return TileCoverageZoomPlan(baseZoom: baseZoom, detailZoom: nil)
+        }
+
+        let aheadZoom = min(maximumZoomLevel, max(baseZoom, Int(ceil(cameraZoom)) + 1))
+        let detailZoom = aheadZoom > baseZoom ? aheadZoom : nil
+        return TileCoverageZoomPlan(baseZoom: baseZoom, detailZoom: detailZoom)
     }
 }
