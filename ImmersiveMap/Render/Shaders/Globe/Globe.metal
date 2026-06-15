@@ -34,8 +34,12 @@ struct CapVertexOut {
     float4 position [[position]];
     float capAlpha;
     float absLatitude;
+    float latitude;
+    float longitude;
+    float2 nightLightsUV;
     float3 normal;
     float3 worldPos;
+    float3 earthNormal;
 };
 
 struct CapParams {
@@ -43,7 +47,7 @@ struct CapParams {
     float4 fillColor;
     float blendStartAbsLatitude;
     float blendEndAbsLatitude;
-    float2 _padding;
+    float4 sampleOptions;
 };
 
 struct Tile {
@@ -177,6 +181,68 @@ static float nightLightsMask(texture2d<float> nightLightsTexture, float2 uv) {
     return nightLightsTexture.sample(sampler2d, uv).r;
 }
 
+struct GlobeCapAtlasSample {
+    float2 uv;
+    bool isValid;
+};
+
+static float globeCapWrapUnit(float value) {
+    return value - floor(value);
+}
+
+static GlobeCapAtlasSample globeCapAtlasSampleUV(float latitude,
+                                                 float longitude,
+                                                 constant Tile& tileData) {
+    float textureSize = float(tileData.textureSize);
+    float cellSize = float(tileData.cellSize);
+    if (textureSize <= 0.0 || cellSize <= 0.0) {
+        return GlobeCapAtlasSample{float2(0.0), false};
+    }
+
+    int count = int(textureSize / cellSize);
+    if (count <= 0) {
+        return GlobeCapAtlasSample{float2(0.0), false};
+    }
+
+    int tileX = tileData.tile.x;
+    int tileY = tileData.tile.y;
+    int tileZ = tileData.tile.z;
+    float zPow = exp2(float(tileZ));
+    float normalizedWorldX = globeCapWrapUnit(longitude / (2.0 * M_PI_F));
+    float mercatorY = getYMercNorm(latitude);
+    float normalizedWorldY = (1.0 - mercatorY) * 0.5;
+
+    float localX = normalizedWorldX * zPow - float(tileX);
+    float localY = normalizedWorldY * zPow - float(tileY);
+    float epsilon = 0.00001;
+    if (localX < -epsilon || localX > 1.0 + epsilon ||
+        localY < -epsilon || localY > 1.0 + epsilon) {
+        return GlobeCapAtlasSample{float2(0.0), false};
+    }
+
+    int position = tileData.position;
+    int posU = position % count;
+    int posV = position / count;
+    int lastPos = count - 1;
+    int lastTile = int(zPow) - 1;
+    float textureV = (mercatorY + 1.0) * 0.5;
+    float u = (normalizedWorldX * zPow - float(tileX) + float(posU)) / float(count);
+    float v = (1.0 - textureV * zPow + float(lastTile - tileY) + float(lastPos - posV)) / float(count);
+
+    float uvSize = 1.0 / float(count);
+    float halfTexel = 0.5 / textureSize;
+    float uMin = float(posU) * uvSize;
+    float uMax = uMin + uvSize;
+    float vMin = float(lastPos - posV) * uvSize;
+    float vMax = 1.0 - float(posV) * uvSize;
+
+    return GlobeCapAtlasSample{
+        float2(clamp(u, uMin + halfTexel, uMax - halfTexel),
+               clamp(v, vMin + halfTexel, vMax - halfTexel)),
+        true
+    };
+}
+
 fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
                                     texture2d<float> texture [[texture(0)]],
                                     texture2d<float> nightLightsTexture [[texture(1)]],
@@ -288,17 +354,64 @@ vertex CapVertexOut globeCapVertexShader(CapVertexIn vertexIn [[stage_in]],
     out.position = clip;
     out.capAlpha = 1.0 - transitionFade;
     out.absLatitude = abs(lat);
+    out.latitude = lat;
+    out.longitude = lon;
+    out.nightLightsUV = float2(globeCapWrapUnit(lon / (2.0 * M_PI_F)),
+                               1.0 - (lat + M_PI_2_F) / M_PI_F);
     out.normal = normalize((float4(spherePosition, 0.0) * rotation).xyz);
     out.worldPos = spherePositionTranslated.xyz;
+    out.earthNormal = normalize(spherePosition);
     return out;
 }
 
 fragment float4 globeCapFragmentShader(CapVertexOut in [[stage_in]],
+                                       texture2d<float> texture [[texture(0)]],
+                                       texture2d<float> nightLightsTexture [[texture(1)]],
                                        constant CapParams& params [[buffer(0)]],
-                                       constant Camera& camera [[buffer(1)]]) {
+                                       constant Camera& camera [[buffer(1)]],
+                                       constant EarthScene& earthScene [[buffer(2)]],
+                                       constant Tile& tileData [[buffer(3)]]) {
+    constexpr sampler textureSampler(filter::linear, mip_filter::linear, mag_filter::linear);
+
     float seamBlend = smoothstep(params.blendStartAbsLatitude,
                                  params.blendEndAbsLatitude,
                                  in.absLatitude);
+    float4 color;
+    if (params.sampleOptions.y > 0.5) {
+        GlobeCapAtlasSample sample = globeCapAtlasSampleUV(params.sampleOptions.x,
+                                                           in.longitude,
+                                                           tileData);
+        if (!sample.isValid) {
+            discard_fragment();
+            return float4(0.0);
+        }
+        color = texture.sample(textureSampler, sample.uv);
+    } else {
+        color = mix(params.edgeColor, params.fillColor, seamBlend);
+    }
+
+    if (earthScene.isEnabled != 0) {
+        float sunDot = dot(normalize(in.earthNormal), normalize(earthScene.sunDirection));
+        float dayFactor = smoothstep(-earthScene.terminatorFadeWidth,
+                                     earthScene.terminatorFadeWidth,
+                                     sunDot);
+        float dayBrightness = mix(earthScene.daySideMinimumBrightness, 1.0, dayFactor);
+        float surfaceBrightness = mix(earthScene.nightSideBrightness, dayBrightness, dayFactor);
+        surfaceBrightness = mix(surfaceBrightness, 1.0, clamp(1.0 - in.capAlpha, 0.0, 1.0));
+        color.rgb *= surfaceBrightness;
+
+        if (earthScene.nightLightsEnabled != 0) {
+            float nightFactor = 1.0 - smoothstep(-earthScene.nightLightsTerminatorFadeWidth,
+                                                 earthScene.nightLightsTerminatorFadeWidth,
+                                                 sunDot);
+            float mask = nightLightsMask(nightLightsTexture, in.nightLightsUV);
+            float3 warmLight = float3(1.0, 0.72, 0.36);
+            float3 coolLight = float3(0.65, 0.78, 1.0);
+            float3 lightColor = mix(warmLight, coolLight, pow(mask, 1.8));
+            color.rgb += lightColor * mask * nightFactor * earthScene.nightLightsIntensity * in.capAlpha;
+        }
+    }
+
     float3 viewDir = normalize(camera.eye - in.worldPos);
     float rim = pow(max(0.0, 1.0 - dot(in.normal, viewDir)), 2.35);
     float outerGlow = pow(max(0.0, 1.0 - dot(in.normal, viewDir)), 5.2);
@@ -306,7 +419,6 @@ fragment float4 globeCapFragmentShader(CapVertexOut in [[stage_in]],
     float3 glowColor = float3(0.28, 0.54, 1.0) * glowStrength
         + float3(0.08, 0.22, 0.72) * outerGlow * 0.22 * in.capAlpha;
 
-    float4 color = mix(params.edgeColor, params.fillColor, seamBlend);
     color.rgb += glowColor;
     color.a *= in.capAlpha;
     return color;
