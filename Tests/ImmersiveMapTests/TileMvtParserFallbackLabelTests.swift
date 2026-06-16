@@ -19,6 +19,13 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         XCTAssertFalse(labels.contains("Atlantic Ocean"))
     }
 
+    func testGermanSouthernOceanFallsBackToEnglishWhenAccentedLabelIsUnsupported() throws {
+        let labels = try parseFallbackWaterLabels(language: .german)
+
+        XCTAssertTrue(labels.contains("Southern Ocean"))
+        XCTAssertFalse(labels.contains("Südlicher Ozean"))
+    }
+
     func testSpanishPreferencesFallBackToEnglishWhenAccentedFallbackWaterLabelIsUnsupported() throws {
         let labels = try parseFallbackWaterLabels(language: .spanish)
 

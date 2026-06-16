@@ -469,7 +469,7 @@ class TileMvtParser {
                 "en": "Southern Ocean",
                 "ru": "Южный океан",
                 "fr": "Océan Austral",
-                "de": "Suedlicher Ozean",
+                "de": "Südlicher Ozean",
                 "es": "Océano Austral"
             ], latitude: -56.0, longitude: 25.0, sortKey: 24, styleClass: "ocean")
         ]
