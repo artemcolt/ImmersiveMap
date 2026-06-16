@@ -36,7 +36,7 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         XCTAssertEqual(GlobeAtlasSlotDepth.desired(forScreenDemandPx: 256, pageSizePx: 4096), .depth4)
     }
 
-    func testSingleCandidateUsesDesiredDepthEvenWithSmallFootprint() throws {
+    func testSingleCandidateUpscalesToFullPageWithinExistingPageBudget() throws {
         let candidate = try makeCandidate(index: 0,
                                           source: Tile(x: 0, y: 0, z: 0),
                                           target: Tile(x: 0, y: 0, z: 0),
@@ -46,10 +46,11 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         let plan = GlobeAtlasPlacementPlanner(pageSizePx: 4096)
             .plan(candidates: [candidate])
 
-        XCTAssertEqual(plan.allocations.map(\.atlasDepth), [.depth4])
+        XCTAssertEqual(plan.allocations.map(\.atlasDepth), [.depth0])
+        XCTAssertEqual(plan.pageSummaries.count, 1)
     }
 
-    func testFourCandidatesUseDesiredDepthEvenWithSmallFootprints() throws {
+    func testFourSmallCandidatesUpscaleWithoutCreatingNewPage() throws {
         let candidates = try (0..<4).map { index in
             try makeCandidate(index: index,
                               source: Tile(x: index % 2, y: index / 2, z: 1),
@@ -61,10 +62,12 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         let plan = GlobeAtlasPlacementPlanner(pageSizePx: 4096)
             .plan(candidates: candidates)
 
-        XCTAssertEqual(plan.allocations.map(\.atlasDepth), Array(repeating: .depth4, count: 4))
+        assertNoOverlappingAllocations(plan.allocations)
+        XCTAssertEqual(plan.allocations.map(\.atlasDepth), Array(repeating: .depth1, count: 4))
+        XCTAssertEqual(plan.pageSummaries.count, 1)
     }
 
-    func testCandidatesAllocateByDesiredDepthWithoutLayerPriority() throws {
+    func testCandidatesUpscaleWithinSinglePageBudgetByDemandPriority() throws {
         let small = try makeCandidate(index: 0,
                                       source: Tile(x: 0, y: 0, z: 1),
                                       target: Tile(x: 0, y: 0, z: 1),
@@ -80,7 +83,9 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
             .plan(candidates: [small, large])
 
         XCTAssertEqual(plan.allocations.map(\.candidate.placementIndex), [1, 0])
-        XCTAssertEqual(plan.allocations.map(\.atlasDepth), [.depth2, .depth4])
+        XCTAssertEqual(plan.allocations.map(\.atlasDepth), [.depth1, .depth1])
+        XCTAssertEqual(plan.pageSummaries.count, 1)
+        XCTAssertEqual(plan.downgradedAllocationCount, 0)
     }
 
     func testFallbackWithLargeFootprintGetsHighResolutionBeforeSmallExactTile() throws {
@@ -104,8 +109,8 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         XCTAssertEqual(plan.allocations[0].atlasDepth, .depth1)
         XCTAssertEqual(plan.allocations[0].cellSizePx, 2048)
         XCTAssertEqual(plan.allocations[1].candidate.placementIndex, 1)
-        XCTAssertEqual(plan.allocations[1].atlasDepth, .depth3)
-        XCTAssertEqual(plan.allocations[1].cellSizePx, 512)
+        XCTAssertEqual(plan.allocations[1].atlasDepth, .depth1)
+        XCTAssertEqual(plan.allocations[1].cellSizePx, 2048)
     }
 
     func testAllocatorCreatesSecondPageForMultipleFullPageDemands() throws {
@@ -182,7 +187,7 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         assertNoOverlappingAllocations(plan.allocations)
         XCTAssertEqual(plan.allocations.count, 5)
         XCTAssertEqual(plan.pageSummaries.count, 2)
-        XCTAssertEqual(plan.allocations.map(\.atlasDepth), Array(repeating: .depth1, count: 5))
+        XCTAssertEqual(plan.allocations.map(\.atlasDepth), [.depth0, .depth1, .depth1, .depth1, .depth1])
         XCTAssertEqual(plan.downgradedAllocationCount, 0)
         XCTAssertEqual(plan.skippedAllocationCount, 0)
     }
@@ -247,10 +252,11 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         XCTAssertEqual(summary.allocationCount, 5)
         XCTAssertEqual(summary.downgradedAllocationCount, 0)
         XCTAssertEqual(summary.skippedAllocationCount, 0)
-        XCTAssertEqual(summary.slotCount(depth: .depth1), 5)
+        XCTAssertEqual(summary.slotCount(depth: .depth0), 1)
+        XCTAssertEqual(summary.slotCount(depth: .depth1), 4)
         XCTAssertEqual(RendererDebugOverlayDrawer.makeAtlasDebugLines(summary: summary), [
             "atlas pages:2 alloc:5 down:0 skip:0",
-            "atlas d0:0 d1:5 d2:0 d3:0 d4:0"
+            "atlas d0:1 d1:4 d2:0 d3:0 d4:0"
         ])
     }
 
@@ -268,8 +274,9 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
 
         XCTAssertEqual(plan.allocations.count, 769)
         XCTAssertEqual(plan.skippedAllocationCount, 0)
+        XCTAssertEqual(plan.downgradedAllocationCount, 0)
         XCTAssertEqual(plan.pageSummaries.count, 4)
-        XCTAssertEqual(Set(plan.allocations.map(\.atlasDepth)), [.depth4])
+        XCTAssertEqual(Set(plan.allocations.map(\.atlasDepth)), [.depth0, .depth4])
     }
 
     func testAllocatorCreatesOnePagePerFullPageDemandWithoutSkips() throws {
@@ -291,7 +298,7 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         XCTAssertEqual(Set(plan.allocations.map(\.atlasDepth)), [.depth0])
     }
 
-    func testDebugSummaryCountsDepthFourFallbackSlot() throws {
+    func testDebugSummaryCountsUpscaledFallbackSlot() throws {
         let fallback = try makeCandidate(index: 0,
                                          source: Tile(x: 0, y: 0, z: 3),
                                          target: Tile(x: 0, y: 0, z: 5),
@@ -303,7 +310,7 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
 
         let summary = GlobeAtlasDebugSummary(plan: plan)
 
-        XCTAssertEqual(summary.slotCount(depth: .depth4), 1)
+        XCTAssertEqual(summary.slotCount(depth: .depth0), 1)
     }
 
     func testGlobeAtlasDebugSummaryIncludesPageAllocationLayout() throws {
@@ -332,8 +339,8 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         XCTAssertTrue(summary.pages[0].allocations[0].isFallback)
         XCTAssertEqual(summary.pages[0].allocations[1].sourceTile, Tile(x: 18, y: 10, z: 5))
         XCTAssertEqual(summary.pages[0].allocations[1].targetTile, Tile(x: 18, y: 10, z: 5))
-        XCTAssertEqual(summary.pages[0].allocations[1].atlasDepth, .depth3)
-        XCTAssertEqual(summary.pages[0].allocations[1].cellSizePx, 512)
+        XCTAssertEqual(summary.pages[0].allocations[1].atlasDepth, .depth1)
+        XCTAssertEqual(summary.pages[0].allocations[1].cellSizePx, 2048)
         XCTAssertFalse(summary.pages[0].allocations[1].isFallback)
     }
 
@@ -363,8 +370,9 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
 
         assertNoOverlappingAllocations(plan.allocations)
         XCTAssertEqual(plan.allocations.count, 14)
-        XCTAssertEqual(plan.allocations.first?.atlasDepth, .depth1)
-        XCTAssertEqual(Array(plan.allocations.dropFirst()).map(\.atlasDepth), Array(repeating: .depth2, count: 13))
+        XCTAssertEqual(plan.allocations.first?.atlasDepth, .depth0)
+        XCTAssertEqual(Array(plan.allocations.dropFirst()).map(\.atlasDepth),
+                       [.depth1] + Array(repeating: .depth2, count: 12))
         XCTAssertEqual(plan.downgradedAllocationCount, 0)
         XCTAssertEqual(plan.skippedAllocationCount, 0)
     }

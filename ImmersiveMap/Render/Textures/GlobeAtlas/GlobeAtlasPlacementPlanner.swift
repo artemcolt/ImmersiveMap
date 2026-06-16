@@ -88,19 +88,67 @@ struct GlobeAtlasPlacementPlanner {
     func plan(candidates: [GlobeAtlasCandidate]) -> GlobeAtlasPlan {
         guard !candidates.isEmpty else { return .empty }
 
+        let desiredDepths = Dictionary(uniqueKeysWithValues: candidates.map {
+            ($0.placementIndex, desiredDepth(for: $0))
+        })
+        let baselinePlan = makePlan(candidates: candidates,
+                                    depthsByPlacementIndex: desiredDepths)
+        guard baselinePlan.skippedAllocationCount == 0 else {
+            return baselinePlan
+        }
+
+        let pageBudget = baselinePlan.pageSummaries.count
+        let pageBudgetAreaUnits = pageBudget * GlobeAtlasSlotDepth.depth0.areaUnitsAtMaximumDepth
+        var selectedDepths = desiredDepths
+        var selectedAreaUnits = selectedDepths.values.reduce(0) {
+            $0 + $1.areaUnitsAtMaximumDepth
+        }
+        for candidate in candidates.sorted(by: shouldUpgradeBefore) {
+            while let currentDepth = selectedDepths[candidate.placementIndex],
+                  let largerDepth = currentDepth.largerSlotDepth {
+                let trialAreaUnits = selectedAreaUnits
+                    - currentDepth.areaUnitsAtMaximumDepth
+                    + largerDepth.areaUnitsAtMaximumDepth
+                guard trialAreaUnits <= pageBudgetAreaUnits else {
+                    break
+                }
+
+                var trialDepths = selectedDepths
+                trialDepths[candidate.placementIndex] = largerDepth
+                let trialPlan = makePlan(candidates: candidates,
+                                         depthsByPlacementIndex: trialDepths)
+                guard trialPlan.skippedAllocationCount == 0,
+                      trialPlan.allocations.count == candidates.count,
+                      trialPlan.pageSummaries.count <= pageBudget else {
+                    break
+                }
+                selectedDepths = trialDepths
+                selectedAreaUnits = trialAreaUnits
+            }
+        }
+
+        return makePlan(candidates: candidates,
+                        depthsByPlacementIndex: selectedDepths)
+    }
+
+    private func makePlan(candidates: [GlobeAtlasCandidate],
+                          depthsByPlacementIndex: [Int: GlobeAtlasSlotDepth]) -> GlobeAtlasPlan {
         var pages: [Page] = []
         var allocations: [GlobeAtlasAllocation] = []
         var downgradedAllocationCount = 0
         var skippedAllocationCount = 0
-        let orderedCandidates = candidates.sorted(by: shouldPlaceBefore)
+        let orderedCandidates = candidates.sorted {
+            shouldPlaceBefore($0, $1, depthsByPlacementIndex: depthsByPlacementIndex)
+        }
 
         for candidate in orderedCandidates {
-            guard let allocation = allocate(candidate: candidate, pages: &pages) else {
+            let depth = depthsByPlacementIndex[candidate.placementIndex] ?? desiredDepth(for: candidate)
+            guard let allocation = allocate(candidate: candidate, depth: depth, pages: &pages) else {
                 skippedAllocationCount += 1
                 continue
             }
 
-            if allocation.atlasDepth != desiredDepth(for: candidate) {
+            if allocation.atlasDepth > desiredDepth(for: candidate) {
                 downgradedAllocationCount += 1
             }
             allocations.append(allocation)
@@ -114,8 +162,19 @@ struct GlobeAtlasPlacementPlanner {
 
     private func shouldPlaceBefore(_ lhs: GlobeAtlasCandidate,
                                    _ rhs: GlobeAtlasCandidate) -> Bool {
-        let lhsDepth = desiredDepth(for: lhs)
-        let rhsDepth = desiredDepth(for: rhs)
+        shouldPlaceBefore(lhs,
+                          rhs,
+                          depthsByPlacementIndex: [
+                            lhs.placementIndex: desiredDepth(for: lhs),
+                            rhs.placementIndex: desiredDepth(for: rhs)
+                          ])
+    }
+
+    private func shouldPlaceBefore(_ lhs: GlobeAtlasCandidate,
+                                   _ rhs: GlobeAtlasCandidate,
+                                   depthsByPlacementIndex: [Int: GlobeAtlasSlotDepth]) -> Bool {
+        let lhsDepth = depthsByPlacementIndex[lhs.placementIndex] ?? desiredDepth(for: lhs)
+        let rhsDepth = depthsByPlacementIndex[rhs.placementIndex] ?? desiredDepth(for: rhs)
         if lhsDepth != rhsDepth {
             return lhsDepth < rhsDepth
         }
@@ -131,9 +190,18 @@ struct GlobeAtlasPlacementPlanner {
         return lhs.placementIndex < rhs.placementIndex
     }
 
-    private func allocate(candidate: GlobeAtlasCandidate,
-                          pages: inout [Page]) -> GlobeAtlasAllocation? {
-        allocate(candidate: candidate, depth: desiredDepth(for: candidate), pages: &pages)
+    private func shouldUpgradeBefore(_ lhs: GlobeAtlasCandidate,
+                                     _ rhs: GlobeAtlasCandidate) -> Bool {
+        if lhs.isFallback != rhs.isFallback {
+            return lhs.isFallback
+        }
+        if lhs.screenDemandPx != rhs.screenDemandPx {
+            return lhs.screenDemandPx > rhs.screenDemandPx
+        }
+        if lhs.distanceToCamera != rhs.distanceToCamera {
+            return lhs.distanceToCamera < rhs.distanceToCamera
+        }
+        return lhs.placementIndex < rhs.placementIndex
     }
 
     private func allocate(candidate: GlobeAtlasCandidate,

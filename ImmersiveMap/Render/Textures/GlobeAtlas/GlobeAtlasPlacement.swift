@@ -18,6 +18,19 @@ enum GlobeAtlasSlotDepth: UInt8, CaseIterable, Comparable, Hashable {
         pageSizePx / (1 << Int(rawValue))
     }
 
+    var largerSlotDepth: GlobeAtlasSlotDepth? {
+        guard rawValue > GlobeAtlasSlotDepth.depth0.rawValue else {
+            return nil
+        }
+        return GlobeAtlasSlotDepth(rawValue: rawValue - 1)
+    }
+
+    var areaUnitsAtMaximumDepth: Int {
+        let maximumDepth = Int(GlobeAtlasSlotDepth.depth4.rawValue)
+        let depthDelta = maximumDepth - Int(rawValue)
+        return 1 << (depthDelta * 2)
+    }
+
     static func desired(forScreenDemandPx screenDemandPx: Float,
                         pageSizePx: Int,
                         qualityScale: Float = 1.0) -> GlobeAtlasSlotDepth {

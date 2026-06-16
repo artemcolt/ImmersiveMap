@@ -16,6 +16,7 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
 
     private var globeTextureVersionTracker = StagedHashChangeTracker()
     private var placeTilesContext: GlobeTexturePlaceTilesContext = .empty
+    private var atlasPlan: GlobeAtlasPlan = .empty
     private var overviewFadeAlpha: Float = 1.0
     private var roadFadeAlpha: Float = 0.0
     private var globeAtlasDebugSummary: GlobeAtlasDebugSummary?
@@ -25,17 +26,20 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
     }
 
     func update(frameContext: FrameContext) {
-        frameContext.sharedState.globeAtlasDebugSummary = frameContext.renderSurfaceMode == .spherical ? globeAtlasDebugSummary : nil
-
         let tilePlacementState = frameContext.sharedState.tilePlacementState
         placeTilesContext = tilePlacementState.globeTexturePlaceTilesContext
         overviewFadeAlpha = LowZoomOverviewFade.alpha(for: frameContext.zoom, kind: .overviewFeatures)
         roadFadeAlpha = LowZoomOverviewFade.alpha(for: frameContext.zoom, kind: .roads)
+        atlasPlan = makeAtlasPlan(frameContext: frameContext)
+        let atlasDebugSummary = GlobeAtlasDebugSummary(plan: atlasPlan)
+        globeAtlasDebugSummary = atlasDebugSummary
+        frameContext.sharedState.globeAtlasDebugSummary = frameContext.renderSurfaceMode == .spherical ? atlasDebugSummary : nil
 
         var hasher = Hasher()
         hasher.combine(Int(truncatingIfNeeded: tilePlacementState.placementVersion))
         hasher.combine(overviewFadeAlpha.bitPattern)
         hasher.combine(roadFadeAlpha.bitPattern)
+        combineAtlasPlanHash(atlasPlan, into: &hasher)
         _ = globeTextureVersionTracker.stage(hasher.finalize())
     }
 
@@ -56,12 +60,14 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
 
     func handleMemoryWarning() {
         placeTilesContext = .empty
+        atlasPlan = .empty
         globeAtlasDebugSummary = nil
         globeTextureVersionTracker.invalidate()
     }
 
     func evict() {
         placeTilesContext = .empty
+        atlasPlan = .empty
         globeAtlasDebugSummary = nil
         globeTextureVersionTracker.invalidate()
     }
@@ -76,11 +82,6 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
     private func drawGlobeTexture(commandBuffer: MTLCommandBuffer,
                                   frameContext: FrameContext) {
         tilesTexture.resetFrame()
-        let planner = GlobeAtlasPlacementPlanner(pageSizePx: tilesTexture.size,
-                                                 qualityScale: 1.0)
-        let candidates = planner.makeCandidates(placeTiles: placeTilesContext.tilePlacements,
-                                                frameContext: frameContext)
-        let atlasPlan = planner.plan(candidates: candidates)
         let atlasDebugSummary = GlobeAtlasDebugSummary(plan: atlasPlan)
         globeAtlasDebugSummary = atlasDebugSummary
         frameContext.sharedState.globeAtlasDebugSummary = atlasDebugSummary
@@ -108,6 +109,35 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
             }
 
             tilesTexture.endEncoding()
+        }
+    }
+
+    private func makeAtlasPlan(frameContext: FrameContext) -> GlobeAtlasPlan {
+        guard frameContext.renderSurfaceMode == .spherical else { return .empty }
+
+        let planner = GlobeAtlasPlacementPlanner(pageSizePx: tilesTexture.size,
+                                                 qualityScale: 1.0)
+        let candidates = planner.makeCandidates(placeTiles: placeTilesContext.tilePlacements,
+                                                frameContext: frameContext)
+        return planner.plan(candidates: candidates)
+    }
+
+    private func combineAtlasPlanHash(_ atlasPlan: GlobeAtlasPlan,
+                                      into hasher: inout Hasher) {
+        hasher.combine(atlasPlan.allocations.count)
+        hasher.combine(atlasPlan.pageSummaries.count)
+        hasher.combine(atlasPlan.downgradedAllocationCount)
+        hasher.combine(atlasPlan.skippedAllocationCount)
+
+        for allocation in atlasPlan.allocations {
+            hasher.combine(allocation.pageIndex)
+            hasher.combine(allocation.placedPosition.x)
+            hasher.combine(allocation.placedPosition.y)
+            hasher.combine(allocation.atlasDepth.rawValue)
+            hasher.combine(allocation.cellSizePx)
+            hasher.combine(allocation.placeTile.metalTile.tile)
+            hasher.combine(allocation.placeTile.placeIn.tile)
+            hasher.combine(allocation.placeTile.lodKind)
         }
     }
 }
