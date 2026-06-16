@@ -511,6 +511,10 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         XCTAssertEqual(ImmersiveMapSettings.LabelLanguage.russian.code, "ru")
         XCTAssertEqual(ImmersiveMapSettings.LabelLanguage.french.code, "fr")
         XCTAssertEqual(ImmersiveMapSettings.LabelLanguage.german.code, "de")
+        XCTAssertEqual(ImmersiveMapSettings.LabelLanguage.spanish.code, "es")
+        XCTAssertEqual(ImmersiveMapSettings.LabelLanguage.italian.code, "it")
+        XCTAssertEqual(ImmersiveMapSettings.LabelLanguage.portuguese.code, "pt")
+        XCTAssertEqual(ImmersiveMapSettings.LabelLanguage.turkish.code, "tr")
     }
 
     private func stringValue(_ value: String) -> VectorTile_Tile.Value {
