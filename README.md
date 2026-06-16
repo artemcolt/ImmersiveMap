@@ -83,6 +83,7 @@ The host apps read optional launch environment variables:
 ```text
 IMMERSIVE_MAP_TILE_BASE_URL=https://example.com/api/v1/map/tiles
 IMMERSIVE_MAP_AUTH_TOKEN=your-token
+IMMERSIVE_MAP_LABEL_LANGUAGE=ru
 ```
 
 Do not commit bearer tokens. Use Xcode scheme environment variables, or launch the installed simulator app with `SIMCTL_CHILD_IMMERSIVE_MAP_AUTH_TOKEN` when you need to test a protected tile server.
@@ -95,6 +96,8 @@ IMMERSIVE_MAP_MAPBOX_TILESET_ID=mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v
 ```
 
 When `IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN` is present, the host apps request tiles from `https://api.mapbox.com/v4/{tileset_id}/{z}/{x}/{y}.mvt?access_token=...`. The default Mapbox tileset ID is `mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2`.
+
+Set `IMMERSIVE_MAP_LABEL_LANGUAGE` to a preferred label language code such as `en`, `ru`, or `pt-BR` when you need to test localized vector tile labels.
 
 ## SwiftUI Quick Start
 

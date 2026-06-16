@@ -53,6 +53,10 @@ struct HostMapScreen: View {
             settings.tiles.network.authorizationToken = environment["IMMERSIVE_MAP_AUTH_TOKEN"]
             settings.tiles.network.authorizationMode = .bearerHeader
         }
+        if let labelLanguage = environment["IMMERSIVE_MAP_LABEL_LANGUAGE"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           labelLanguage.isEmpty == false {
+            settings.labels.language = ImmersiveMapSettings.LabelLanguage(labelLanguage)
+        }
         settings.renderLoop.forceContinuousRendering = false
         settings.debug.enableDebugPanel = true
         return settings
