@@ -11,6 +11,15 @@ MSDF text atlases:
 The generated files are committed to the package, but the font files are not.
 Use locally installed `.ttf` or `.otf` files.
 
+The committed atlas resources are generated from:
+
+- `NotoSans-Bold.ttf` for `atlas.json` and `atlas.png`
+- `NotoSans-Regular.ttf` for `atlas_thin.json` and `atlas_thin.png`
+
+Noto Sans is distributed by the Noto Project under the SIL Open Font License
+1.1. Download the fonts from `https://github.com/googlefonts/noto-fonts` and
+keep the font files outside this repository.
+
 ## Install msdf-atlas-gen
 
 Install Viktor Chlumsky's `msdf-atlas-gen` command line tool before running the
@@ -53,7 +62,9 @@ If `--thin-font` is omitted, the script uses `--font` for both outputs. That is
 useful for smoke testing the pipeline, but it will not preserve a visually thin
 atlas unless the primary font is already the intended thin face.
 
-Do not commit fonts or font licenses into this repository.
+Do not commit font files into this repository. When changing the atlas font,
+document the exact font family, weights, source, and license in this README
+before committing regenerated PNG/JSON resources.
 
 ## Charset
 
@@ -82,12 +93,11 @@ The generator settings match the current renderer-compatible atlas metadata:
 - image format: `png`
 - glyph size: `64`
 - distance range: `8`
-- dimensions: `720 x 720`
+- dimensions: `2048 x 2048`
 - Y origin: `bottom`
 
-If an expanded charset no longer fits in `720 x 720`, rerun with larger fixed
-dimensions, for example `--width 1024 --height 1024`, and commit the generated
-JSON and PNG resources together.
+If an expanded charset no longer fits in `2048 x 2048`, rerun with larger fixed
+dimensions and commit the generated JSON and PNG resources together.
 
 ## Example
 
@@ -95,8 +105,8 @@ From any working directory:
 
 ```sh
 /path/to/ImmersiveMap/Tools/TextAtlas/generate_text_atlas.sh \
-  --font "$HOME/Library/Fonts/YourMapLabel-Bold.otf" \
-  --thin-font "$HOME/Library/Fonts/YourMapLabel-Thin.otf"
+  --font "$HOME/Library/Fonts/NotoSans-Bold.ttf" \
+  --thin-font "$HOME/Library/Fonts/NotoSans-Regular.ttf"
 ```
 
 With an upstream build:

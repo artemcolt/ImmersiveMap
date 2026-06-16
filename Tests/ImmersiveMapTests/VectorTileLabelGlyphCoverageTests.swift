@@ -52,6 +52,25 @@ final class VectorTileLabelGlyphCoverageTests: XCTestCase {
     func testLegacyAtlasForTestsRejectsUnsupportedJapaneseText() {
         XCTAssertFalse(VectorTileLabelGlyphCoverage.legacyAtlasForTests.canRender("東京"))
     }
+
+    func testBundledAtlasCoverageIncludesEuropeanAndCyrillicMapGlyphs() throws {
+        let boldAtlas = try Self.loadBundledAtlas(named: "atlas")
+        let thinAtlas = try Self.loadBundledAtlas(named: "atlas_thin")
+        let coverage = VectorTileLabelGlyphCoverage(atlasData: boldAtlas, thinAtlasData: thinAtlas)
+
+        XCTAssertTrue(coverage.canRender("Océan Atlantique"))
+        XCTAssertTrue(coverage.canRender("Südlicher Ozean"))
+        XCTAssertTrue(coverage.canRender("Océano Atlántico"))
+        XCTAssertTrue(coverage.canRender("São Paulo"))
+        XCTAssertTrue(coverage.canRender("İstanbul"))
+        XCTAssertTrue(coverage.canRender("Северный Ледовитый океан"))
+    }
+
+    private static func loadBundledAtlas(named name: String) throws -> AtlasData {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json"))
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode(AtlasData.self, from: data)
+    }
 }
 
 private extension AtlasData {

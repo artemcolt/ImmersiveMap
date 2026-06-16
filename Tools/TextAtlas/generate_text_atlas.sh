@@ -17,8 +17,8 @@ Options:
   --output-dir PATH        Output resource directory. Defaults to
                            ImmersiveMap/Text/Resources.
   --msdf-atlas-gen PATH    msdf-atlas-gen executable. Defaults to PATH lookup.
-  --width PIXELS           Fixed atlas width. Defaults to 720.
-  --height PIXELS          Fixed atlas height. Defaults to 720.
+  --width PIXELS           Fixed atlas width. Defaults to 2048.
+  --height PIXELS          Fixed atlas height. Defaults to 2048.
   -h, --help               Show this help.
 
 Generated outputs:
@@ -112,8 +112,8 @@ thin_font_path=""
 charset_path="$repo_root/Tools/TextAtlas/charsets/labels-basic.txt"
 output_dir="$repo_root/ImmersiveMap/Text/Resources"
 generator="msdf-atlas-gen"
-atlas_width="720"
-atlas_height="720"
+atlas_width="2048"
+atlas_height="2048"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
