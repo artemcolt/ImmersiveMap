@@ -1,0 +1,30 @@
+# ImmersiveMap label atlas charset.
+#
+# This file intentionally uses msdf-atlas-gen charset syntax plus comments.
+# The generation script strips comments before invoking msdf-atlas-gen.
+
+# Printable ASCII, including space and common map punctuation.
+[0x20, 0x7e]
+
+# Latin-1 Supplement letters and punctuation used by Western European labels.
+[0x00a0, 0x00ff]
+
+# Latin Extended-A covers Polish, Czech, Slovak, Croatian, Hungarian,
+# Romanian, Turkish, Baltic languages, and related European diacritics.
+[0x0100, 0x017f]
+
+# Selected Latin Extended-B code points commonly needed for Romanian and
+# regional European labels beyond Extended-A.
+"ȘșȚțȞȟȦȧȨȩȮȯȲȳ"
+
+# Current Cyrillic atlas coverage: Ё, А-Я, а-я, ё.
+0x0401
+[0x0410, 0x044f]
+0x0451
+
+# Additional Cyrillic letters used in Ukrainian, Belarusian, Serbian,
+# Macedonian, Kazakh, and neighboring map labels.
+"ЃѓЄєЅѕІіЇїЈјЉљЊњЋћЌќЎўЏџҐґ"
+
+# Typography and separators commonly found in place names.
+"–—‘’“”«»№…·"
