@@ -20,12 +20,46 @@ final class PreparedTileDiskCodecTests: XCTestCase {
         XCTAssertEqual(decoded.tile, tile)
     }
 
-    private func makeCacheIdentity(labelLanguage: ImmersiveMapSettings.LabelLanguage) -> PreparedTileCacheIdentity {
+    func testPreparedTileCodecRejectsMismatchedLabelLanguageMetadata() throws {
+        let tile = Tile(x: 1, y: 2, z: 3)
+        let data = try PreparedTileDiskCodec.encode(
+            preparedTile: makePreparedTile(tile: tile),
+            cacheIdentity: makeCacheIdentity(labelLanguage: .portuguese)
+        )
+
+        XCTAssertThrowsError(
+            try PreparedTileDiskCodec.decode(data: data,
+                                             expectedTile: tile,
+                                             cacheIdentity: makeCacheIdentity(labelLanguage: .english))
+        ) { error in
+            XCTAssertTrue(error is PreparedTileDiskCodecError)
+        }
+    }
+
+    func testPreparedTileCodecRejectsMismatchedTextRevisionMetadata() throws {
+        let tile = Tile(x: 1, y: 2, z: 3)
+        let data = try PreparedTileDiskCodec.encode(
+            preparedTile: makePreparedTile(tile: tile),
+            cacheIdentity: makeCacheIdentity(labelLanguage: .portuguese, textRevision: 5)
+        )
+
+        XCTAssertThrowsError(
+            try PreparedTileDiskCodec.decode(data: data,
+                                             expectedTile: tile,
+                                             cacheIdentity: makeCacheIdentity(labelLanguage: .portuguese,
+                                                                              textRevision: 6))
+        ) { error in
+            XCTAssertTrue(error is PreparedTileDiskCodecError)
+        }
+    }
+
+    private func makeCacheIdentity(labelLanguage: ImmersiveMapSettings.LabelLanguage,
+                                   textRevision: UInt32 = 4) -> PreparedTileCacheIdentity {
         PreparedTileCacheIdentity(preparedFormatVersion: PreparedTileDiskCaching.preparedFormatVersion,
                                   styleRevision: 1,
                                   tileSourceRevision: 2,
                                   flatSeparateRoadRenderingMinimumZoom: 3,
-                                  textRevision: 4,
+                                  textRevision: textRevision,
                                   labelLanguage: labelLanguage,
                                   houseNumbersEnabled: true,
                                   houseNumbersMinimumZoom: 15,

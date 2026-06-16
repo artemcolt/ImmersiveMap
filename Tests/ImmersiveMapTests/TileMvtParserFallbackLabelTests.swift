@@ -69,6 +69,37 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         XCTAssertTrue(russianLabels.contains("Атлантический океан"))
     }
 
+    func testPublicLanguagePresetsHaveLocalizedFallbackWaterLabelsWithBundledAtlasCoverage() throws {
+        let coverage = try Self.bundledGlyphCoverage()
+
+        let italianLabels = try parseFallbackWaterLabels(language: .italian, glyphCoverage: coverage)
+        let portugueseLabels = try parseFallbackWaterLabels(language: .portuguese, glyphCoverage: coverage)
+        let turkishLabels = try parseFallbackWaterLabels(language: .turkish, glyphCoverage: coverage)
+
+        XCTAssertTrue(italianLabels.contains("Oceano Atlantico"))
+        XCTAssertTrue(portugueseLabels.contains("Oceano Atlântico"))
+        XCTAssertTrue(turkishLabels.contains("Atlas Okyanusu"))
+    }
+
+    func testBundledAtlasCoverageAllowsLocalizedAccentedFallbackWaterLabels() throws {
+        let labels = try parseFallbackWaterLabels(language: .french,
+                                                  glyphCoverage: Self.bundledGlyphCoverage())
+
+        XCTAssertTrue(labels.contains("Océan Atlantique"))
+        XCTAssertFalse(labels.contains("Atlantic Ocean"))
+    }
+
+    func testExistingProviderWaterAliasSuppressesPortugueseFallbackDuplicate() throws {
+        let labels = try parseFallbackWaterLabels(language: .portuguese,
+                                                  tile: Tile(x: 0, y: 0, z: 0),
+                                                  mvtData: try makeProviderAtlanticOceanTile(name: "Oceano Atlântico",
+                                                                                            englishName: "Atlantic Ocean").serializedData(),
+                                                  glyphCoverage: Self.bundledGlyphCoverage())
+
+        XCTAssertEqual(labels.filter { $0 == "Oceano Atlântico" }.count, 1)
+        XCTAssertFalse(labels.contains("Atlantic Ocean"))
+    }
+
     private func parseFallbackWaterLabels(
         language: ImmersiveMapSettings.LabelLanguage,
         tile: Tile = Tile(x: 0, y: 0, z: 0),
@@ -87,7 +118,20 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         return parsedTile.textLabels.map(\.text)
     }
 
-    private func makeProviderAtlanticOceanTile() -> VectorTile_Tile {
+    private static func bundledGlyphCoverage() throws -> VectorTileLabelGlyphCoverage {
+        let boldAtlas = try loadBundledAtlas(named: "atlas")
+        let thinAtlas = try loadBundledAtlas(named: "atlas_thin")
+        return VectorTileLabelGlyphCoverage(atlasData: boldAtlas, thinAtlasData: thinAtlas)
+    }
+
+    private static func loadBundledAtlas(named name: String) throws -> AtlasData {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json"))
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode(AtlasData.self, from: data)
+    }
+
+    private func makeProviderAtlanticOceanTile(name: String = "Atlantic Ocean",
+                                               englishName: String = "Atlantic Ocean") -> VectorTile_Tile {
         var feature = VectorTile_Tile.Feature()
         feature.id = 1
         feature.type = .point
@@ -95,7 +139,7 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
             0, 0,
             1, 1,
             2, 2,
-            3, 2
+            3, 3
         ]
         feature.geometry = [
             command(id: 1, count: 1),
@@ -111,7 +155,8 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         layer.values = [
             stringValue("ocean"),
             stringValue("ocean"),
-            stringValue("Atlantic Ocean")
+            stringValue(name),
+            stringValue(englishName)
         ]
         layer.features = [feature]
 
