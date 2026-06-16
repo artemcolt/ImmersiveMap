@@ -49,4 +49,19 @@ enum BaseLabelVisibilityResolver {
 
         return candidates
     }
+
+    static func horizonReservationSignature(horizonVisibility: [Bool],
+                                            currentAlphas: [Float]) -> [Int] {
+        let count = min(horizonVisibility.count, currentAlphas.count)
+        guard count > 0 else {
+            return []
+        }
+
+        var signature: [Int] = []
+        for index in 0..<count where horizonVisibility[index] == false &&
+            currentAlphas[index] > activeAlphaThreshold {
+            signature.append(index)
+        }
+        return signature
+    }
 }

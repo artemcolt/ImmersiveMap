@@ -118,4 +118,21 @@ final class BaseLabelVisibilityResolverTests: XCTestCase {
 
         XCTAssertFalse(result[0].isEnabled)
     }
+
+    func testHorizonReservationSignatureChangesWhenHiddenAlphaCrossesThreshold() {
+        let active = BaseLabelVisibilityResolver.horizonReservationSignature(horizonVisibility: [false, true],
+                                                                             currentAlphas: [0.4, 0.9])
+        let inactive = BaseLabelVisibilityResolver.horizonReservationSignature(horizonVisibility: [false, true],
+                                                                               currentAlphas: [0, 0.9])
+
+        XCTAssertEqual(active, [0])
+        XCTAssertTrue(inactive.isEmpty)
+    }
+
+    func testHorizonReservationSignatureIgnoresVisibleHorizonLabels() {
+        let result = BaseLabelVisibilityResolver.horizonReservationSignature(horizonVisibility: [true, true],
+                                                                             currentAlphas: [0.4, 0.8])
+
+        XCTAssertTrue(result.isEmpty)
+    }
 }
