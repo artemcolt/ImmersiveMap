@@ -7,13 +7,12 @@ struct VectorTileLabelGlyphCoverage {
     static let currentAtlas = VectorTileLabelGlyphCoverage.legacyCurrentAtlas
     static let allASCIIForTests = VectorTileLabelGlyphCoverage(supportedScalars: Set(UInt32(32)...UInt32(126)))
 
-    private static let permittedWhitespace: Set<UInt32> = [9, 10, 13, 32]
+    private static let layoutControls: Set<UInt32> = [9, 10, 13, 32]
     private static let legacyCurrentAtlas = VectorTileLabelGlyphCoverage(
         supportedScalars: Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:'\\\",./<>?"
             .unicodeScalars
             .map(\.value))
             .union(Set(UInt32(0x0400)...UInt32(0x04FF)))
-            .union(permittedWhitespace)
     )
 
     private let supportedScalars: Set<UInt32>
@@ -24,10 +23,11 @@ struct VectorTileLabelGlyphCoverage {
 
     init(atlasData: AtlasData, thinAtlasData: AtlasData) {
         self.supportedScalars = Set((atlasData.glyphs + thinAtlasData.glyphs).map(\.unicode))
-            .union(Self.permittedWhitespace)
     }
 
     func canRender(_ text: String) -> Bool {
-        text.unicodeScalars.allSatisfy { supportedScalars.contains($0.value) }
+        text.unicodeScalars.allSatisfy {
+            supportedScalars.contains($0.value) || Self.layoutControls.contains($0.value)
+        }
     }
 }

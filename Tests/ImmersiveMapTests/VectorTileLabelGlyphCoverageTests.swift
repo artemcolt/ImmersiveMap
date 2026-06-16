@@ -12,6 +12,14 @@ final class VectorTileLabelGlyphCoverageTests: XCTestCase {
         XCTAssertFalse(coverage.canRender("AC"))
     }
 
+    func testExplicitCoverageAllowsLayoutControlsOutsideGlyphSet() {
+        let coverage = VectorTileLabelGlyphCoverage(supportedScalars: [65])
+
+        XCTAssertTrue(coverage.canRender("A\nA"))
+        XCTAssertTrue(coverage.canRender("A\tA"))
+        XCTAssertTrue(coverage.canRender("A\rA"))
+    }
+
     func testCoverageCombinesBoldAndThinAtlasGlyphs() {
         let bold = AtlasData.testAtlas(glyphs: [65])
         let thin = AtlasData.testAtlas(glyphs: [66])
@@ -22,13 +30,22 @@ final class VectorTileLabelGlyphCoverageTests: XCTestCase {
         XCTAssertFalse(coverage.canRender("ABC"))
     }
 
-    func testAtlasCoverageAllowsLayoutWhitespace() {
+    func testAtlasCoverageAllowsLayoutControlsOutsideGlyphSet() {
         let bold = AtlasData.testAtlas(glyphs: [65])
         let thin = AtlasData.testAtlas(glyphs: [])
 
         let coverage = VectorTileLabelGlyphCoverage(atlasData: bold, thinAtlasData: thin)
 
         XCTAssertTrue(coverage.canRender("A A\nA\rA\tA"))
+    }
+
+    func testAtlasCoverageRejectsUnsupportedNonWhitespaceScalar() {
+        let bold = AtlasData.testAtlas(glyphs: [65])
+        let thin = AtlasData.testAtlas(glyphs: [])
+
+        let coverage = VectorTileLabelGlyphCoverage(atlasData: bold, thinAtlasData: thin)
+
+        XCTAssertFalse(coverage.canRender("AЖA"))
     }
 
     func testCurrentAtlasRejectsUnsupportedJapaneseText() {
