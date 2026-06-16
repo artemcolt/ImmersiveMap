@@ -167,8 +167,18 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
             }
         }
 
+        let baseProjection = makeCpuBaseProjection(frameContext: frameContext,
+                                                   tilePointSnapshot: baseLabelCache.tilePointSnapshot)
+        let currentBaseAlphas = presentationStateStore.currentAlphas(inputs: baseLabelCache.presentationInputs,
+                                                                     time: frameContext.time,
+                                                                     fadeInSeconds: fadeInSeconds,
+                                                                     fadeOutSeconds: fadeOutSeconds)
+
         if collisionsEnabled {
-            maybeStartVisibilityCycle(frameContext: frameContext, forceRestart: trackedTilesChanged || projectionChanged)
+            maybeStartVisibilityCycle(frameContext: frameContext,
+                                      baseProjection: baseProjection,
+                                      currentBaseAlphas: currentBaseAlphas,
+                                      forceRestart: trackedTilesChanged || projectionChanged)
             advanceVisibilityCycleIfNeeded(frameContext: frameContext)
         } else {
             visibilityCycle = nil
@@ -188,8 +198,25 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                                             expectedCount: baseLabelCache.activeLabelSpanCount)
 
         let overviewFadeAlpha = LowZoomOverviewFade.alpha(for: frameContext.zoom)
+        var targetVisibility = BaseLabelVisibilityResolver.targetVisibility(
+            inputs: baseLabelCache.presentationInputs,
+            collisionFlags: publishedBaseCollisionFlags,
+            horizonVisibility: baseProjection.horizonVisibility
+        )
+        let collisionVisibilityIsFresh = publishedVisibilityCameraFingerprint == latestCameraFingerprint
+        if collisionVisibilityIsFresh == false {
+            let count = min(targetVisibility.count, currentBaseAlphas.count)
+            for index in 0..<count where currentBaseAlphas[index] <= BaseLabelVisibilityResolver.activeAlphaThreshold {
+                targetVisibility[index] = false
+            }
+            if count < targetVisibility.count {
+                for index in count..<targetVisibility.count {
+                    targetVisibility[index] = false
+                }
+            }
+        }
         let fadeResolution = presentationStateStore.resolveAlphas(inputs: baseLabelCache.presentationInputs,
-                                                                  collisionFlags: publishedBaseCollisionFlags,
+                                                                  targetVisibility: targetVisibility,
                                                                   time: frameContext.time,
                                                                   frameIndex: frameContext.frameIndex,
                                                                   fadeInSeconds: fadeInSeconds,
@@ -322,15 +349,15 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         frameContext.sharedState.baseLabelState.hasActiveVisibilityCycle = hasActiveVisibilityCycle
     }
 
-    private func makeCpuScreenPoints(frameContext: FrameContext,
-                                     tilePointSnapshot: TilePointToScreenPointSnapshot) -> [ScreenPointOutput] {
+    private func makeCpuBaseProjection(frameContext: FrameContext,
+                                       tilePointSnapshot: TilePointToScreenPointSnapshot) -> TilePointScreenProjectionResult {
         guard baseLabelCache.activeLabelSpanCount > 0 else {
-            return []
+            return .empty
         }
         let projectionIndexState = frameContext.sharedState.tileProjectionIndexState
-        return tilePointScreenProjector.project(snapshot: tilePointSnapshot,
-                                                frameContext: frameContext,
-                                                tileOriginData: projectionIndexState.tileOriginData)
+        return tilePointScreenProjector.projectWithHorizonVisibility(snapshot: tilePointSnapshot,
+                                                                     frameContext: frameContext,
+                                                                     tileOriginData: projectionIndexState.tileOriginData)
     }
 
     private func makeCollisionFlagsBuffer(frameContext: FrameContext,
@@ -432,9 +459,13 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
     }
 
     private func maybeStartVisibilityCycle(frameContext: FrameContext,
+                                           baseProjection: TilePointScreenProjectionResult,
+                                           currentBaseAlphas: [Float],
                                            forceRestart: Bool) {
         if forceRestart {
-            visibilityCycle = makeVisibilityCycle(frameContext: frameContext)
+            visibilityCycle = makeVisibilityCycle(frameContext: frameContext,
+                                                 baseProjection: baseProjection,
+                                                 currentBaseAlphas: currentBaseAlphas)
             lastVisibilityCycleStartTime = frameContext.time
             return
         }
@@ -449,7 +480,9 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
             return
         }
 
-        visibilityCycle = makeVisibilityCycle(frameContext: frameContext)
+        visibilityCycle = makeVisibilityCycle(frameContext: frameContext,
+                                             baseProjection: baseProjection,
+                                             currentBaseAlphas: currentBaseAlphas)
         lastVisibilityCycleStartTime = frameContext.time
     }
 
@@ -474,20 +507,17 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         visibilityCycle = nil
     }
 
-    private func makeVisibilityCycle(frameContext: FrameContext) -> VisibilityCycle {
-        let tilePointSnapshot = baseLabelCache.tilePointSnapshot
-        let screenPoints = makeCpuScreenPoints(frameContext: frameContext,
-                                               tilePointSnapshot: tilePointSnapshot)
-        var baseCollisionCandidates = baseLabelCache.labelCollisionAABBInputs
-        let baseCount = min(screenPoints.count, baseCollisionCandidates.count)
-        if baseCount > 0 {
-            for index in 0..<baseCount {
-                baseCollisionCandidates[index].position = screenPoints[index].position
-                baseCollisionCandidates[index].groupId = 0
-                if screenPoints[index].visible == 0 || screenPoints[index].visibilityAlpha < 0.999 {
-                    baseCollisionCandidates[index].isEnabled = false
-                }
-            }
+    private func makeVisibilityCycle(frameContext: FrameContext,
+                                     baseProjection: TilePointScreenProjectionResult,
+                                     currentBaseAlphas: [Float]) -> VisibilityCycle {
+        var baseCollisionCandidates = BaseLabelVisibilityResolver.collisionCandidates(
+            baseCandidates: baseLabelCache.labelCollisionAABBInputs,
+            screenPoints: baseProjection.screenPoints,
+            horizonVisibility: baseProjection.horizonVisibility,
+            currentAlphas: currentBaseAlphas
+        )
+        for index in baseCollisionCandidates.indices {
+            baseCollisionCandidates[index].groupId = 0
         }
 
         let roadPreparation = prepareRoadInstances(frameContext: frameContext,
