@@ -19,6 +19,13 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         XCTAssertFalse(labels.contains("Atlantic Ocean"))
     }
 
+    func testSpanishPreferencesResolveRenderableFallbackWaterLabel() throws {
+        let labels = try parseFallbackWaterLabels(language: .spanish)
+
+        XCTAssertTrue(labels.contains("Oceano Atlantico"))
+        XCTAssertFalse(labels.contains("Atlantic Ocean"))
+    }
+
     func testPreferredFallbackWaterLabelWithUnsupportedGlyphsFallsBackToEnglish() throws {
         let asciiOnlyCoverage = VectorTileLabelGlyphCoverage(
             supportedScalars: Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ".unicodeScalars.map(\.value))
