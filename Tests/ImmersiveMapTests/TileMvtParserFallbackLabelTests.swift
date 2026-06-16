@@ -5,11 +5,11 @@
 import XCTest
 
 final class TileMvtParserFallbackLabelTests: XCTestCase {
-    func testFrenchPreferencesResolveRenderableFallbackWaterLabel() throws {
+    func testFrenchPreferencesFallBackToEnglishWhenAccentedFallbackWaterLabelIsUnsupported() throws {
         let labels = try parseFallbackWaterLabels(language: .french)
 
-        XCTAssertTrue(labels.contains("Ocean Atlantique"))
-        XCTAssertFalse(labels.contains("Atlantic Ocean"))
+        XCTAssertTrue(labels.contains("Atlantic Ocean"))
+        XCTAssertFalse(labels.contains("Océan Atlantique"))
     }
 
     func testGermanPreferencesResolveRenderableFallbackWaterLabel() throws {
@@ -19,11 +19,28 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         XCTAssertFalse(labels.contains("Atlantic Ocean"))
     }
 
-    func testSpanishPreferencesResolveRenderableFallbackWaterLabel() throws {
+    func testSpanishPreferencesFallBackToEnglishWhenAccentedFallbackWaterLabelIsUnsupported() throws {
         let labels = try parseFallbackWaterLabels(language: .spanish)
 
-        XCTAssertTrue(labels.contains("Oceano Atlantico"))
-        XCTAssertFalse(labels.contains("Atlantic Ocean"))
+        XCTAssertTrue(labels.contains("Atlantic Ocean"))
+        XCTAssertFalse(labels.contains("Océano Atlántico"))
+    }
+
+    func testSpanishSeaFallbackFallsBackToEnglishWhenAccentedLabelIsUnsupportedAtZoomTwo() throws {
+        let labels = try parseFallbackWaterLabels(language: .spanish,
+                                                  tile: Tile(x: 2, y: 1, z: 2))
+
+        XCTAssertTrue(labels.contains("Mediterranean Sea"))
+        XCTAssertFalse(labels.contains("Mar Mediterráneo"))
+    }
+
+    func testExistingProviderWaterAliasSuppressesLocalizedFallbackDuplicate() throws {
+        let labels = try parseFallbackWaterLabels(language: .russian,
+                                                  tile: Tile(x: 0, y: 0, z: 0),
+                                                  mvtData: try makeProviderAtlanticOceanTile().serializedData())
+
+        XCTAssertEqual(labels.filter { $0 == "Atlantic Ocean" }.count, 1)
+        XCTAssertFalse(labels.contains("Атлантический океан"))
     }
 
     func testPreferredFallbackWaterLabelWithUnsupportedGlyphsFallsBackToEnglish() throws {
@@ -47,6 +64,8 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
 
     private func parseFallbackWaterLabels(
         language: ImmersiveMapSettings.LabelLanguage,
+        tile: Tile = Tile(x: 0, y: 0, z: 0),
+        mvtData: Data? = nil,
         glyphCoverage: VectorTileLabelGlyphCoverage = .legacyAtlasForTests
     ) throws -> [String] {
         var config = ImmersiveMapSettings.default
@@ -55,10 +74,57 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: FallbackWaterLabelStyle()),
                                    config: config,
                                    glyphCoverage: glyphCoverage)
-        let parsedTile = try parser.parse(tile: Tile(x: 0, y: 0, z: 0),
-                                          mvtData: try VectorTile_Tile().serializedData())
+        let parsedTile = try parser.parse(tile: tile,
+                                          mvtData: mvtData ?? VectorTile_Tile().serializedData())
 
         return parsedTile.textLabels.map(\.text)
+    }
+
+    private func makeProviderAtlanticOceanTile() -> VectorTile_Tile {
+        var feature = VectorTile_Tile.Feature()
+        feature.id = 1
+        feature.type = .point
+        feature.tags = [
+            0, 0,
+            1, 1,
+            2, 2,
+            3, 2
+        ]
+        feature.geometry = [
+            command(id: 1, count: 1),
+            parameter(2048),
+            parameter(2048)
+        ]
+
+        var layer = VectorTile_Tile.Layer()
+        layer.version = 2
+        layer.name = "natural_label"
+        layer.extent = 4096
+        layer.keys = ["class", "type", "name", "name_en"]
+        layer.values = [
+            stringValue("ocean"),
+            stringValue("ocean"),
+            stringValue("Atlantic Ocean")
+        ]
+        layer.features = [feature]
+
+        var tile = VectorTile_Tile()
+        tile.layers = [layer]
+        return tile
+    }
+
+    private func command(id: UInt32, count: UInt32) -> UInt32 {
+        (count << 3) | id
+    }
+
+    private func parameter(_ value: Int32) -> UInt32 {
+        UInt32(bitPattern: (value << 1) ^ (value >> 31))
+    }
+
+    private func stringValue(_ value: String) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.stringValue = value
+        return tileValue
     }
 }
 

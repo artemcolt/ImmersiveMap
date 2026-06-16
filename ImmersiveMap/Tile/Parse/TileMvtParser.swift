@@ -404,6 +404,10 @@ class TileMvtParser {
         let sortKey: Int
         let styleClass: String
 
+        var aliases: Set<String> {
+            Set(names.values.filter { $0.isEmpty == false })
+        }
+
         func name(preferences: VectorTileLabelLanguagePreferences,
                   glyphCoverage: VectorTileLabelGlyphCoverage) -> String? {
             for candidate in preferences.fallbackChain {
@@ -425,6 +429,10 @@ class TileMvtParser {
 
             return names["en"].flatMap { glyphCoverage.canRender($0) ? $0 : nil }
         }
+
+        func isDuplicate(of existingWaterText: Set<String>) -> Bool {
+            aliases.isDisjoint(with: existingWaterText) == false
+        }
     }
 
     private func fallbackLowZoomWaterLabels(for tile: Tile) -> [LocalizedFallbackLabel] {
@@ -432,37 +440,37 @@ class TileMvtParser {
             LocalizedFallbackLabel(names: [
                 "en": "Pacific Ocean",
                 "ru": "Тихий океан",
-                "fr": "Ocean Pacifique",
+                "fr": "Océan Pacifique",
                 "de": "Pazifischer Ozean",
-                "es": "Oceano Pacifico"
+                "es": "Océano Pacífico"
             ], latitude: 0.0, longitude: -150.0, sortKey: 20, styleClass: "ocean"),
             LocalizedFallbackLabel(names: [
                 "en": "Atlantic Ocean",
                 "ru": "Атлантический океан",
-                "fr": "Ocean Atlantique",
+                "fr": "Océan Atlantique",
                 "de": "Atlantischer Ozean",
-                "es": "Oceano Atlantico"
+                "es": "Océano Atlántico"
             ], latitude: 8.0, longitude: -32.0, sortKey: 18, styleClass: "ocean"),
             LocalizedFallbackLabel(names: [
                 "en": "Indian Ocean",
                 "ru": "Индийский океан",
-                "fr": "Ocean Indien",
+                "fr": "Océan Indien",
                 "de": "Indischer Ozean",
-                "es": "Oceano Indico"
+                "es": "Océano Índico"
             ], latitude: -18.0, longitude: 80.0, sortKey: 22, styleClass: "ocean"),
             LocalizedFallbackLabel(names: [
                 "en": "Arctic Ocean",
                 "ru": "Северный Ледовитый океан",
-                "fr": "Ocean Arctique",
+                "fr": "Océan Arctique",
                 "de": "Arktischer Ozean",
-                "es": "Oceano Artico"
+                "es": "Océano Ártico"
             ], latitude: 76.0, longitude: 15.0, sortKey: 16, styleClass: "ocean"),
             LocalizedFallbackLabel(names: [
                 "en": "Southern Ocean",
                 "ru": "Южный океан",
-                "fr": "Ocean Austral",
+                "fr": "Océan Austral",
                 "de": "Suedlicher Ozean",
-                "es": "Oceano Austral"
+                "es": "Océano Austral"
             ], latitude: -56.0, longitude: 25.0, sortKey: 24, styleClass: "ocean")
         ]
 
@@ -470,14 +478,14 @@ class TileMvtParser {
             labels.append(LocalizedFallbackLabel(names: [
                 "en": "Mediterranean Sea",
                 "ru": "Средиземное море",
-                "fr": "Mer Mediterranee",
+                "fr": "Mer Méditerranée",
                 "de": "Mittelmeer",
-                "es": "Mar Mediterraneo"
+                "es": "Mar Mediterráneo"
             ], latitude: 35.0, longitude: 18.0, sortKey: 30, styleClass: "sea"))
             labels.append(LocalizedFallbackLabel(names: [
                 "en": "Caribbean Sea",
                 "ru": "Карибское море",
-                "fr": "Mer des Caraibes",
+                "fr": "Mer des Caraïbes",
                 "de": "Karibisches Meer",
                 "es": "Mar Caribe"
             ], latitude: 15.0, longitude: -74.0, sortKey: 32, styleClass: "sea"))
@@ -486,12 +494,12 @@ class TileMvtParser {
                 "ru": "Аравийское море",
                 "fr": "Mer d'Arabie",
                 "de": "Arabisches Meer",
-                "es": "Mar Arabigo"
+                "es": "Mar Arábigo"
             ], latitude: 15.0, longitude: 64.0, sortKey: 34, styleClass: "sea"))
             labels.append(LocalizedFallbackLabel(names: [
                 "en": "Bering Sea",
                 "ru": "Берингово море",
-                "fr": "Mer de Bering",
+                "fr": "Mer de Béring",
                 "de": "Beringmeer",
                 "es": "Mar de Bering"
             ], latitude: 57.0, longitude: -178.0, sortKey: 36, styleClass: "sea"))
@@ -543,7 +551,7 @@ class TileMvtParser {
         for fallback in fallbackLowZoomWaterLabels(for: tile) {
             guard let name = fallback.name(preferences: labelLanguagePreferences,
                                            glyphCoverage: glyphCoverage),
-                  existingWaterText.contains(name) == false,
+                  fallback.isDuplicate(of: existingWaterText) == false,
                   let point = tilePoint(forLatitude: fallback.latitude,
                                         longitude: fallback.longitude,
                                         tile: tile) else {
