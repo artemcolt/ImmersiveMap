@@ -2,23 +2,34 @@
 // SPDX-License-Identifier: MIT
 
 struct VectorTileLabelLanguagePreferences: Equatable {
-    enum LanguageCode: Equatable {
-        case russian
-        case english
-        case native
+    struct Candidate: Equatable {
+        enum Kind: Equatable {
+            case preferred
+            case native
+            case english
+        }
+
+        let fieldName: String
+        let kind: Kind
     }
 
-    let fallbackChain: [LanguageCode]
-    let selectedLanguage: LanguageCode
+    let fallbackChain: [Candidate]
+    let selectedLanguage: ImmersiveMapSettings.LabelLanguage
 
     static func from(settingsLanguage: ImmersiveMapSettings.LabelLanguage) -> VectorTileLabelLanguagePreferences {
-        switch settingsLanguage {
-        case .russian:
-            return VectorTileLabelLanguagePreferences(fallbackChain: [.russian, .native, .english],
-                                                      selectedLanguage: .russian)
-        default:
-            return VectorTileLabelLanguagePreferences(fallbackChain: [.english, .native, .russian],
-                                                      selectedLanguage: .english)
+        let preferredFieldName = "name_\(settingsLanguage.providerFieldSuffix)"
+        var fallbackChain: [Candidate] = []
+
+        if settingsLanguage == .english {
+            fallbackChain.append(Candidate(fieldName: "name_en", kind: .english))
+            fallbackChain.append(Candidate(fieldName: "name", kind: .native))
+        } else {
+            fallbackChain.append(Candidate(fieldName: preferredFieldName, kind: .preferred))
+            fallbackChain.append(Candidate(fieldName: "name", kind: .native))
+            fallbackChain.append(Candidate(fieldName: "name_en", kind: .english))
         }
+
+        return VectorTileLabelLanguagePreferences(fallbackChain: fallbackChain,
+                                                  selectedLanguage: settingsLanguage)
     }
 }
