@@ -127,7 +127,7 @@ struct TextEntry {
 }
 
 class TextRenderer {
-    static let preparedTileTextRevisionValue: UInt32 = 3
+    static let preparedTileTextRevisionValue: UInt32 = 4
 
     private struct LabelLineLayout {
         let vertices: [LabelVertex]

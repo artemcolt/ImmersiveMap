@@ -4,11 +4,7 @@
 import Foundation
 
 struct VectorTileLabelGlyphCoverage {
-    static let currentAtlas = VectorTileLabelGlyphCoverage.legacyCurrentAtlas
-    static let allASCIIForTests = VectorTileLabelGlyphCoverage(supportedScalars: Set(UInt32(32)...UInt32(126)))
-
-    private static let layoutControls: Set<UInt32> = [9, 10, 13, 32]
-    private static let legacyCurrentAtlas = VectorTileLabelGlyphCoverage(
+    static let legacyAtlasForTests = VectorTileLabelGlyphCoverage(
         supportedScalars: Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:'\\\",./<>?"
             .unicodeScalars
             .map(\.value))
@@ -27,7 +23,7 @@ struct VectorTileLabelGlyphCoverage {
 
     func canRender(_ text: String) -> Bool {
         text.unicodeScalars.allSatisfy {
-            supportedScalars.contains($0.value) || Self.layoutControls.contains($0.value)
+            supportedScalars.contains($0.value) || CharacterSet.whitespacesAndNewlines.contains($0)
         }
     }
 }

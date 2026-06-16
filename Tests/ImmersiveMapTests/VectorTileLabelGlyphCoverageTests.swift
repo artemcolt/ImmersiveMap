@@ -18,6 +18,7 @@ final class VectorTileLabelGlyphCoverageTests: XCTestCase {
         XCTAssertTrue(coverage.canRender("A\nA"))
         XCTAssertTrue(coverage.canRender("A\tA"))
         XCTAssertTrue(coverage.canRender("A\rA"))
+        XCTAssertTrue(coverage.canRender("A\u{00A0}A"))
     }
 
     func testCoverageCombinesBoldAndThinAtlasGlyphs() {
@@ -48,8 +49,8 @@ final class VectorTileLabelGlyphCoverageTests: XCTestCase {
         XCTAssertFalse(coverage.canRender("AЖA"))
     }
 
-    func testCurrentAtlasRejectsUnsupportedJapaneseText() {
-        XCTAssertFalse(VectorTileLabelGlyphCoverage.currentAtlas.canRender("東京"))
+    func testLegacyAtlasForTestsRejectsUnsupportedJapaneseText() {
+        XCTAssertFalse(VectorTileLabelGlyphCoverage.legacyAtlasForTests.canRender("東京"))
     }
 }
 

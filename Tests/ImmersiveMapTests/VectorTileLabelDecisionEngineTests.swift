@@ -11,7 +11,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
             "name_en": stringValue("Moscow"),
             "name_ru": stringValue("Москва")
         ]
-        let resolver = VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .russian)
 
         XCTAssertEqual(preferences.selectedLanguage, .russian)
@@ -24,7 +24,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
             "name": stringValue("Москва"),
             "name_en": stringValue("Moscow")
         ]
-        let resolver = VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .russian)
 
         XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Москва")
@@ -35,7 +35,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
             "name": stringValue("Moscow"),
             "name_en": stringValue("Moscow")
         ]
-        let resolver = VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .russian)
 
         XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Moscow")
@@ -47,7 +47,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
             "name_en": stringValue("Moscow EN"),
             "name_ru": stringValue("Москва")
         ]
-        let resolver = VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .english)
 
         XCTAssertEqual(preferences.selectedLanguage, .english)
@@ -61,7 +61,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
             "name_en": stringValue("Paris EN"),
             "name_fr": stringValue("Paris FR")
         ]
-        let resolver = VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .french)
 
         XCTAssertEqual(preferences.fallbackChain.map(\.fieldName), ["name_fr", "name", "name_en"])
@@ -72,7 +72,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         let properties: [String: VectorTile_Tile.Value] = [
             "name_en": stringValue("Munich EN")
         ]
-        let resolver = VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .german)
 
         XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Munich EN")
@@ -83,7 +83,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
             "name": stringValue("Moscow"),
             "name_ru": stringValue("Москва")
         ]
-        let resolver = VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .english)
 
         XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Moscow")
@@ -94,7 +94,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
             "name": stringValue("Москва"),
             "name_ru": stringValue("Москва")
         ]
-        let resolver = VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .english)
 
         XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Москва")
@@ -104,7 +104,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         let properties: [String: VectorTile_Tile.Value] = [
             "name": stringValue("東京")
         ]
-        let resolver = VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .english)
 
         XCTAssertNil(resolver.resolveText(properties: properties, preferences: preferences))
@@ -472,7 +472,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
                                    weight: .thin)
         let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
         let engine = VectorTileLabelDecisionEngine(profile: profile,
-                                                   textResolver: VectorTileLabelTextResolver(glyphCoverage: .currentAtlas))
+                                                   textResolver: VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests))
         let feature = VectorTileLabelFeature(providerID: "mapbox",
                                              tile: Tile(x: 123, y: 456, z: 10),
                                              layerName: "place_label",
