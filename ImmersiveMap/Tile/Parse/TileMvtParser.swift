@@ -16,6 +16,7 @@ class TileMvtParser {
     private let config                      : ImmersiveMapSettings
     private let labelTextResolver           : VectorTileLabelTextResolver
     private let labelLanguagePreferences    : VectorTileLabelLanguagePreferences
+    private let glyphCoverage               : VectorTileLabelGlyphCoverage
     private let labelDecisionEngine         : VectorTileLabelDecisionEngine
     private let poiSpriteResolver           : PoiSpriteResolver = PoiSpriteResolver()
     private let crosswalkZebraBuilder       : CrosswalkZebraGeometryBuilder = CrosswalkZebraGeometryBuilder()
@@ -28,6 +29,7 @@ class TileMvtParser {
          glyphCoverage: VectorTileLabelGlyphCoverage) {
         self.determineFeatureStyle = determineFeatureStyle
         self.config = config
+        self.glyphCoverage = glyphCoverage
         self.labelTextResolver = VectorTileLabelTextResolver(glyphCoverage: glyphCoverage)
         self.labelLanguagePreferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: config.labels.language)
         self.labelDecisionEngine = VectorTileLabelDecisionEngine(
@@ -395,31 +397,104 @@ class TileMvtParser {
         return dashed
     }
 
-    private func fallbackLowZoomWaterLabels(for tile: Tile) -> [(name: String, latitude: Double, longitude: Double, sortKey: Int, styleClass: String)] {
-        let language = config.labels.language
+    private struct LocalizedFallbackLabel {
+        let names: [String: String]
+        let latitude: Double
+        let longitude: Double
+        let sortKey: Int
+        let styleClass: String
 
-        func localized(_ english: String, russian: String) -> String {
-            switch language {
-            case .russian:
-                return russian
-            default:
-                return english
+        func name(preferences: VectorTileLabelLanguagePreferences,
+                  glyphCoverage: VectorTileLabelGlyphCoverage) -> String? {
+            for candidate in preferences.fallbackChain {
+                let code: String
+                if candidate.fieldName == "name" {
+                    code = "native"
+                } else {
+                    code = candidate.fieldName.replacingOccurrences(of: "name_", with: "")
+                }
+
+                guard let value = names[code],
+                      value.isEmpty == false,
+                      glyphCoverage.canRender(value) else {
+                    continue
+                }
+
+                return value
             }
-        }
 
-        var labels: [(name: String, latitude: Double, longitude: Double, sortKey: Int, styleClass: String)] = [
-            (localized("Pacific Ocean", russian: "Тихий океан"), 0.0, -150.0, 20, "ocean"),
-            (localized("Atlantic Ocean", russian: "Атлантический океан"), 8.0, -32.0, 18, "ocean"),
-            (localized("Indian Ocean", russian: "Индийский океан"), -18.0, 80.0, 22, "ocean"),
-            (localized("Arctic Ocean", russian: "Северный Ледовитый океан"), 76.0, 15.0, 16, "ocean"),
-            (localized("Southern Ocean", russian: "Южный океан"), -56.0, 25.0, 24, "ocean")
+            return names["en"].flatMap { glyphCoverage.canRender($0) ? $0 : nil }
+        }
+    }
+
+    private func fallbackLowZoomWaterLabels(for tile: Tile) -> [LocalizedFallbackLabel] {
+        var labels: [LocalizedFallbackLabel] = [
+            LocalizedFallbackLabel(names: [
+                "en": "Pacific Ocean",
+                "ru": "Тихий океан",
+                "fr": "Ocean Pacifique",
+                "de": "Pazifischer Ozean",
+                "es": "Oceano Pacifico"
+            ], latitude: 0.0, longitude: -150.0, sortKey: 20, styleClass: "ocean"),
+            LocalizedFallbackLabel(names: [
+                "en": "Atlantic Ocean",
+                "ru": "Атлантический океан",
+                "fr": "Ocean Atlantique",
+                "de": "Atlantischer Ozean",
+                "es": "Oceano Atlantico"
+            ], latitude: 8.0, longitude: -32.0, sortKey: 18, styleClass: "ocean"),
+            LocalizedFallbackLabel(names: [
+                "en": "Indian Ocean",
+                "ru": "Индийский океан",
+                "fr": "Ocean Indien",
+                "de": "Indischer Ozean",
+                "es": "Oceano Indico"
+            ], latitude: -18.0, longitude: 80.0, sortKey: 22, styleClass: "ocean"),
+            LocalizedFallbackLabel(names: [
+                "en": "Arctic Ocean",
+                "ru": "Северный Ледовитый океан",
+                "fr": "Ocean Arctique",
+                "de": "Arktischer Ozean",
+                "es": "Oceano Artico"
+            ], latitude: 76.0, longitude: 15.0, sortKey: 16, styleClass: "ocean"),
+            LocalizedFallbackLabel(names: [
+                "en": "Southern Ocean",
+                "ru": "Южный океан",
+                "fr": "Ocean Austral",
+                "de": "Suedlicher Ozean",
+                "es": "Oceano Austral"
+            ], latitude: -56.0, longitude: 25.0, sortKey: 24, styleClass: "ocean")
         ]
 
         if tile.z == 2 {
-            labels.append((localized("Mediterranean Sea", russian: "Средиземное море"), 35.0, 18.0, 30, "sea"))
-            labels.append((localized("Caribbean Sea", russian: "Карибское море"), 15.0, -74.0, 32, "sea"))
-            labels.append((localized("Arabian Sea", russian: "Аравийское море"), 15.0, 64.0, 34, "sea"))
-            labels.append((localized("Bering Sea", russian: "Берингово море"), 57.0, -178.0, 36, "sea"))
+            labels.append(LocalizedFallbackLabel(names: [
+                "en": "Mediterranean Sea",
+                "ru": "Средиземное море",
+                "fr": "Mer Mediterranee",
+                "de": "Mittelmeer",
+                "es": "Mar Mediterraneo"
+            ], latitude: 35.0, longitude: 18.0, sortKey: 30, styleClass: "sea"))
+            labels.append(LocalizedFallbackLabel(names: [
+                "en": "Caribbean Sea",
+                "ru": "Карибское море",
+                "fr": "Mer des Caraibes",
+                "de": "Karibisches Meer",
+                "es": "Mar Caribe"
+            ], latitude: 15.0, longitude: -74.0, sortKey: 32, styleClass: "sea"))
+            labels.append(LocalizedFallbackLabel(names: [
+                "en": "Arabian Sea",
+                "ru": "Аравийское море",
+                "fr": "Mer d'Arabie",
+                "de": "Arabisches Meer",
+                "es": "Mar Arabigo"
+            ], latitude: 15.0, longitude: 64.0, sortKey: 34, styleClass: "sea"))
+            labels.append(LocalizedFallbackLabel(names: [
+                "en": "Bering Sea",
+                "ru": "Берингово море",
+                "fr": "Mer de Bering",
+                "de": "Beringmeer",
+                "es": "Mar de Bering"
+            ], latitude: 57.0, longitude: -178.0, sortKey: 36, styleClass: "sea"))
         }
 
         return labels
@@ -466,7 +541,9 @@ class TileMvtParser {
         )
 
         for fallback in fallbackLowZoomWaterLabels(for: tile) {
-            guard existingWaterText.contains(fallback.name) == false,
+            guard let name = fallback.name(preferences: labelLanguagePreferences,
+                                           glyphCoverage: glyphCoverage),
+                  existingWaterText.contains(name) == false,
                   let point = tilePoint(forLatitude: fallback.latitude,
                                         longitude: fallback.longitude,
                                         tile: tile) else {
@@ -476,7 +553,7 @@ class TileMvtParser {
             let attributes: [String: VectorTile_Tile.Value] = [
                 "class": stringTileValue(fallback.styleClass),
                 "type": stringTileValue(fallback.styleClass),
-                "name": stringTileValue(fallback.name)
+                "name": stringTileValue(name)
             ]
 
             let style = determineFeatureStyle.makeStyle(data: DetFeatureStyleData(layerName: "natural_label",
@@ -486,7 +563,7 @@ class TileMvtParser {
                 continue
             }
 
-            textLabels.append(TextLabel(text: fallback.name,
+            textLabels.append(TextLabel(text: name,
                                         position: point,
                                         tile: tile,
                                         featureId: 0,
