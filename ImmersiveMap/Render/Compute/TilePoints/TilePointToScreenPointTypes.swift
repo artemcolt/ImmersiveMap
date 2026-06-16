@@ -49,3 +49,11 @@ struct TilePointToScreenPointSnapshot {
         pointInputs.count
     }
 }
+
+struct TilePointScreenProjectionResult {
+    static let empty = TilePointScreenProjectionResult(screenPoints: [],
+                                                       horizonVisibility: [])
+
+    var screenPoints: [ScreenPointOutput]
+    var horizonVisibility: [Bool]
+}
