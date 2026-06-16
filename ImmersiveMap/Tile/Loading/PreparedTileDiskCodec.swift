@@ -174,28 +174,33 @@ enum PreparedTileDiskCodec {
         }
     }
 
-    enum LabelLanguageValue: String, Codable {
-        case english
-        case russian
+    struct LabelLanguageValue: Codable {
+        let code: String
 
         init(_ value: ImmersiveMapSettings.LabelLanguage) {
-            switch value {
-            case .english:
-                self = .english
-            case .russian:
-                self = .russian
+            code = value.code
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let encodedCode = try container.decode(String.self)
+            switch encodedCode {
+            case "english":
+                code = ImmersiveMapSettings.LabelLanguage.english.code
+            case "russian":
+                code = ImmersiveMapSettings.LabelLanguage.russian.code
             default:
-                self = .english
+                code = ImmersiveMapSettings.LabelLanguage(encodedCode).code
             }
         }
 
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(code)
+        }
+
         var runtimeValue: ImmersiveMapSettings.LabelLanguage {
-            switch self {
-            case .english:
-                return .english
-            case .russian:
-                return .russian
-            }
+            ImmersiveMapSettings.LabelLanguage(code)
         }
     }
 
