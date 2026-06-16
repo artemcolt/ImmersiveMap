@@ -18,6 +18,7 @@ final class AttributionBadgeView: UIView {
 
     private let titleLabel = UILabel()
     private let copyrightLabel = UILabel()
+    private var linkURL: URL?
 
     convenience init(settings: ImmersiveMapSettings.AttributionSettings) {
         self.init(frame: .zero)
@@ -46,6 +47,9 @@ final class AttributionBadgeView: UIView {
 
         addSubview(titleLabel)
         addSubview(copyrightLabel)
+
+        addGestureRecognizer(UITapGestureRecognizer(target: self,
+                                                    action: #selector(handleTap)))
     }
 
     required init?(coder: NSCoder) {
@@ -54,9 +58,20 @@ final class AttributionBadgeView: UIView {
 
     func apply(_ settings: ImmersiveMapSettings.AttributionSettings) {
         isHidden = settings.isVisible == false
+        linkURL = settings.linkURL
+        isUserInteractionEnabled = settings.linkURL != nil
+        accessibilityTraits = settings.linkURL == nil ? [] : [.link]
         titleLabel.text = settings.title
         copyrightLabel.text = settings.copyright
         setNeedsLayout()
+    }
+
+    @objc private func handleTap() {
+        guard let linkURL else {
+            return
+        }
+
+        UIApplication.shared.open(linkURL)
     }
 
     func layout(in bounds: CGRect, safeAreaInsets: UIEdgeInsets) {

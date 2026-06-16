@@ -538,13 +538,16 @@ public struct ImmersiveMapSettings: Equatable {
         public var isVisible: Bool
         public var title: String
         public var copyright: String
+        public var linkURL: URL?
 
         public init(isVisible: Bool = true,
                     title: String = "Immersive map",
-                    copyright: String = "© 2025-2026 Artem Bobkin") {
+                    copyright: String = "© 2025-2026 Artem Bobkin",
+                    linkURL: URL? = URL(string: "https://x.com/BobkinArtem")) {
             self.isVisible = isVisible
             self.title = title
             self.copyright = copyright
+            self.linkURL = linkURL
         }
     }
 
