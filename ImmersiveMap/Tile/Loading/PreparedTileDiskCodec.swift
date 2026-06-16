@@ -184,6 +184,8 @@ enum PreparedTileDiskCodec {
                 self = .english
             case .russian:
                 self = .russian
+            default:
+                self = .english
             }
         }
 

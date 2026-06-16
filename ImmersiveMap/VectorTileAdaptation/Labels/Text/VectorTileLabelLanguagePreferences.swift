@@ -16,7 +16,7 @@ struct VectorTileLabelLanguagePreferences: Equatable {
         case .russian:
             return VectorTileLabelLanguagePreferences(fallbackChain: [.russian, .native, .english],
                                                       selectedLanguage: .russian)
-        case .english:
+        default:
             return VectorTileLabelLanguagePreferences(fallbackChain: [.english, .native, .russian],
                                                       selectedLanguage: .english)
         }

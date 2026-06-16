@@ -396,10 +396,10 @@ class TileMvtParser {
 
         func localized(_ english: String, russian: String) -> String {
             switch language {
-            case .english:
-                return english
             case .russian:
                 return russian
+            default:
+                return english
             }
         }
 

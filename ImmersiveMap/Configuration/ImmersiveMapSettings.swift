@@ -5,9 +5,33 @@ import Foundation
 import simd
 
 public struct ImmersiveMapSettings: Equatable {
-    public enum LabelLanguage: Equatable {
-        case english
-        case russian
+    public struct LabelLanguage: Hashable, Codable, Sendable {
+        public let code: String
+
+        public init(_ code: String) {
+            let normalized = code
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "_", with: "-")
+                .lowercased()
+            self.code = normalized.isEmpty ? Self.english.code : normalized
+        }
+
+        public var providerFieldSuffix: String {
+            code.split(separator: "-").first.map(String.init) ?? Self.english.code
+        }
+
+        public var preparedTileCacheNamespaceKey: String {
+            code
+        }
+
+        public static let english = LabelLanguage("en")
+        public static let russian = LabelLanguage("ru")
+        public static let french = LabelLanguage("fr")
+        public static let german = LabelLanguage("de")
+        public static let spanish = LabelLanguage("es")
+        public static let italian = LabelLanguage("it")
+        public static let portuguese = LabelLanguage("pt")
+        public static let turkish = LabelLanguage("tr")
     }
 
     public struct RenderLoopSettings: Equatable {

@@ -28,7 +28,7 @@ final class TileLabelTextResolver {
                 LabelTextCandidate(text: name, requiresSelectedLanguageMatch: true),
                 LabelTextCandidate(text: nameEn, requiresSelectedLanguageMatch: false)
             ]
-        case .english:
+        default:
             candidates = [
                 LabelTextCandidate(text: nameEn, requiresSelectedLanguageMatch: false),
                 LabelTextCandidate(text: name, requiresSelectedLanguageMatch: true),
@@ -65,10 +65,10 @@ final class TileLabelTextResolver {
         let hasCyrillic = containsAny(from: TileLabelTextResolver.cyrillicSet, in: name)
         let hasLatin = containsAny(from: TileLabelTextResolver.latinSet, in: name)
         switch config.labels.language {
-        case .english:
-            return hasLatin && hasCyrillic == false
         case .russian:
             return hasCyrillic
+        default:
+            return hasLatin && hasCyrillic == false
         }
     }
 

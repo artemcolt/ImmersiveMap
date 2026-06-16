@@ -42,17 +42,6 @@ struct PreparedTileCacheIdentity {
     }
 }
 
-private extension ImmersiveMapSettings.LabelLanguage {
-    var preparedTileCacheNamespaceKey: String {
-        switch self {
-        case .english:
-            return "en"
-        case .russian:
-            return "ru"
-        }
-    }
-}
-
 final class PreparedTileDiskCaching {
     static let preparedFormatVersion: UInt32 = 14
 
