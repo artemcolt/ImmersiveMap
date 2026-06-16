@@ -41,6 +41,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
     private var latestCameraFingerprint: Int = 0
     private var publishedVisibilityCameraFingerprint: Int = 0
     private var lastVisibilityCycleStartTime: TimeInterval = -.greatestFiniteMagnitude
+    private var publishedHorizonReservationSignature: [Int] = []
     private var publishedBaseCollisionFlags: [UInt32] = []
     private var publishedRoadInstanceVisibility: [Bool] = []
     private var visibilityCycle: VisibilityCycle?
@@ -167,8 +168,23 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
             }
         }
 
+        let baseProjection = makeCpuBaseProjection(frameContext: frameContext,
+                                                   tilePointSnapshot: baseLabelCache.tilePointSnapshot)
+        let currentBaseAlphas = presentationStateStore.currentAlphas(inputs: baseLabelCache.presentationInputs,
+                                                                     time: frameContext.time,
+                                                                     fadeInSeconds: fadeInSeconds,
+                                                                     fadeOutSeconds: fadeOutSeconds)
+        let horizonReservationSignature = BaseLabelVisibilityResolver.horizonReservationSignature(
+            horizonVisibility: baseProjection.horizonVisibility,
+            currentAlphas: currentBaseAlphas
+        )
+
         if collisionsEnabled {
-            maybeStartVisibilityCycle(frameContext: frameContext, forceRestart: trackedTilesChanged || projectionChanged)
+            maybeStartVisibilityCycle(frameContext: frameContext,
+                                      baseProjection: baseProjection,
+                                      currentBaseAlphas: currentBaseAlphas,
+                                      horizonReservationSignature: horizonReservationSignature,
+                                      forceRestart: trackedTilesChanged || projectionChanged)
             advanceVisibilityCycleIfNeeded(frameContext: frameContext)
         } else {
             visibilityCycle = nil
@@ -181,6 +197,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                 publishedRoadInstanceVisibility = []
             }
             publishedVisibilityCameraFingerprint = latestCameraFingerprint
+            publishedHorizonReservationSignature = horizonReservationSignature
         }
 
         let collisionFlagsBuffer = makeCollisionFlagsBuffer(frameContext: frameContext,
@@ -188,15 +205,34 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                                             expectedCount: baseLabelCache.activeLabelSpanCount)
 
         let overviewFadeAlpha = LowZoomOverviewFade.alpha(for: frameContext.zoom)
+        var targetVisibility = BaseLabelVisibilityResolver.targetVisibility(
+            inputs: baseLabelCache.presentationInputs,
+            collisionFlags: publishedBaseCollisionFlags,
+            horizonVisibility: baseProjection.horizonVisibility
+        )
+        let collisionVisibilityIsFresh = publishedVisibilityCameraFingerprint == latestCameraFingerprint
+        if collisionVisibilityIsFresh == false {
+            let count = min(targetVisibility.count, currentBaseAlphas.count)
+            for index in 0..<count where currentBaseAlphas[index] <= BaseLabelVisibilityResolver.activeAlphaThreshold {
+                targetVisibility[index] = false
+            }
+            if count < targetVisibility.count {
+                for index in count..<targetVisibility.count {
+                    targetVisibility[index] = false
+                }
+            }
+        }
         let fadeResolution = presentationStateStore.resolveAlphas(inputs: baseLabelCache.presentationInputs,
-                                                                  collisionFlags: publishedBaseCollisionFlags,
+                                                                  targetVisibility: targetVisibility,
                                                                   time: frameContext.time,
                                                                   frameIndex: frameContext.frameIndex,
                                                                   fadeInSeconds: fadeInSeconds,
                                                                   fadeOutSeconds: fadeOutSeconds)
         baseLabelCache.updateFadeAlphas(fadeResolution.fadeAlphas,
                                         multiplier: overviewFadeAlpha)
-        let hasPendingVisibilityRefresh = collisionsEnabled && latestCameraFingerprint != publishedVisibilityCameraFingerprint
+        let hasPendingVisibilityRefresh = collisionsEnabled &&
+            (latestCameraFingerprint != publishedVisibilityCameraFingerprint ||
+                horizonReservationSignature != publishedHorizonReservationSignature)
         publishBaseLabelState(frameContext: frameContext,
                               hasActiveFadeAnimations: fadeResolution.hasActiveAnimations,
                               hasActiveVisibilityCycle: hasPendingVisibilityRefresh)
@@ -322,15 +358,15 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         frameContext.sharedState.baseLabelState.hasActiveVisibilityCycle = hasActiveVisibilityCycle
     }
 
-    private func makeCpuScreenPoints(frameContext: FrameContext,
-                                     tilePointSnapshot: TilePointToScreenPointSnapshot) -> [ScreenPointOutput] {
+    private func makeCpuBaseProjection(frameContext: FrameContext,
+                                       tilePointSnapshot: TilePointToScreenPointSnapshot) -> TilePointScreenProjectionResult {
         guard baseLabelCache.activeLabelSpanCount > 0 else {
-            return []
+            return .empty
         }
         let projectionIndexState = frameContext.sharedState.tileProjectionIndexState
-        return tilePointScreenProjector.project(snapshot: tilePointSnapshot,
-                                                frameContext: frameContext,
-                                                tileOriginData: projectionIndexState.tileOriginData)
+        return tilePointScreenProjector.projectWithHorizonVisibility(snapshot: tilePointSnapshot,
+                                                                     frameContext: frameContext,
+                                                                     tileOriginData: projectionIndexState.tileOriginData)
     }
 
     private func makeCollisionFlagsBuffer(frameContext: FrameContext,
@@ -432,9 +468,15 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
     }
 
     private func maybeStartVisibilityCycle(frameContext: FrameContext,
+                                           baseProjection: TilePointScreenProjectionResult,
+                                           currentBaseAlphas: [Float],
+                                           horizonReservationSignature: [Int],
                                            forceRestart: Bool) {
         if forceRestart {
-            visibilityCycle = makeVisibilityCycle(frameContext: frameContext)
+            visibilityCycle = makeVisibilityCycle(frameContext: frameContext,
+                                                  baseProjection: baseProjection,
+                                                  currentBaseAlphas: currentBaseAlphas,
+                                                  horizonReservationSignature: horizonReservationSignature)
             lastVisibilityCycleStartTime = frameContext.time
             return
         }
@@ -444,12 +486,16 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         }
 
         let cameraChanged = latestCameraFingerprint != publishedVisibilityCameraFingerprint
+        let horizonReservationChanged = horizonReservationSignature != publishedHorizonReservationSignature
         let cadenceElapsed = frameContext.time - lastVisibilityCycleStartTime >= visibilityRefreshInterval
-        guard cameraChanged, cadenceElapsed else {
+        guard (cameraChanged || horizonReservationChanged), cadenceElapsed else {
             return
         }
 
-        visibilityCycle = makeVisibilityCycle(frameContext: frameContext)
+        visibilityCycle = makeVisibilityCycle(frameContext: frameContext,
+                                              baseProjection: baseProjection,
+                                              currentBaseAlphas: currentBaseAlphas,
+                                              horizonReservationSignature: horizonReservationSignature)
         lastVisibilityCycleStartTime = frameContext.time
     }
 
@@ -470,24 +516,23 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
             publishedBaseCollisionFlags = cycle.baseCollisionFlags
             publishedRoadInstanceVisibility = cycle.roadInstanceVisibility
             publishedVisibilityCameraFingerprint = cycle.cameraFingerprint
+            publishedHorizonReservationSignature = cycle.horizonReservationSignature
         }
         visibilityCycle = nil
     }
 
-    private func makeVisibilityCycle(frameContext: FrameContext) -> VisibilityCycle {
-        let tilePointSnapshot = baseLabelCache.tilePointSnapshot
-        let screenPoints = makeCpuScreenPoints(frameContext: frameContext,
-                                               tilePointSnapshot: tilePointSnapshot)
-        var baseCollisionCandidates = baseLabelCache.labelCollisionAABBInputs
-        let baseCount = min(screenPoints.count, baseCollisionCandidates.count)
-        if baseCount > 0 {
-            for index in 0..<baseCount {
-                baseCollisionCandidates[index].position = screenPoints[index].position
-                baseCollisionCandidates[index].groupId = 0
-                if screenPoints[index].visible == 0 || screenPoints[index].visibilityAlpha < 0.999 {
-                    baseCollisionCandidates[index].isEnabled = false
-                }
-            }
+    private func makeVisibilityCycle(frameContext: FrameContext,
+                                     baseProjection: TilePointScreenProjectionResult,
+                                     currentBaseAlphas: [Float],
+                                     horizonReservationSignature: [Int]) -> VisibilityCycle {
+        var baseCollisionCandidates = BaseLabelVisibilityResolver.collisionCandidates(
+            baseCandidates: baseLabelCache.labelCollisionAABBInputs,
+            screenPoints: baseProjection.screenPoints,
+            horizonVisibility: baseProjection.horizonVisibility,
+            currentAlphas: currentBaseAlphas
+        )
+        for index in baseCollisionCandidates.indices {
+            baseCollisionCandidates[index].groupId = 0
         }
 
         let roadPreparation = prepareRoadInstances(frameContext: frameContext,
@@ -496,6 +541,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                                   roadInstances: roadPreparation.instances)
         return VisibilityCycle(topologyGeneration: visibilityTopologyGeneration,
                                cameraFingerprint: latestCameraFingerprint,
+                               horizonReservationSignature: horizonReservationSignature,
                                viewportSize: SIMD2<Float>(Float(frameContext.drawSize.width),
                                                           Float(frameContext.drawSize.height)),
                                baseCount: baseLabelCache.activeLabelSpanCount,
@@ -1005,6 +1051,7 @@ private struct VisibilityCollisionGroup {
 private struct VisibilityCycle {
     let topologyGeneration: UInt64
     let cameraFingerprint: Int
+    let horizonReservationSignature: [Int]
     private let groups: [VisibilityCollisionGroup]
     private let gridWidth: Int
     private let gridHeight: Int
@@ -1017,6 +1064,7 @@ private struct VisibilityCycle {
 
     init(topologyGeneration: UInt64,
          cameraFingerprint: Int,
+         horizonReservationSignature: [Int],
          viewportSize: SIMD2<Float>,
          baseCount: Int,
          roadCount: Int,
@@ -1024,6 +1072,7 @@ private struct VisibilityCycle {
          cellSizePx: Float) {
         self.topologyGeneration = topologyGeneration
         self.cameraFingerprint = cameraFingerprint
+        self.horizonReservationSignature = horizonReservationSignature
         self.groups = groups
         self.cellSizePx = cellSizePx
         self.gridWidth = max(1, Int(ceil(max(1.0, viewportSize.x) / cellSizePx)))

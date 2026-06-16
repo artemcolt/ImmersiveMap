@@ -9,13 +9,20 @@
 import simd
 
 struct TilePointScreenProjector {
-    let globeHorizonFadeBandWidth: Float = 0.03
-
     func project(snapshot: TilePointToScreenPointSnapshot,
                  frameContext: FrameContext,
                  tileOriginData: [FlatTileOriginData]) -> [ScreenPointOutput] {
+        let result = projectWithHorizonVisibility(snapshot: snapshot,
+                                                 frameContext: frameContext,
+                                                 tileOriginData: tileOriginData)
+        return screenPointsWithHorizonMask(result)
+    }
+
+    func projectWithHorizonVisibility(snapshot: TilePointToScreenPointSnapshot,
+                                      frameContext: FrameContext,
+                                      tileOriginData: [FlatTileOriginData]) -> TilePointScreenProjectionResult {
         guard snapshot.pointsCount > 0 else {
-            return []
+            return .empty
         }
 
         switch frameContext.screenSpaceProjectionMode {
@@ -31,7 +38,7 @@ struct TilePointScreenProjector {
 
     private func projectFlat(snapshot: TilePointToScreenPointSnapshot,
                              frameContext: FrameContext,
-                             tileOriginData: [FlatTileOriginData]) -> [ScreenPointOutput] {
+                             tileOriginData: [FlatTileOriginData]) -> TilePointScreenProjectionResult {
         let viewport = SIMD2<Float>(Float(frameContext.drawSize.width), Float(frameContext.drawSize.height))
         let cameraMatrix = frameContext.cameraMatrices.projectionView
         var outputs = Array(repeating: ScreenPointOutput(position: .zero, depth: 0, visible: 0),
@@ -60,17 +67,19 @@ struct TilePointScreenProjector {
             outputs[index] = screenPointFromClip(clip: clip, viewportSize: viewport)
         }
 
-        return outputs
+        return TilePointScreenProjectionResult(screenPoints: outputs,
+                                               horizonVisibility: outputs.map { $0.visible != 0 })
     }
 
     private func projectGlobe(snapshot: TilePointToScreenPointSnapshot,
-                              frameContext: FrameContext) -> [ScreenPointOutput] {
+                              frameContext: FrameContext) -> TilePointScreenProjectionResult {
         let viewport = SIMD2<Float>(Float(frameContext.drawSize.width), Float(frameContext.drawSize.height))
         let cameraUniform = frameContext.cameraUniform
         let globe = frameContext.globeRenderUniform
         let constants = GlobeProjectionConstants(globe: globe)
         var outputs = Array(repeating: ScreenPointOutput(position: .zero, depth: 0, visible: 0),
                             count: snapshot.pointsCount)
+        var horizonVisibility = Array(repeating: false, count: snapshot.pointsCount)
 
         for index in snapshot.pointInputs.indices {
             let input = snapshot.pointInputs[index]
@@ -79,16 +88,26 @@ struct TilePointScreenProjector {
                                                 constants: constants)
             var output = screenPointFromClip(clip: projection.clip, viewportSize: viewport)
             if output.visible != 0 {
-                let visibility = globeProjectionVisibility(worldPosition: projection.worldPosition,
-                                                           cameraUniform: cameraUniform,
-                                                           constants: constants)
-                output.visible = visibility.visible ? output.visible : 0
-                output.visibilityAlpha = visibility.alpha
+                horizonVisibility[index] = globeProjectionPassesHorizon(worldPosition: projection.worldPosition,
+                                                                        cameraUniform: cameraUniform,
+                                                                        constants: constants)
+                output.visibilityAlpha = 1.0
             }
             outputs[index] = output
         }
 
-        return outputs
+        return TilePointScreenProjectionResult(screenPoints: outputs,
+                                               horizonVisibility: horizonVisibility)
+    }
+
+    private func screenPointsWithHorizonMask(_ result: TilePointScreenProjectionResult) -> [ScreenPointOutput] {
+        var screenPoints = result.screenPoints
+        let count = min(screenPoints.count, result.horizonVisibility.count)
+        for index in 0..<count where !result.horizonVisibility[index] {
+            screenPoints[index].visible = 0
+            screenPoints[index].visibilityAlpha = 0.0
+        }
+        return screenPoints
     }
 
     private func screenPointFromClip(clip: SIMD4<Float>,
@@ -132,44 +151,17 @@ struct TilePointScreenProjector {
         return GlobeProjectionResult(clip: clip, worldPosition: worldPosition)
     }
 
-    func globeProjectionVisibility(worldPosition: SIMD3<Float>,
-                                   cameraUniform: CameraUniform,
-                                   globe: GlobeUniform) -> (visible: Bool, alpha: Float) {
-        globeProjectionVisibility(worldPosition: worldPosition,
-                                  cameraUniform: cameraUniform,
-                                  constants: GlobeProjectionConstants(globe: globe))
-    }
-
-    private func globeProjectionVisibility(worldPosition: SIMD3<Float>,
-                                           cameraUniform: CameraUniform,
-                                           constants: GlobeProjectionConstants) -> (visible: Bool, alpha: Float) {
+    private func globeProjectionPassesHorizon(worldPosition: SIMD3<Float>,
+                                             cameraUniform: CameraUniform,
+                                             constants: GlobeProjectionConstants) -> Bool {
         let globeCenter = SIMD3<Float>(0.0, 0.0, -constants.globe.radius)
         let toCamera = cameraUniform.eye - globeCenter
         if simd_length(toCamera) <= 0.0 || constants.globe.transition >= 0.95 {
-            return (true, 1.0)
+            return true
         }
 
-        let toCameraLength = simd_length(toCamera)
-        let radius = max(constants.globe.radius, 1e-6)
         let dotToCamera = simd_dot(worldPosition - globeCenter, toCamera)
-        let normalization = max(toCameraLength * radius, 1e-6)
-        let normalizedDot = dotToCamera / normalization
-        let normalizedThreshold = constants.horizonThreshold / normalization
-        let visibilityDelta = normalizedDot - normalizedThreshold
-
-        if visibilityDelta <= -globeHorizonFadeBandWidth {
-            return (false, 0.0)
-        }
-
-        let alpha = smoothstep(edge0: -globeHorizonFadeBandWidth,
-                               edge1: globeHorizonFadeBandWidth,
-                               x: visibilityDelta)
-        return (true, alpha)
-    }
-
-    private func smoothstep(edge0: Float, edge1: Float, x: Float) -> Float {
-        let t = simd_clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
-        return t * t * (3.0 - 2.0 * t)
+        return dotToCamera >= constants.horizonThreshold
     }
 }
 
