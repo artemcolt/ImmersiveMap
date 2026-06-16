@@ -14,7 +14,8 @@ class TileMvtParser {
     private let decodeLine                  : DecodeLine = DecodeLine()
     private let decodePoint                 : DecodePoint = DecodePoint()
     private let config                      : ImmersiveMapSettings
-    private let labelTextResolver           : TileLabelTextResolver
+    private let labelTextResolver           : VectorTileLabelTextResolver
+    private let labelLanguagePreferences    : VectorTileLabelLanguagePreferences
     private let labelDecisionEngine         : VectorTileLabelDecisionEngine
     private let poiSpriteResolver           : PoiSpriteResolver = PoiSpriteResolver()
     private let crosswalkZebraBuilder       : CrosswalkZebraGeometryBuilder = CrosswalkZebraGeometryBuilder()
@@ -27,10 +28,11 @@ class TileMvtParser {
          glyphCoverage: VectorTileLabelGlyphCoverage) {
         self.determineFeatureStyle = determineFeatureStyle
         self.config = config
-        self.labelTextResolver = TileLabelTextResolver(config: config)
+        self.labelTextResolver = VectorTileLabelTextResolver(glyphCoverage: glyphCoverage)
+        self.labelLanguagePreferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: config.labels.language)
         self.labelDecisionEngine = VectorTileLabelDecisionEngine(
             profile: MapboxVectorTileLabelProviderProfile(settings: config),
-            textResolver: VectorTileLabelTextResolver(glyphCoverage: glyphCoverage)
+            textResolver: labelTextResolver
         )
     }
     
@@ -622,7 +624,8 @@ class TileMvtParser {
                         continue
                     }
 
-                    let labelText = labelTextResolver.resolveLabelText(attributes: attributes)
+                    let labelText = labelTextResolver.resolveText(properties: attributes,
+                                                                  preferences: labelLanguagePreferences)
                     let roadLabelPass = lineRenderPasses.first { $0.includeRoadLabelPath }
                     let roadLabelStyle = style.roadLabelTextStyle
                     let roadStructure = roadStructureKind(attributes: attributes)

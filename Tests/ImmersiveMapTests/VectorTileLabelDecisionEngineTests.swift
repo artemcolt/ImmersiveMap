@@ -68,6 +68,18 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Paris FR")
     }
 
+    func testSharedResolverCoversRoadLabelFieldSelection() {
+        let properties: [String: VectorTile_Tile.Value] = [
+            "name": stringValue("Rue Native"),
+            "name_en": stringValue("Rivoli Street"),
+            "name_fr": stringValue("Rue de Rivoli")
+        ]
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
+        let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .french)
+
+        XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Rue de Rivoli")
+    }
+
     func testGermanPreferencesFallbackToEnglishWhenPreferredFieldIsMissing() {
         let properties: [String: VectorTile_Tile.Value] = [
             "name_en": stringValue("Munich EN")
