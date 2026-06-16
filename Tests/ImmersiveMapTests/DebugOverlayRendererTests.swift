@@ -117,6 +117,18 @@ final class DebugOverlayRendererTests: XCTestCase {
         XCTAssertTrue(lines.contains { $0.hasPrefix("frame: 42") })
     }
 
+    func testOverlayDiagnosticsIncludeRamUsageWhenAvailable() {
+        let diagnostics = FrameDiagnostics(frameIndex: 42, frameTime: 16.7)
+
+        let lines = DebugOverlayRenderer.makeOverlayDiagnosticsTextLines(
+            cameraDebugLines: [],
+            diagnostics: diagnostics,
+            memorySnapshot: ProcessMemorySnapshot(physicalFootprintBytes: 128 * 1024 * 1024)
+        )
+
+        XCTAssertTrue(lines.contains("memory ram:128.0MB"))
+    }
+
     private func makeSingleAllocationAtlasPlan() throws -> GlobeAtlasPlan {
         let sourceTile = Tile(x: 0, y: 0, z: 1)
         let targetTile = Tile(x: 0, y: 0, z: 1)

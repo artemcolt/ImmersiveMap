@@ -184,16 +184,22 @@ final class DebugOverlayRenderer {
     }
 
     static func makeOverlayDiagnosticsTextLines(cameraDebugLines: [String],
-                                                diagnostics: FrameDiagnostics?) -> [String] {
+                                                diagnostics: FrameDiagnostics?,
+                                                memorySnapshot: ProcessMemorySnapshot? = ProcessMemoryReader.current()) -> [String] {
         guard let diagnostics else {
             return cameraDebugLines
         }
-        return cameraDebugLines + makeDiagnosticsTextLines(from: diagnostics)
+        return cameraDebugLines + makeDiagnosticsTextLines(from: diagnostics,
+                                                           memorySnapshot: memorySnapshot)
     }
 
-    private static func makeDiagnosticsTextLines(from diagnostics: FrameDiagnostics) -> [String] {
+    private static func makeDiagnosticsTextLines(from diagnostics: FrameDiagnostics,
+                                                memorySnapshot: ProcessMemorySnapshot?) -> [String] {
         let frameLine = "frame: \(diagnostics.frameIndex)  dt: " +
             diagnostics.frameTime.formatted(.number.precision(.fractionLength(2)))
+        let memoryLine = memorySnapshot.map { snapshot in
+            "memory ram:\(String(format: "%.1f", snapshot.physicalFootprintMegabytes))MB"
+        }
         let tileLine = "tiles vis:\(diagnostics.counterValue(.visibleTiles)) " +
             "ready:\(diagnostics.counterValue(.readyTiles)) " +
             "req:\(diagnostics.counterValue(.requestedTiles)) " +
@@ -217,7 +223,8 @@ final class DebugOverlayRenderer {
             let reasons = diagnostics.skipReasons.map(\.rawValue).sorted().joined(separator: ",")
             skipLine = "skip: \(reasons)"
         }
-        return [frameLine, tileLine, labelLine, resourcesLine, globeCullingLine, skipLine]
+        return [frameLine, memoryLine, tileLine, labelLine, resourcesLine, globeCullingLine, skipLine]
+            .compactMap(\.self)
     }
 
     private func makeLineAdvance(textRenderer: TextRenderer, scale: Float) -> Float {
