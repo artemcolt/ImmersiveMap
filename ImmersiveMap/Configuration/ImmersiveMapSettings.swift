@@ -21,7 +21,14 @@ public struct ImmersiveMapSettings: Equatable {
         }
 
         public var preparedTileCacheNamespaceKey: String {
-            code
+            String(code.unicodeScalars.map { scalar in
+                switch scalar.value {
+                case 45, 48...57, 97...122:
+                    return Character(scalar)
+                default:
+                    return "_"
+                }
+            })
         }
 
         public static let english = LabelLanguage("en")

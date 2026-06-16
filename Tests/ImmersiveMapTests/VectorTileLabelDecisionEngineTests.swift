@@ -506,6 +506,21 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         XCTAssertEqual(language.preparedTileCacheNamespaceKey, "pt-br")
     }
 
+    func testLabelLanguageNormalizesUnderscoreBCP47Code() {
+        let language = ImmersiveMapSettings.LabelLanguage("pt_BR")
+
+        XCTAssertEqual(language.code, "pt-br")
+    }
+
+    func testLabelLanguagePreparedTileCacheNamespaceKeyIsPathSafe() {
+        let language = ImmersiveMapSettings.LabelLanguage("EN/../../secret:token")
+        let namespaceKey = language.preparedTileCacheNamespaceKey
+
+        XCTAssertFalse(namespaceKey.contains("/"))
+        XCTAssertFalse(namespaceKey.contains(":"))
+        XCTAssertFalse(namespaceKey.contains(".."))
+    }
+
     func testKnownLabelLanguagesRemainAvailable() {
         XCTAssertEqual(ImmersiveMapSettings.LabelLanguage.english.code, "en")
         XCTAssertEqual(ImmersiveMapSettings.LabelLanguage.russian.code, "ru")
