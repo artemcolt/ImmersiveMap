@@ -37,6 +37,7 @@ final class DebugOverlayHUDView: UIView {
     private let zoomLabel = UILabel()
     private let latLonLabel = UILabel()
     private let diagnosticsLabel = UILabel()
+    private let atlasScrollView = UIScrollView()
     private let atlasLayoutView = DebugOverlayAtlasLayoutView()
     private let atlasDetailsLabel = UILabel()
     private var snapshot: DebugOverlayHUDSnapshot?
@@ -93,8 +94,13 @@ final class DebugOverlayHUDView: UIView {
         atlasDetailsLabel.numberOfLines = 0
         atlasDetailsLabel.lineBreakMode = .byWordWrapping
         atlasDetailsLabel.adjustsFontSizeToFitWidth = false
-        containerView.addSubview(atlasLayoutView)
-        containerView.addSubview(atlasDetailsLabel)
+        atlasScrollView.backgroundColor = .clear
+        atlasScrollView.alwaysBounceVertical = false
+        atlasScrollView.showsHorizontalScrollIndicator = false
+        atlasScrollView.showsVerticalScrollIndicator = true
+        containerView.addSubview(atlasScrollView)
+        atlasScrollView.addSubview(atlasLayoutView)
+        atlasScrollView.addSubview(atlasDetailsLabel)
         updateCollapseButtonImage()
         updateVisibility()
     }
@@ -165,7 +171,20 @@ final class DebugOverlayHUDView: UIView {
         let atlasBodyHeight = atlasPreviewHeight
             + sectionSpacing
             + atlasDetailsSize.height
-        let bodyHeight = selectedTab == .atlas ? atlasBodyHeight : statsBodyHeight
+        let panelY = top - zoomSize.height - Layout.contentInset
+        let chromeHeight = Layout.headerHeight
+            + Layout.contentInset
+            + controlsHeight
+            + sectionSpacing
+            + Layout.contentInset
+        let visibleAtlasBodyHeight = DebugOverlayPanelLayout.visibleBodyHeight(
+            preferredBodyHeight: atlasBodyHeight,
+            viewportHeight: bounds.height,
+            panelMinY: panelY,
+            chromeHeight: chromeHeight,
+            minimumBodyHeight: 48
+        )
+        let bodyHeight = selectedTab == .atlas ? visibleAtlasBodyHeight : statsBodyHeight
         let contentHeight = Layout.headerHeight
             + Layout.contentInset
             + controlsHeight
@@ -176,7 +195,7 @@ final class DebugOverlayHUDView: UIView {
                                    height: contentHeight)
 
         containerView.frame = CGRect(x: left - Layout.contentInset,
-                                     y: top - zoomSize.height - Layout.contentInset,
+                                     y: panelY,
                                      width: containerSize.width,
                                      height: containerSize.height)
         layoutHeader(width: containerSize.width)
@@ -222,14 +241,21 @@ final class DebugOverlayHUDView: UIView {
                                         y: latLonLabel.frame.maxY + sectionSpacing,
                                         width: contentWidth,
                                         height: diagnosticsSize.height)
-        atlasLayoutView.frame = CGRect(x: Layout.contentInset,
+        atlasScrollView.frame = CGRect(x: Layout.contentInset,
                                        y: textTop,
                                        width: contentWidth,
+                                       height: visibleAtlasBodyHeight)
+        atlasLayoutView.frame = CGRect(x: 0,
+                                       y: 0,
+                                       width: contentWidth,
                                        height: atlasPreviewHeight)
-        atlasDetailsLabel.frame = CGRect(x: Layout.contentInset,
+        atlasDetailsLabel.frame = CGRect(x: 0,
                                          y: atlasLayoutView.frame.maxY + sectionSpacing,
                                          width: contentWidth,
                                          height: atlasDetailsSize.height)
+        atlasScrollView.contentSize = CGSize(width: contentWidth,
+                                             height: atlasBodyHeight)
+        atlasScrollView.isScrollEnabled = atlasBodyHeight > visibleAtlasBodyHeight + 0.5
         updateContentVisibility()
     }
 
@@ -327,9 +353,7 @@ final class DebugOverlayHUDView: UIView {
         [zoomLabel, latLonLabel, diagnosticsLabel].forEach {
             $0.isHidden = isStatsVisible == false
         }
-        [atlasLayoutView, atlasDetailsLabel].forEach {
-            $0.isHidden = isAtlasVisible == false
-        }
+        atlasScrollView.isHidden = isAtlasVisible == false
     }
 
     private func atlasDetailsText(pages: [GlobeAtlasDebugPage]) -> String {
@@ -542,6 +566,14 @@ extension DebugOverlayHUDView {
 
     var atlasPreviewPageCountForTesting: Int {
         atlasLayoutView.pageCount
+    }
+
+    var debugPanelFrameForTesting: CGRect {
+        containerView.frame
+    }
+
+    var isAtlasScrollEnabledForTesting: Bool {
+        atlasScrollView.isScrollEnabled
     }
 }
 #endif
