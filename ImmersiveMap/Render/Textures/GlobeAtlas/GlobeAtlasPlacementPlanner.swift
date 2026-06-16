@@ -251,7 +251,7 @@ struct GlobeAtlasPlacementPlanner {
         var minimumDepth = Float.greatestFiniteMagnitude
         var hasVisibleSample = false
 
-        for uv in Self.sampleUVs {
+        for uv in sampleUVs(for: placeTile.placeIn.tile, constants: constants) {
             let input = TilePointInput(uv: uv,
                                        tile: tileVector(placeTile.placeIn.tile))
             let projection = globeProjectTileUV(input: input,
@@ -310,6 +310,39 @@ struct GlobeAtlasPlacementPlanner {
                             height: CGFloat(height))
         return ScreenFootprint(bounds: bounds,
                                minimumDepth: minimumDepth)
+    }
+
+    private func sampleUVs(for tile: Tile,
+                           constants: GlobeAtlasProjectionConstants) -> [SIMD2<Float>] {
+        guard let centerUV = centerFacingUV(for: tile, constants: constants) else {
+            return Self.sampleUVs
+        }
+
+        return Self.sampleUVs + [centerUV]
+    }
+
+    private func centerFacingUV(for tile: Tile,
+                                constants: GlobeAtlasProjectionConstants) -> SIMD2<Float>? {
+        let zPow = powf(2.0, Float(tile.z))
+        let centerLongitude = -constants.panLongitude
+        let normalizedWorldX = Float(
+            ImmersiveMapProjection.wrapNormalizedWorldX(Double((centerLongitude + .pi) / (2.0 * .pi)))
+        )
+        let mercatorY = Float(ImmersiveMapProjection.yMercatorNormalized(latitude: Double(constants.panLatitude)))
+        let normalizedWorldY = (1.0 - mercatorY) * 0.5
+        let localX = normalizedWorldX * zPow - Float(tile.x)
+        let localY = normalizedWorldY * zPow - Float(tile.y)
+        let epsilon: Float = 0.00001
+
+        guard localX >= -epsilon,
+              localX <= 1.0 + epsilon,
+              localY >= -epsilon,
+              localY <= 1.0 + epsilon else {
+            return nil
+        }
+
+        return SIMD2<Float>(simd_clamp(localX, 0.0, 1.0),
+                            simd_clamp(localY, 0.0, 1.0))
     }
 
     private func tileVector(_ tile: Tile) -> SIMD3<Int32> {

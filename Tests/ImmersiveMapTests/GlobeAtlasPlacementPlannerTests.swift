@@ -427,6 +427,26 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         XCTAssertTrue(fallbackCandidate.isFallback)
     }
 
+    func testMakeCandidatesKeepsWholeWorldTileVisibleAtLowZoom() throws {
+        let tile = Tile(x: 0, y: 0, z: 0)
+        let metalTile = MetalTile(tile: tile, tileBuffers: try makeTileBuffers())
+        let placeTile = PlaceTile(metalTile: metalTile,
+                                  placeIn: VisibleTile(tile: tile),
+                                  lodKind: .exact)
+        let frameContext = try makeGlobeFrameContext(latitudeDegrees: 8.010,
+                                                     longitudeDegrees: -84.442,
+                                                     zoom: 0.86,
+                                                     bearingDegrees: 15.0,
+                                                     drawSize: CGSize(width: 3742, height: 2258))
+        let planner = GlobeAtlasPlacementPlanner(pageSizePx: 4096)
+
+        let candidates = planner.makeCandidates(placeTiles: [placeTile],
+                                                frameContext: frameContext)
+
+        XCTAssertEqual(candidates.count, 1)
+        XCTAssertEqual(candidates.first?.placeTile.placeIn.tile, tile)
+    }
+
     func testScreenFootprintIgnoresProjectedSamplesThatFailHorizonVisibility() {
         let footprint = GlobeAtlasPlacementPlanner.screenFootprintForTesting(
             projectedSamples: [
@@ -541,6 +561,46 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
                             resolvedPresentation: PresentationStateResolver.resolve(cameraState: cameraState,
                                                                                    settings: settings.presentation,
                                                                                    forcedRenderSurfaceMode: .spherical),
+                            diagnostics: diagnostics)
+    }
+
+    private func makeGlobeFrameContext(latitudeDegrees: Double,
+                                       longitudeDegrees: Double,
+                                       zoom: Double,
+                                       bearingDegrees: Double,
+                                       drawSize: CGSize) throws -> FrameContext {
+        let settings = ImmersiveMapSettings.default
+        let center = ImmersiveMapProjection.worldMercator(latitude: latitudeDegrees * Double.pi / 180.0,
+                                                          longitude: longitudeDegrees * Double.pi / 180.0)
+        let cameraState = ImmersiveMapCameraState(centerWorldMercator: center,
+                                                  zoom: zoom,
+                                                  bearing: Float(bearingDegrees * Double.pi / 180.0),
+                                                  pitch: 0)
+        let resolver = FrameCameraStateResolver(settings: settings)
+        resolver.setCameraState(cameraState)
+        let diagnostics = FrameDiagnostics(frameIndex: 0, frameTime: 0)
+        guard let cameraFrameState = resolver.makeFrameState(drawSize: drawSize,
+                                                             diagnostics: diagnostics) else {
+            throw XCTSkip("Camera frame state is required for globe atlas regression fixture.")
+        }
+        let resolvedPresentation = PresentationStateResolver.resolve(cameraState: cameraFrameState.mapCameraState,
+                                                                     settings: settings.presentation,
+                                                                     forcedRenderSurfaceMode: .spherical)
+        return FrameContext(frameIndex: 0,
+                            time: 0,
+                            deltaTime: 0,
+                            drawSize: drawSize,
+                            viewport: SIMD2<Float>(Float(drawSize.width), Float(drawSize.height)),
+                            cameraMatrices: cameraFrameState.cameraMatrices,
+                            cameraEye: cameraFrameState.cameraEye,
+                            qualityTier: cameraFrameState.qualityTier,
+                            commandBuffer: nil,
+                            drawable: nil,
+                            services: FrameContextServices(diagnostics: diagnostics,
+                                                           settings: settings,
+                                                           now: Date(timeIntervalSince1970: 0)),
+                            mapCameraState: cameraFrameState.mapCameraState,
+                            resolvedPresentation: resolvedPresentation,
                             diagnostics: diagnostics)
     }
 
