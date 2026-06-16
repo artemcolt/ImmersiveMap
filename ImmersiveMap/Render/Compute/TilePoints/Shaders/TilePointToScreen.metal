@@ -30,13 +30,6 @@ struct FlatTileOriginDataGpu {
     float padding;
 };
 
-static constant float globeHorizonFadeBandWidth = 0.03;
-
-static inline float tilePointSmoothstep(float edge0, float edge1, float x) {
-    float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-    return t * t * (3.0 - 2.0 * t);
-}
-
 kernel void tilePointToScreenFlatKernel(const device TilePointInputGpu* inputs [[buffer(0)]],
                                         const device uint* tileSlotVisibleTileIndices [[buffer(1)]],
                                         const device FlatTileOriginDataGpu* tileOriginData [[buffer(2)]],
@@ -78,25 +71,7 @@ kernel void tilePointToScreenGlobeKernel(const device TilePointInputGpu* inputs 
                                                                    globe);
     ScreenPointOutput result = screenPointFromClip(projection.clip, screenParams);
     if (result.visible != 0) {
-        float3 globeCenter = float3(0.0, 0.0, -globe.radius);
-        float3 toCamera = camera.eye - globeCenter;
-        if (length(toCamera) <= 0.0 || globe.transition >= 0.95) {
-            result.visibilityAlpha = 1.0;
-        } else {
-            float dotToCamera = dot(projection.worldPosition - globeCenter, toCamera);
-            float normalization = max(length(toCamera) * max(globe.radius, 1e-6), 1e-6);
-            float normalizedDot = dotToCamera / normalization;
-            float normalizedThreshold = globeVisibilityHorizonThreshold(globe) / normalization;
-            float visibilityDelta = normalizedDot - normalizedThreshold;
-            if (visibilityDelta <= -globeHorizonFadeBandWidth) {
-                result.visible = 0;
-                result.visibilityAlpha = 0.0;
-            } else {
-                result.visibilityAlpha = tilePointSmoothstep(-globeHorizonFadeBandWidth,
-                                                             globeHorizonFadeBandWidth,
-                                                             visibilityDelta);
-            }
-        }
+        result.visibilityAlpha = 1.0;
     }
     outputs[gid] = result;
 }

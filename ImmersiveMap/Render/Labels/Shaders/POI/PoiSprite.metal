@@ -34,7 +34,7 @@ vertex VertexOut poiSpriteVertex(LabelVertexIn in [[stage_in]],
     out.uv = in.uv;
     bool isVisible = (screenPoint.visible != 0u) &&
                      (runtimeState.duplicate == 0u);
-    out.alpha = isVisible ? (runtimeState.fadeAlpha * screenPoint.visibilityAlpha) : 0.0;
+    out.alpha = isVisible ? runtimeState.fadeAlpha : 0.0;
     out.spriteUV = in.spriteUV;
     return out;
 }
