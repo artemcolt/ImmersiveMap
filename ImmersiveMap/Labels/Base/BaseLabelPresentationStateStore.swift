@@ -94,6 +94,27 @@ final class BaseLabelPresentationStateStore {
                                                hasActiveAnimations: hasActiveAnimations)
     }
 
+    func currentAlphas(inputs: [BaseLabelPresentationInput],
+                       time: TimeInterval,
+                       fadeInSeconds: TimeInterval,
+                       fadeOutSeconds: TimeInterval) -> [Float] {
+        inputs.map { input in
+            guard input.isValid,
+                  input.duplicate == 0,
+                  let entry = entries[input.labelKey] else {
+                return 0
+            }
+
+            var advanced = entry
+            advance(&advanced,
+                    to: advanced.targetAlpha,
+                    currentTime: time,
+                    fadeInSeconds: fadeInSeconds,
+                    fadeOutSeconds: fadeOutSeconds)
+            return advanced.currentAlpha
+        }
+    }
+
     func reset() {
         entries.removeAll(keepingCapacity: false)
     }
