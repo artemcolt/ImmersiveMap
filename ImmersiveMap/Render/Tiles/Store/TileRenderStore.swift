@@ -40,7 +40,9 @@ final class TileRenderStore {
             addTestBorders: config.tiles.parsing.addTestBorders
         )
         let determineFeatureStyle = DetermineFeatureStyle(mapStyle: mapStyle)
-        let tileParser = TileMvtParser(determineFeatureStyle: determineFeatureStyle, config: config)
+        let tileParser = TileMvtParser(determineFeatureStyle: determineFeatureStyle,
+                                       config: config,
+                                       glyphCoverage: textRenderer.glyphCoverage)
         let textLabelsBuilder = TileTextLabelsBuilder(textRenderer: textRenderer)
         let roadLabelsBuilder = TileRoadLabelsBuilder(textRenderer: textRenderer)
         self.preparedDataBuilder = TilePreparedDataBuilder(tileParser: tileParser,

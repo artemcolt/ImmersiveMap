@@ -22,13 +22,15 @@ class TileMvtParser {
     let tileExtent = Double(4096)
 
     
-    init(determineFeatureStyle: DetermineFeatureStyle, config: ImmersiveMapSettings) {
+    init(determineFeatureStyle: DetermineFeatureStyle,
+         config: ImmersiveMapSettings,
+         glyphCoverage: VectorTileLabelGlyphCoverage) {
         self.determineFeatureStyle = determineFeatureStyle
         self.config = config
         self.labelTextResolver = TileLabelTextResolver(config: config)
         self.labelDecisionEngine = VectorTileLabelDecisionEngine(
             profile: MapboxVectorTileLabelProviderProfile(settings: config),
-            textResolver: VectorTileLabelTextResolver(glyphCoverage: .currentAtlas)
+            textResolver: VectorTileLabelTextResolver(glyphCoverage: glyphCoverage)
         )
     }
     

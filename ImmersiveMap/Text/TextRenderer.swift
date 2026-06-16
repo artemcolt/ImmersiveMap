@@ -182,6 +182,10 @@ class TextRenderer {
     var preparedTileTextRevision: UInt32 {
         Self.preparedTileTextRevisionValue
     }
+
+    var glyphCoverage: VectorTileLabelGlyphCoverage {
+        VectorTileLabelGlyphCoverage(atlasData: atlasData, thinAtlasData: thinAtlasData)
+    }
     
     func collectMultiTextVertices(for entries: [TextEntry]) -> [TextVertex] {
         var allVertices: [TextVertex] = []

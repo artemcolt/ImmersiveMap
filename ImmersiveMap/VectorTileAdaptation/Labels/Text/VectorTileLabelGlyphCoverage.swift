@@ -4,25 +4,30 @@
 import Foundation
 
 struct VectorTileLabelGlyphCoverage {
-    static let currentAtlas = VectorTileLabelGlyphCoverage()
+    static let currentAtlas = VectorTileLabelGlyphCoverage.legacyCurrentAtlas
+    static let allASCIIForTests = VectorTileLabelGlyphCoverage(supportedScalars: Set(UInt32(32)...UInt32(126)))
 
-    private static let latinSet = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
-    private static let cyrillicSet = CharacterSet(charactersIn: UnicodeScalar(0x0400)!...UnicodeScalar(0x04FF)!)
-    private static let digitsSet = CharacterSet(charactersIn: "0123456789")
-    private static let punctuationSet = CharacterSet(charactersIn: "!@#$%^&*()_+-=[]{}|;:'\\\",./<>?")
-    private static let whitespaceAndNewlinesSet = CharacterSet.whitespacesAndNewlines
+    private static let permittedWhitespace: Set<UInt32> = [9, 10, 13, 32]
+    private static let legacyCurrentAtlas = VectorTileLabelGlyphCoverage(
+        supportedScalars: Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:'\\\",./<>?"
+            .unicodeScalars
+            .map(\.value))
+            .union(Set(UInt32(0x0400)...UInt32(0x04FF)))
+            .union(permittedWhitespace)
+    )
+
+    private let supportedScalars: Set<UInt32>
+
+    init(supportedScalars: Set<UInt32>) {
+        self.supportedScalars = supportedScalars
+    }
+
+    init(atlasData: AtlasData, thinAtlasData: AtlasData) {
+        self.supportedScalars = Set((atlasData.glyphs + thinAtlasData.glyphs).map(\.unicode))
+            .union(Self.permittedWhitespace)
+    }
 
     func canRender(_ text: String) -> Bool {
-        for scalar in text.unicodeScalars {
-            if VectorTileLabelGlyphCoverage.latinSet.contains(scalar) ||
-                VectorTileLabelGlyphCoverage.cyrillicSet.contains(scalar) ||
-                VectorTileLabelGlyphCoverage.digitsSet.contains(scalar) ||
-                VectorTileLabelGlyphCoverage.punctuationSet.contains(scalar) ||
-                VectorTileLabelGlyphCoverage.whitespaceAndNewlinesSet.contains(scalar) {
-                continue
-            }
-            return false
-        }
-        return true
+        text.unicodeScalars.allSatisfy { supportedScalars.contains($0.value) }
     }
 }
