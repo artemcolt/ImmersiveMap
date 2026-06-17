@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 import SwiftUI
-import UIKit
 import ImmersiveMap
 
 @main
@@ -24,7 +23,6 @@ struct HostMapScreen: View {
     )
 
     @State private var camera = ImmersiveMapCameraController()
-    @State private var avatars = ImmersiveMapAvatarsController()
     @State private var liveCameraPosition = HostMapScreen.initialCameraPosition
     @State private var liveCameraSnapshot: ImmersiveMapCameraSnapshot?
 
@@ -32,7 +30,6 @@ struct HostMapScreen: View {
         ZStack {
             ImmersiveMapView(
                 settings: mapSettings,
-                avatarsController: avatars,
                 cameraPosition: liveCameraPosition,
                 cameraController: camera
             )
@@ -64,9 +61,6 @@ struct HostMapScreen: View {
         .onDisappear {
             camera.onCameraSnapshotChanged = nil
         }
-        .task {
-            await seedPreviewMarkers()
-        }
     }
 
     private var fallbackCameraSnapshot: ImmersiveMapCameraSnapshot {
@@ -81,6 +75,7 @@ struct HostMapScreen: View {
     private var mapSettings: ImmersiveMapSettings {
         var settings = ImmersiveMapSettings.default
         let environment = ProcessInfo.processInfo.environment
+        settings.labels.language = .english
         if let mapboxAccessToken = environment["IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"], mapboxAccessToken.isEmpty == false {
             let tilesetID = Self.resolvedMapboxTilesetID(environment["IMMERSIVE_MAP_MAPBOX_TILESET_ID"])
             settings.tiles.network.tileBaseURL = URL(string: "https://api.mapbox.com/v4/\(tilesetID)")!
@@ -103,7 +98,6 @@ struct HostMapScreen: View {
         settings.debug.enableDebugPanel = Self.environmentFlag("IMMERSIVE_MAP_DEBUG_PANEL",
                                                                environment: environment,
                                                                defaultValue: true)
-        settings.labels.language = .french
         return settings
     }
 
@@ -142,39 +136,6 @@ struct HostMapScreen: View {
             return defaultTilesetID
         }
         return configuredTilesetID == legacyDefaultTilesetID ? defaultTilesetID : configuredTilesetID
-    }
-
-    @MainActor
-    private func seedPreviewMarkers() async {
-        avatars.set([
-            AvatarMarker(
-                id: 1,
-                coordinate: GeoCoordinate(latitude: 55.7558, longitude: 37.6173),
-                image: Self.markerImage(fill: UIColor(red: 0.16, green: 0.64, blue: 0.98, alpha: 1)),
-                batteryBadge: AvatarBatteryBadge(levelPct: 82),
-                speedBadge: AvatarSpeedBadge(kilometersPerHour: 5),
-                isSelected: true
-            ),
-            AvatarMarker(
-                id: 2,
-                coordinate: GeoCoordinate(latitude: 55.7512, longitude: 37.6297),
-                image: Self.markerImage(fill: UIColor(red: 0.96, green: 0.35, blue: 0.31, alpha: 1)),
-                batteryBadge: AvatarBatteryBadge(levelPct: 54),
-                speedBadge: AvatarSpeedBadge(kilometersPerHour: 18)
-            )
-        ])
-    }
-
-    private static func markerImage(fill: UIColor) -> UIImage {
-        let size = CGSize(width: 128, height: 128)
-        return UIGraphicsImageRenderer(size: size).image { context in
-            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 10, dy: 10)
-            fill.setFill()
-            context.cgContext.fillEllipse(in: rect)
-            UIColor.white.withAlphaComponent(0.92).setStroke()
-            context.cgContext.setLineWidth(8)
-            context.cgContext.strokeEllipse(in: rect)
-        }
     }
 }
 
