@@ -88,6 +88,40 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         XCTAssertEqual(plan.downgradedAllocationCount, 0)
     }
 
+    func testPlannerKeepsAllocationStableAcrossSmallPriorityMetricJitter() throws {
+        let planner = GlobeAtlasPlacementPlanner(pageSizePx: 4096)
+        let firstFrameCandidates = try [
+            makeCandidate(index: 0,
+                          source: Tile(x: 4, y: 2, z: 5),
+                          target: Tile(x: 4, y: 2, z: 5),
+                          screenDemandPx: 300.1,
+                          distanceToCamera: 0.11),
+            makeCandidate(index: 1,
+                          source: Tile(x: 5, y: 2, z: 5),
+                          target: Tile(x: 5, y: 2, z: 5),
+                          screenDemandPx: 310.2,
+                          distanceToCamera: 0.13)
+        ]
+        let nextFrameCandidates = try [
+            makeCandidate(index: 0,
+                          source: Tile(x: 4, y: 2, z: 5),
+                          target: Tile(x: 4, y: 2, z: 5),
+                          screenDemandPx: 310.3,
+                          distanceToCamera: 0.12),
+            makeCandidate(index: 1,
+                          source: Tile(x: 5, y: 2, z: 5),
+                          target: Tile(x: 5, y: 2, z: 5),
+                          screenDemandPx: 300.4,
+                          distanceToCamera: 0.14)
+        ]
+
+        let firstPlan = planner.plan(candidates: firstFrameCandidates)
+        let nextPlan = planner.plan(candidates: nextFrameCandidates)
+
+        XCTAssertEqual(stableAllocationLayout(firstPlan),
+                       stableAllocationLayout(nextPlan))
+    }
+
     func testFallbackWithLargeFootprintGetsHighResolutionBeforeSmallExactTile() throws {
         let fallback = try makeCandidate(index: 0,
                                          source: Tile(x: 4, y: 2, z: 3),
@@ -344,6 +378,23 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
         XCTAssertFalse(summary.pages[0].allocations[1].isFallback)
     }
 
+    func testGlobeAtlasDebugSummaryKeepsAllocationLodKind() throws {
+        let coarse = try makeCandidate(index: 0,
+                                       source: Tile(x: 4, y: 2, z: 5),
+                                       target: Tile(x: 4, y: 2, z: 5),
+                                       screenDemandPx: 300,
+                                       distanceToCamera: 0,
+                                       lodKind: .coarseSubstitute)
+
+        let plan = GlobeAtlasPlacementPlanner(pageSizePx: 4096)
+            .plan(candidates: [coarse])
+
+        let summary = GlobeAtlasDebugSummary(plan: plan)
+
+        XCTAssertEqual(summary.pages[0].allocations[0].lodKind, .coarseSubstitute)
+        XCTAssertTrue(summary.pages[0].allocations[0].isFallback)
+    }
+
     func testTextureTreeRejectsParentSlotAfterChildSlotAllocated() {
         let tree = GlobeTileTextureTree()
 
@@ -479,17 +530,46 @@ final class GlobeAtlasPlacementPlannerTests: XCTestCase {
                                source: Tile,
                                target: Tile,
                                screenDemandPx: Float,
-                               distanceToCamera: Float) throws -> GlobeAtlasCandidate {
+                               distanceToCamera: Float,
+                               lodKind: TileLodKind? = nil) throws -> GlobeAtlasCandidate {
         let metalTile = MetalTile(tile: source, tileBuffers: try makeTileBuffers())
         let placeTile = PlaceTile(metalTile: metalTile,
                                   placeIn: VisibleTile(tile: target),
-                                  lodKind: source == target ? .exact : .retainedReplacement)
+                                  lodKind: lodKind ?? (source == target ? .exact : .retainedReplacement))
         return GlobeAtlasCandidate(placementIndex: index,
                                    placeTile: placeTile,
                                    screenDemandPx: screenDemandPx,
                                    distanceToCamera: distanceToCamera,
                                    desiredDepth: GlobeAtlasSlotDepth.desired(forScreenDemandPx: screenDemandPx,
                                                                              pageSizePx: 4096))
+    }
+
+    private func stableAllocationLayout(_ plan: GlobeAtlasPlan) -> [AllocationLayout] {
+        plan.allocations
+            .map {
+                AllocationLayout(target: $0.placeTile.placeIn.tile,
+                                 source: $0.placeTile.metalTile.tile,
+                                 pageIndex: $0.pageIndex,
+                                 position: $0.placedPosition,
+                                 atlasDepth: $0.atlasDepth)
+            }
+            .sorted {
+                if $0.target.z != $1.target.z {
+                    return $0.target.z < $1.target.z
+                }
+                if $0.target.x != $1.target.x {
+                    return $0.target.x < $1.target.x
+                }
+                return $0.target.y < $1.target.y
+            }
+    }
+
+    private struct AllocationLayout: Equatable {
+        let target: Tile
+        let source: Tile
+        let pageIndex: Int
+        let position: PlacedPos
+        let atlasDepth: GlobeAtlasSlotDepth
     }
 
     private func makeTileBuffers() throws -> TileBuffers {

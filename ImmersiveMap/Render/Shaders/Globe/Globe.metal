@@ -269,8 +269,7 @@ fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
     float delta = in.halfTexel;
     if (v > v_max + delta || v < v_min - delta ||
         u > u_max + delta || u < u_min - delta) {
-        return float4(1.0, 0, 0, 1.0);
-        //discard_fragment();
+        discard_fragment();
     }
     
     // Inset clamp for sampling to prevent bleed from adjacent tiles

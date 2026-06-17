@@ -6,8 +6,8 @@ import MetalKit
 
 // Бизнес-назначение:
 // Оркестратор загрузки тайлов для текущего кадра карты.
-// Принимает актуальный набор нужных тайлов, отменяет устаревшие in-flight задачи,
-// ограничивает параллелизм, ставит отложенные запросы в deduplicated FIFO и запускает
+// Принимает актуальный набор нужных тайлов, ограничивает параллелизм,
+// ставит отложенные запросы в deduplicated FIFO и запускает
 // загрузку/парс через `TileLoadPipeline`.
 // Решения о том, когда запрос тайла временно блокируется после ошибок, делегируются
 // в `TileRetryController` (per-tile backoff + глобальный cooldown).
@@ -43,11 +43,14 @@ class ImmersiveMapNeedsTile {
         self.retryController = TileRetryController(policy: retryPolicy, now: now)
     }
     
-    // Обновляет актуальный набор тайлов для кадра: отменяет stale-задачи, очищает pending-очередь
+    // Обновляет актуальный набор тайлов для кадра: очищает pending-очередь
     // и заново планирует загрузку нужных тайлов в приоритетном порядке.
+    // Уже начатые загрузки не отменяются при кратком выпадении из demand:
+    // результат всё равно попадет в кэш и не даст пограничным тайлам
+    // зациклиться в состоянии loading/fallback.
     func request(tiles: [Tile]) {
         // Дедупликация с сохранением исходного порядка `tiles`: порядок важен для приоритета загрузки.
-        // Отдельный `wanted` как Set нужен для O(1) проверок актуальности тайла (contains) и отмены stale-задач.
+        // Отдельный `wanted` как Set нужен для O(1) проверок актуальности тайла.
         var deduplicatedTiles: [Tile] = []
         deduplicatedTiles.reserveCapacity(tiles.count)
         var seenTiles: Set<Tile> = []
@@ -60,12 +63,6 @@ class ImmersiveMapNeedsTile {
 
         stateQueue.sync {
             wantedTiles = wanted
-
-            let staleTiles = ongoingTasks.keys.filter { wantedTiles.contains($0) == false }
-            for tile in staleTiles {
-                ongoingTasks[tile]?.cancel()
-                ongoingTasks.removeValue(forKey: tile)
-            }
 
             pendingTilesQueue.clear()
             retryController.retainOnly(tiles: wantedTiles)

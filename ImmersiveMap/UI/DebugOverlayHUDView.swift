@@ -383,15 +383,25 @@ final class DebugOverlayHUDView: UIView {
             .joined(separator: " ")
         let previewLines = pages.flatMap { page in
             page.allocations.prefix(4).map { allocation in
-                let fallback = allocation.isFallback ? " fallback" : ""
                 return "p\(page.pageIndex) d\(allocation.atlasDepth.rawValue) " +
                     "src z\(allocation.sourceTile.z)/\(allocation.sourceTile.x)/\(allocation.sourceTile.y) " +
                     "dst z\(allocation.targetTile.z)/\(allocation.targetTile.x)/\(allocation.targetTile.y)" +
-                    fallback
+                    Self.allocationStateSuffix(allocation)
             }
         }
         return (["atlas pages:\(pages.count) alloc:\(allocationCount) \(pageSummary)"] + previewLines)
             .joined(separator: "\n")
+    }
+
+    private static func allocationStateSuffix(_ allocation: GlobeAtlasDebugAllocation) -> String {
+        switch allocation.lodKind {
+        case .exact:
+            return allocation.sourceTile == allocation.targetTile ? "" : " retained"
+        case .coarseSubstitute:
+            return " coarse"
+        case .retainedReplacement:
+            return " retained"
+        }
     }
 
     @objc private func toggleCollapsed() {

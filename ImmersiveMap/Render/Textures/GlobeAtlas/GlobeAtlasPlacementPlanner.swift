@@ -178,28 +178,20 @@ struct GlobeAtlasPlacementPlanner {
         if lhsDepth != rhsDepth {
             return lhsDepth < rhsDepth
         }
-        if lhs.isFallback != rhs.isFallback {
-            return lhs.isFallback
-        }
-        if lhs.screenDemandPx != rhs.screenDemandPx {
-            return lhs.screenDemandPx > rhs.screenDemandPx
-        }
-        if lhs.distanceToCamera != rhs.distanceToCamera {
-            return lhs.distanceToCamera < rhs.distanceToCamera
+        let lhsPriority = AtlasPriorityKey(candidate: lhs)
+        let rhsPriority = AtlasPriorityKey(candidate: rhs)
+        if lhsPriority != rhsPriority {
+            return lhsPriority < rhsPriority
         }
         return lhs.placementIndex < rhs.placementIndex
     }
 
     private func shouldUpgradeBefore(_ lhs: GlobeAtlasCandidate,
                                      _ rhs: GlobeAtlasCandidate) -> Bool {
-        if lhs.isFallback != rhs.isFallback {
-            return lhs.isFallback
-        }
-        if lhs.screenDemandPx != rhs.screenDemandPx {
-            return lhs.screenDemandPx > rhs.screenDemandPx
-        }
-        if lhs.distanceToCamera != rhs.distanceToCamera {
-            return lhs.distanceToCamera < rhs.distanceToCamera
+        let lhsPriority = AtlasPriorityKey(candidate: lhs)
+        let rhsPriority = AtlasPriorityKey(candidate: rhs)
+        if lhsPriority != rhsPriority {
+            return lhsPriority < rhsPriority
         }
         return lhs.placementIndex < rhs.placementIndex
     }
@@ -447,6 +439,84 @@ struct GlobeAtlasPlacementPlanner {
 private struct ScreenFootprint {
     let bounds: CGRect
     let minimumDepth: Float
+}
+
+private struct AtlasPriorityKey: Comparable, Equatable {
+    private static let screenDemandBucketPx: Float = 64
+    private static let distanceBucket: Float = 0.05
+
+    let replacementRank: Int
+    let screenDemandBucket: Int
+    let distanceBucket: Int
+    let sourceTile: Tile
+    let targetTile: Tile
+    let lodKind: TileLodKind
+
+    init(candidate: GlobeAtlasCandidate) {
+        let placeTile = candidate.placeTile
+        replacementRank = Self.replacementRank(for: placeTile)
+        screenDemandBucket = Self.bucket(candidate.screenDemandPx,
+                                         bucketSize: Self.screenDemandBucketPx)
+        distanceBucket = Self.bucket(candidate.distanceToCamera,
+                                     bucketSize: Self.distanceBucket)
+        sourceTile = placeTile.metalTile.tile
+        targetTile = placeTile.placeIn.tile
+        lodKind = placeTile.lodKind
+    }
+
+    static func < (lhs: AtlasPriorityKey, rhs: AtlasPriorityKey) -> Bool {
+        if lhs.replacementRank != rhs.replacementRank {
+            return lhs.replacementRank < rhs.replacementRank
+        }
+        if lhs.screenDemandBucket != rhs.screenDemandBucket {
+            return lhs.screenDemandBucket > rhs.screenDemandBucket
+        }
+        if lhs.distanceBucket != rhs.distanceBucket {
+            return lhs.distanceBucket < rhs.distanceBucket
+        }
+        if lhs.sourceTile.z != rhs.sourceTile.z {
+            return lhs.sourceTile.z < rhs.sourceTile.z
+        }
+        if lhs.sourceTile.x != rhs.sourceTile.x {
+            return lhs.sourceTile.x < rhs.sourceTile.x
+        }
+        if lhs.sourceTile.y != rhs.sourceTile.y {
+            return lhs.sourceTile.y < rhs.sourceTile.y
+        }
+        if lhs.targetTile.z != rhs.targetTile.z {
+            return lhs.targetTile.z < rhs.targetTile.z
+        }
+        if lhs.targetTile.x != rhs.targetTile.x {
+            return lhs.targetTile.x < rhs.targetTile.x
+        }
+        if lhs.targetTile.y != rhs.targetTile.y {
+            return lhs.targetTile.y < rhs.targetTile.y
+        }
+        return lhs.lodKind.rawValue < rhs.lodKind.rawValue
+    }
+
+    private static func replacementRank(for placeTile: PlaceTile) -> Int {
+        if placeTile.lodKind == .retainedReplacement || placeTile.metalTile.tile != placeTile.placeIn.tile {
+            return 0
+        }
+        if placeTile.lodKind == .coarseSubstitute {
+            return 1
+        }
+        return 2
+    }
+
+    private static func bucket(_ value: Float,
+                               bucketSize: Float) -> Int {
+        guard value.isFinite else { return 0 }
+        let normalized = value / bucketSize
+        if normalized >= Float(Int.max) {
+            return Int.max
+        }
+        if normalized <= Float(Int.min) {
+            return Int.min
+        }
+        return Int(normalized.rounded(.down))
+    }
 }
 
 private struct GlobeAtlasProjectionResult {

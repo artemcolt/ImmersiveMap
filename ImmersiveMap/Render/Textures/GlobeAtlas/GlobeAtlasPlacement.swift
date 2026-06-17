@@ -95,6 +95,7 @@ struct GlobeAtlasDebugAllocation: Equatable {
     let sourceTile: Tile
     let targetTile: Tile
     let screenDemandPx: Float
+    let lodKind: TileLodKind
     let isFallback: Bool
 
     init(pageIndex: Int,
@@ -106,6 +107,7 @@ struct GlobeAtlasDebugAllocation: Equatable {
          sourceTile: Tile,
          targetTile: Tile,
          screenDemandPx: Float,
+         lodKind: TileLodKind = .exact,
          isFallback: Bool) {
         self.pageIndex = pageIndex
         self.slotColumn = slotColumn
@@ -116,6 +118,7 @@ struct GlobeAtlasDebugAllocation: Equatable {
         self.sourceTile = sourceTile
         self.targetTile = targetTile
         self.screenDemandPx = screenDemandPx
+        self.lodKind = lodKind
         self.isFallback = isFallback
     }
 
@@ -130,6 +133,7 @@ struct GlobeAtlasDebugAllocation: Equatable {
         sourceTile = candidate.placeTile.metalTile.tile
         targetTile = candidate.placeTile.placeIn.tile
         screenDemandPx = candidate.screenDemandPx
+        lodKind = candidate.placeTile.lodKind
         isFallback = candidate.isFallback
     }
 }
