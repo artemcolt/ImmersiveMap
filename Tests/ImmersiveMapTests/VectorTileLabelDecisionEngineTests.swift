@@ -5,7 +5,7 @@
 import XCTest
 
 final class VectorTileLabelDecisionEngineTests: XCTestCase {
-    func testRussianPreferencesPreferRussianThenNativeThenEnglish() {
+    func testRussianPreferencesPreferRussianThenEnglishThenNative() {
         let properties: [String: VectorTile_Tile.Value] = [
             "name": stringValue("Москва"),
             "name_en": stringValue("Moscow"),
@@ -15,30 +15,44 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .russian)
 
         XCTAssertEqual(preferences.selectedLanguage, .russian)
-        XCTAssertEqual(preferences.fallbackChain.map(\.fieldName), ["name_ru", "name", "name_en"])
+        XCTAssertEqual(preferences.fallbackPolicy, .international)
+        XCTAssertEqual(preferences.fallbackChain.map(\.fieldName), ["name_ru", "name_en", "name"])
         XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Москва")
     }
 
-    func testRussianPreferencesFallBackToNativeCyrillicWhenRussianNameIsAbsent() {
+    func testFrenchPreferencesFallBackToEnglishBeforeNativeWhenPreferredNameIsAbsent() {
         let properties: [String: VectorTile_Tile.Value] = [
             "name": stringValue("Москва"),
             "name_en": stringValue("Moscow")
         ]
         let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
-        let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .russian)
+        let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .french)
 
+        XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Moscow")
+    }
+
+    func testLocalFirstPolicyFallsBackToNativeBeforeEnglishWhenPreferredNameIsAbsent() {
+        let properties: [String: VectorTile_Tile.Value] = [
+            "name": stringValue("Москва"),
+            "name_en": stringValue("Moscow")
+        ]
+        let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
+        let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .french,
+                                                                  fallbackPolicy: .localFirst)
+
+        XCTAssertEqual(preferences.fallbackPolicy, .localFirst)
+        XCTAssertEqual(preferences.fallbackChain.map(\.fieldName), ["name_fr", "name", "name_en"])
         XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Москва")
     }
 
-    func testRussianPreferencesFallBackToEnglishWhenNativeNameIsNotRussianCompatible() {
+    func testRussianPreferencesFallBackToNativeCyrillicWhenRussianAndEnglishNamesAreAbsent() {
         let properties: [String: VectorTile_Tile.Value] = [
-            "name": stringValue("Moscow"),
-            "name_en": stringValue("Moscow")
+            "name": stringValue("Москва")
         ]
         let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .russian)
 
-        XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Moscow")
+        XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Москва")
     }
 
     func testEnglishPreferencesPreferEnglishThenNative() {
@@ -64,7 +78,7 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         let resolver = VectorTileLabelTextResolver(glyphCoverage: .legacyAtlasForTests)
         let preferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: .french)
 
-        XCTAssertEqual(preferences.fallbackChain.map(\.fieldName), ["name_fr", "name", "name_en"])
+        XCTAssertEqual(preferences.fallbackChain.map(\.fieldName), ["name_fr", "name_en", "name"])
         XCTAssertEqual(resolver.resolveText(properties: properties, preferences: preferences), "Paris FR")
     }
 

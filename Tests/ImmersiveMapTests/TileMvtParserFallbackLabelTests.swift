@@ -94,7 +94,8 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
                                                   tile: Tile(x: 0, y: 0, z: 0),
                                                   mvtData: try makeProviderAtlanticOceanTile(name: "Oceano Atlântico",
                                                                                             englishName: "Atlantic Ocean").serializedData(),
-                                                  glyphCoverage: Self.bundledGlyphCoverage())
+                                                  glyphCoverage: Self.bundledGlyphCoverage(),
+                                                  fallbackPolicy: .localFirst)
 
         XCTAssertEqual(labels.filter { $0 == "Oceano Atlântico" }.count, 1)
         XCTAssertFalse(labels.contains("Atlantic Ocean"))
@@ -104,10 +105,12 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         language: ImmersiveMapSettings.LabelLanguage,
         tile: Tile = Tile(x: 0, y: 0, z: 0),
         mvtData: Data? = nil,
-        glyphCoverage: VectorTileLabelGlyphCoverage = .legacyAtlasForTests
+        glyphCoverage: VectorTileLabelGlyphCoverage = .legacyAtlasForTests,
+        fallbackPolicy: ImmersiveMapSettings.LabelFallbackPolicy = .international
     ) throws -> [String] {
         var config = ImmersiveMapSettings.default
         config.labels.language = language
+        config.labels.fallbackPolicy = fallbackPolicy
 
         let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: FallbackWaterLabelStyle()),
                                    config: config,

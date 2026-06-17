@@ -84,6 +84,7 @@ The host apps read optional launch environment variables:
 IMMERSIVE_MAP_TILE_BASE_URL=https://example.com/api/v1/map/tiles
 IMMERSIVE_MAP_AUTH_TOKEN=your-token
 IMMERSIVE_MAP_LABEL_LANGUAGE=ru
+IMMERSIVE_MAP_LABEL_FALLBACK_POLICY=international
 ```
 
 Do not commit bearer tokens. Use Xcode scheme environment variables, or launch the installed simulator app with `SIMCTL_CHILD_IMMERSIVE_MAP_AUTH_TOKEN` when you need to test a protected tile server.
@@ -97,7 +98,7 @@ IMMERSIVE_MAP_MAPBOX_TILESET_ID=mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v
 
 When `IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN` is present, the host apps request tiles from `https://api.mapbox.com/v4/{tileset_id}/{z}/{x}/{y}.mvt?access_token=...`. The default Mapbox tileset ID is `mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2`.
 
-Set `IMMERSIVE_MAP_LABEL_LANGUAGE` to a preferred label language code such as `en`, `ru`, or `pt-BR` when you need to test localized vector tile labels.
+Set `IMMERSIVE_MAP_LABEL_LANGUAGE` to a preferred label language code such as `en`, `ru`, or `pt-BR` when you need to test localized vector tile labels. Set `IMMERSIVE_MAP_LABEL_FALLBACK_POLICY` to `international` for `name_<language> -> name_en -> name`, or `localFirst` for `name_<language> -> name -> name_en`.
 
 ## SwiftUI Quick Start
 
@@ -253,6 +254,8 @@ var settings = MapSettings.default
 settings.tiles.network.tileBaseURL = URL(string: "https://example.com/api/v1/map/tiles")!
 settings.tiles.network.authorizationToken = "your-token"
 settings.tiles.network.maxConcurrentFetches = 6
+settings.labels.language = .french
+settings.labels.fallbackPolicy = .international
 
 // Mapbox-style query token auth:
 settings.tiles.network.tileBaseURL = URL(string: "https://api.mapbox.com/v4/mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2")!

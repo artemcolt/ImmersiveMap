@@ -14,7 +14,10 @@ struct MapboxVectorTileLabelProviderProfile: VectorTileLabelProviderProfile {
 
     init(settings: ImmersiveMapSettings) {
         self.settings = settings
-        languagePreferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: settings.labels.language)
+        languagePreferences = VectorTileLabelLanguagePreferences.from(
+            settingsLanguage: settings.labels.language,
+            fallbackPolicy: settings.labels.fallbackPolicy
+        )
     }
 
     func sortKey(properties: [String: VectorTile_Tile.Value]) -> Int {

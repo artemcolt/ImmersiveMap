@@ -41,6 +41,11 @@ public struct ImmersiveMapSettings: Equatable {
         public static let turkish = LabelLanguage("tr")
     }
 
+    public enum LabelFallbackPolicy: String, Codable, Sendable {
+        case international
+        case localFirst
+    }
+
     public struct RenderLoopSettings: Equatable {
         public var forceContinuousRendering: Bool
         public var interactionFramesPerSecond: Int
@@ -332,6 +337,7 @@ public struct ImmersiveMapSettings: Equatable {
         }
 
         public var language: LabelLanguage
+        public var fallbackPolicy: LabelFallbackPolicy
         public var houseNumbers: HouseNumberSettings
         public var settlementVisibility: SettlementVisibilitySettings
         public var landmarks: LandmarkSettings
@@ -339,12 +345,14 @@ public struct ImmersiveMapSettings: Equatable {
         public var road: RoadSettings
 
         public init(language: LabelLanguage,
+                    fallbackPolicy: LabelFallbackPolicy = .international,
                     houseNumbers: HouseNumberSettings,
                     settlementVisibility: SettlementVisibilitySettings = SettlementVisibilitySettings(),
                     landmarks: LandmarkSettings = LandmarkSettings(),
                     base: BaseSettings,
                     road: RoadSettings) {
             self.language = language
+            self.fallbackPolicy = fallbackPolicy
             self.houseNumbers = houseNumbers
             self.settlementVisibility = settlementVisibility
             self.landmarks = landmarks
@@ -722,6 +730,7 @@ public struct ImmersiveMapSettings: Equatable {
                                                               memoryCacheSizeInBytes: 512 * 1024 * 1024),
                             parsing: TileSettings.ParsingSettings(addTestBorders: false)),
         labels: LabelSettings(language: .russian,
+                              fallbackPolicy: .international,
                               houseNumbers: LabelSettings.HouseNumberSettings(enabled: true,
                                                                               minimumZoom: 15),
                               settlementVisibility: LabelSettings.SettlementVisibilitySettings(capitalMaximumZoom: 12,

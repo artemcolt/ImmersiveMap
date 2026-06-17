@@ -31,7 +31,10 @@ class TileMvtParser {
         self.config = config
         self.glyphCoverage = glyphCoverage
         self.labelTextResolver = VectorTileLabelTextResolver(glyphCoverage: glyphCoverage)
-        self.labelLanguagePreferences = VectorTileLabelLanguagePreferences.from(settingsLanguage: config.labels.language)
+        self.labelLanguagePreferences = VectorTileLabelLanguagePreferences.from(
+            settingsLanguage: config.labels.language,
+            fallbackPolicy: config.labels.fallbackPolicy
+        )
         self.labelDecisionEngine = VectorTileLabelDecisionEngine(
             profile: MapboxVectorTileLabelProviderProfile(settings: config),
             textResolver: labelTextResolver

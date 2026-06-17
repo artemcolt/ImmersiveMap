@@ -31,6 +31,7 @@ final class TileRenderStore {
             flatSeparateRoadRenderingMinimumZoom: UInt32(max(0, config.style.flatSeparateRoadRenderingMinimumZoom)),
             textRevision: textRenderer.preparedTileTextRevision,
             labelLanguage: config.labels.language,
+            labelFallbackPolicy: config.labels.fallbackPolicy,
             houseNumbersEnabled: config.labels.houseNumbers.enabled,
             houseNumbersMinimumZoom: UInt32(max(0, config.labels.houseNumbers.minimumZoom)),
             capitalMaximumZoom: UInt32(max(0, config.labels.settlementVisibility.capitalMaximumZoom)),

@@ -21,6 +21,7 @@ enum PreparedTileDiskCodec {
         let tileY: Int32
         let tileZ: Int32
         let labelLanguage: LabelLanguageValue
+        let labelFallbackPolicy: ImmersiveMapSettings.LabelFallbackPolicy
         let houseNumbersEnabled: Bool
         let houseNumbersMinimumZoom: UInt32
         let addTestBorders: Bool
@@ -411,6 +412,7 @@ enum PreparedTileDiskCodec {
             tileY: encodeInt32(preparedTile.tile.y, field: "Tile.y"),
             tileZ: encodeInt32(preparedTile.tile.z, field: "Tile.z"),
             labelLanguage: LabelLanguageValue(cacheIdentity.labelLanguage),
+            labelFallbackPolicy: cacheIdentity.labelFallbackPolicy,
             houseNumbersEnabled: cacheIdentity.houseNumbersEnabled,
             houseNumbersMinimumZoom: cacheIdentity.houseNumbersMinimumZoom,
             addTestBorders: cacheIdentity.addTestBorders,
@@ -478,6 +480,7 @@ enum PreparedTileDiskCodec {
               entry.tileY == Int32(expectedTile.y),
               entry.tileZ == Int32(expectedTile.z),
               entry.labelLanguage.runtimeValue == cacheIdentity.labelLanguage,
+              entry.labelFallbackPolicy == cacheIdentity.labelFallbackPolicy,
               entry.houseNumbersEnabled == cacheIdentity.houseNumbersEnabled,
               entry.houseNumbersMinimumZoom == cacheIdentity.houseNumbersMinimumZoom,
               entry.addTestBorders == cacheIdentity.addTestBorders else {

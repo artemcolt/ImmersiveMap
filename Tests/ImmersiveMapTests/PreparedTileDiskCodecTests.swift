@@ -53,7 +53,25 @@ final class PreparedTileDiskCodecTests: XCTestCase {
         }
     }
 
+    func testPreparedTileCodecRejectsMismatchedLabelFallbackPolicyMetadata() throws {
+        let tile = Tile(x: 1, y: 2, z: 3)
+        let data = try PreparedTileDiskCodec.encode(
+            preparedTile: makePreparedTile(tile: tile),
+            cacheIdentity: makeCacheIdentity(labelLanguage: .portuguese, fallbackPolicy: .international)
+        )
+
+        XCTAssertThrowsError(
+            try PreparedTileDiskCodec.decode(data: data,
+                                             expectedTile: tile,
+                                             cacheIdentity: makeCacheIdentity(labelLanguage: .portuguese,
+                                                                              fallbackPolicy: .localFirst))
+        ) { error in
+            XCTAssertTrue(error is PreparedTileDiskCodecError)
+        }
+    }
+
     private func makeCacheIdentity(labelLanguage: ImmersiveMapSettings.LabelLanguage,
+                                   fallbackPolicy: ImmersiveMapSettings.LabelFallbackPolicy = .international,
                                    textRevision: UInt32 = 4) -> PreparedTileCacheIdentity {
         PreparedTileCacheIdentity(preparedFormatVersion: PreparedTileDiskCaching.preparedFormatVersion,
                                   styleRevision: 1,
@@ -61,6 +79,7 @@ final class PreparedTileDiskCodecTests: XCTestCase {
                                   flatSeparateRoadRenderingMinimumZoom: 3,
                                   textRevision: textRevision,
                                   labelLanguage: labelLanguage,
+                                  labelFallbackPolicy: fallbackPolicy,
                                   houseNumbersEnabled: true,
                                   houseNumbersMinimumZoom: 15,
                                   capitalMaximumZoom: 12,

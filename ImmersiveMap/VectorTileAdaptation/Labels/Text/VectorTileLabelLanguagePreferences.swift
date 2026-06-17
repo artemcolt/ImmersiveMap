@@ -15,8 +15,12 @@ struct VectorTileLabelLanguagePreferences: Equatable {
 
     let fallbackChain: [Candidate]
     let selectedLanguage: ImmersiveMapSettings.LabelLanguage
+    let fallbackPolicy: ImmersiveMapSettings.LabelFallbackPolicy
 
-    static func from(settingsLanguage: ImmersiveMapSettings.LabelLanguage) -> VectorTileLabelLanguagePreferences {
+    static func from(
+        settingsLanguage: ImmersiveMapSettings.LabelLanguage,
+        fallbackPolicy: ImmersiveMapSettings.LabelFallbackPolicy = .international
+    ) -> VectorTileLabelLanguagePreferences {
         let preferredFieldName = "name_\(settingsLanguage.providerFieldSuffix)"
         var fallbackChain: [Candidate] = []
 
@@ -25,11 +29,18 @@ struct VectorTileLabelLanguagePreferences: Equatable {
             fallbackChain.append(Candidate(fieldName: "name", kind: .native))
         } else {
             fallbackChain.append(Candidate(fieldName: preferredFieldName, kind: .preferred))
-            fallbackChain.append(Candidate(fieldName: "name", kind: .native))
-            fallbackChain.append(Candidate(fieldName: "name_en", kind: .english))
+            switch fallbackPolicy {
+            case .international:
+                fallbackChain.append(Candidate(fieldName: "name_en", kind: .english))
+                fallbackChain.append(Candidate(fieldName: "name", kind: .native))
+            case .localFirst:
+                fallbackChain.append(Candidate(fieldName: "name", kind: .native))
+                fallbackChain.append(Candidate(fieldName: "name_en", kind: .english))
+            }
         }
 
         return VectorTileLabelLanguagePreferences(fallbackChain: fallbackChain,
-                                                  selectedLanguage: settingsLanguage)
+                                                  selectedLanguage: settingsLanguage,
+                                                  fallbackPolicy: fallbackPolicy)
     }
 }

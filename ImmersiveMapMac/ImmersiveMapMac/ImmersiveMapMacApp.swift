@@ -96,11 +96,33 @@ struct HostMapScreen: View {
            labelLanguage.isEmpty == false {
             settings.labels.language = ImmersiveMapSettings.LabelLanguage(labelLanguage)
         }
+        if let fallbackPolicy = Self.resolvedLabelFallbackPolicy(environment["IMMERSIVE_MAP_LABEL_FALLBACK_POLICY"]) {
+            settings.labels.fallbackPolicy = fallbackPolicy
+        }
         settings.renderLoop.forceContinuousRendering = false
         settings.debug.enableDebugPanel = Self.environmentFlag("IMMERSIVE_MAP_DEBUG_PANEL",
                                                                environment: environment,
                                                                defaultValue: true)
         return settings
+    }
+
+    private static func resolvedLabelFallbackPolicy(_ configuredPolicy: String?) -> ImmersiveMapSettings.LabelFallbackPolicy? {
+        guard let normalized = configuredPolicy?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "_", with: "-")
+            .lowercased(),
+            normalized.isEmpty == false else {
+            return nil
+        }
+
+        switch normalized {
+        case "international":
+            return .international
+        case "localfirst", "local-first", "local":
+            return .localFirst
+        default:
+            return nil
+        }
     }
 
     private static func environmentFlag(_ key: String,

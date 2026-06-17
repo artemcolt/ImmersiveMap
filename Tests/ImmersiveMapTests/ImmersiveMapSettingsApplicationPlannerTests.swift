@@ -52,4 +52,16 @@ final class ImmersiveMapSettingsApplicationPlannerTests: XCTestCase {
         XCTAssertEqual(plan.actions, [.liveApply])
         XCTAssertFalse(plan.requiresRendererRecreation)
     }
+
+    func testLabelFallbackPolicyChangeRebuildsPreparedData() {
+        let oldSettings = ImmersiveMapSettings.default
+        var newSettings = oldSettings
+        newSettings.labels.fallbackPolicy = .localFirst
+
+        let plan = ImmersiveMapSettingsApplicationPlanner.makePlan(from: oldSettings, to: newSettings)
+
+        XCTAssertEqual(plan.changedDomains, [.labels])
+        XCTAssertEqual(plan.actions, [.invalidateCaches, .rebuildPreparedData, .recreateRenderer])
+        XCTAssertTrue(plan.requiresRendererRecreation)
+    }
 }
