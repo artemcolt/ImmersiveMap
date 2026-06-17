@@ -31,12 +31,22 @@ final class DebugOverlayRendererTests: XCTestCase {
         XCTAssertTrue(RenderDebugOverlayPolicy.shouldEncode(settings, controls: controls.snapshot()))
     }
 
+    func testWireframeDebugDoesNotRequireMetalDebugPass() {
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        let controls = DebugOverlayControlState()
+        controls.setWireframeEnabled(true)
+
+        XCTAssertFalse(RenderDebugOverlayPolicy.shouldEncode(settings, controls: controls.snapshot()))
+    }
+
     func testDebugControlsDoNotEncodeWhenPanelIsDisabled() {
         var settings = ImmersiveMapSettings.default.debug
         settings.enableDebugPanel = false
         let controls = DebugOverlayControlState()
         controls.setAxesEnabled(true)
         controls.setTileLayersEnabled(true)
+        controls.setWireframeEnabled(true)
 
         XCTAssertFalse(RenderDebugOverlayPolicy.shouldEncode(settings, controls: controls.snapshot()))
     }

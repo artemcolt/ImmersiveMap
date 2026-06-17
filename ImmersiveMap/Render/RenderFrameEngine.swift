@@ -44,7 +44,8 @@ final class RenderFrameEngine {
                                                         avatarSource: avatarSource,
                                                         config: settings,
                                                         eventSink: eventSink)
-        let attachments = FrameAttachmentStore(metalDevice: persistentContext.metalContext.device)
+        let attachments = FrameAttachmentStore(metalDevice: persistentContext.metalContext.device,
+                                               renderSampleCount: persistentContext.metalContext.renderSampleCount)
 
         let renderGraph = RenderGraphFactory.makeDefaultGraph(context: persistentContext,
                                                               settings: settings,

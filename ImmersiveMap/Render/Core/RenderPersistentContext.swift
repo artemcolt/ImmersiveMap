@@ -16,6 +16,7 @@ final class RenderPersistentContext {
 
     let polygonPipeline: PolygonsPipeline
     let tilePipeline: TilePipeline
+    let globeTileTexturePipeline: TilePipeline
     let extrudedTilePipeline: ExtrudedTilePipeline
     let globePipeline: GlobePipeline
 
@@ -69,6 +70,7 @@ final class RenderPersistentContext {
         let pipelines = pipelineFactory.makeRenderPipelines()
         self.polygonPipeline = pipelines.polygonPipeline
         self.tilePipeline = pipelines.tilePipeline
+        self.globeTileTexturePipeline = pipelines.globeTileTexturePipeline
         self.extrudedTilePipeline = pipelines.extrudedTilePipeline
         self.globePipeline = pipelines.globePipeline
         self.starfieldRenderer = pipelines.starfieldRenderer
@@ -78,13 +80,17 @@ final class RenderPersistentContext {
         self.globeCapRenderer = GlobeCapRenderer(metalDevice: metal.device,
                                                  layer: layer,
                                                  library: metal.library,
+                                                 sampleCount: metal.renderSampleCount,
                                                  maxLatitude: WebMercatorMath.maxLatitudeRadians,
                                                  mapBaseColors: mapBaseColors)
         self.nightLightsTexture = NightLightsTexture(device: metal.device)
 
-        self.textRenderer = TextRenderer(device: metal.device, library: metal.library)
+        self.textRenderer = TextRenderer(device: metal.device,
+                                         library: metal.library,
+                                         sampleCount: metal.renderSampleCount)
         self.poiSpriteAtlas = PoiSpriteAtlas(device: metal.device)
-        self.tilesTexture = GlobeTilesTexture(metalDevice: metal.device, tilePipeline: tilePipeline)
+        self.tilesTexture = GlobeTilesTexture(metalDevice: metal.device,
+                                              tilePipeline: globeTileTexturePipeline)
         self.tileRenderStore = TileRenderStore(mapStyle: mapStyle,
                                                metalDevice: metal.device,
                                                textRenderer: textRenderer,
@@ -98,6 +104,7 @@ final class RenderPersistentContext {
         self.avatarsRenderer = AvatarsRenderer(metalDevice: metal.device,
                                                layer: layer,
                                                library: metal.library,
+                                               sampleCount: metal.renderSampleCount,
                                                config: config.avatars)
         self.debugOverlayRenderer = DebugOverlayRenderer(metalDevice: metal.device, settings: config.debug)
     }

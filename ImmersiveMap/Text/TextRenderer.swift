@@ -162,14 +162,18 @@ class TextRenderer {
     var roadLabelPipelineState: MTLRenderPipelineState!
     var poiIconPipelineState: MTLRenderPipelineState!
     private var library: MTLLibrary
+    private let sampleCount: Int
     private let boldAtlasName = "atlas"
     private let thinAtlasName = "atlas_thin"
     private var boldGlyphLookup: [UInt32: Glyph] = [:]
     private var thinGlyphLookup: [UInt32: Glyph] = [:]
     
-    init(device: MTLDevice, library: MTLLibrary) {
+    init(device: MTLDevice,
+         library: MTLLibrary,
+         sampleCount: Int = 1) {
         self.device = device
         self.library = library
+        self.sampleCount = sampleCount
         self.commandQueue = device.makeCommandQueue()!
         self.bundle = .module
         
@@ -857,6 +861,7 @@ class TextRenderer {
         descriptor.vertexDescriptor = vertexDescriptor
         descriptor.vertexFunction = vertexFunction
         descriptor.fragmentFunction = fragmentFunction
+        descriptor.rasterSampleCount = sampleCount
         descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
         descriptor.depthAttachmentPixelFormat = .depth32Float
         descriptor.colorAttachments[0].isBlendingEnabled = true

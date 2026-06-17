@@ -6,18 +6,21 @@ import Foundation
 struct DebugOverlayControlSnapshot: Equatable {
     let axesEnabled: Bool
     let tileLayersEnabled: Bool
+    let wireframeEnabled: Bool
 }
 
 final class DebugOverlayControlState {
     private let lock = NSLock()
     private var axesEnabled = false
     private var tileLayersEnabled = false
+    private var wireframeEnabled = false
 
     func snapshot() -> DebugOverlayControlSnapshot {
         lock.lock()
         defer { lock.unlock() }
         return DebugOverlayControlSnapshot(axesEnabled: axesEnabled,
-                                           tileLayersEnabled: tileLayersEnabled)
+                                           tileLayersEnabled: tileLayersEnabled,
+                                           wireframeEnabled: wireframeEnabled)
     }
 
     func setAxesEnabled(_ isEnabled: Bool) {
@@ -29,6 +32,12 @@ final class DebugOverlayControlState {
     func setTileLayersEnabled(_ isEnabled: Bool) {
         lock.lock()
         tileLayersEnabled = isEnabled
+        lock.unlock()
+    }
+
+    func setWireframeEnabled(_ isEnabled: Bool) {
+        lock.lock()
+        wireframeEnabled = isEnabled
         lock.unlock()
     }
 }

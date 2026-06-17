@@ -7,13 +7,17 @@ import MetalKit
 final class AvatarPipeline {
     let pipelineState: MTLRenderPipelineState
 
-    init(metalDevice: MTLDevice, layer: CAMetalLayer, library: MTLLibrary) {
+    init(metalDevice: MTLDevice,
+         layer: CAMetalLayer,
+         library: MTLLibrary,
+         sampleCount: Int = 1) {
         let vertexFunction = library.makeFunction(name: "avatarVertex")
         let fragmentFunction = library.makeFunction(name: "avatarFragment")
 
         let pipelineDescriptor = MTLRenderPipelineDescriptor()
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
+        pipelineDescriptor.rasterSampleCount = sampleCount
         pipelineDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float
         pipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
@@ -35,13 +39,17 @@ final class AvatarPipeline {
 final class AvatarBatteryBadgePipeline {
     let pipelineState: MTLRenderPipelineState
 
-    init(metalDevice: MTLDevice, layer: CAMetalLayer, library: MTLLibrary) {
+    init(metalDevice: MTLDevice,
+         layer: CAMetalLayer,
+         library: MTLLibrary,
+         sampleCount: Int = 1) {
         let vertexFunction = library.makeFunction(name: "avatarBatteryBadgeVertex")
         let fragmentFunction = library.makeFunction(name: "avatarBatteryBadgeFragment")
 
         let pipelineDescriptor = MTLRenderPipelineDescriptor()
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
+        pipelineDescriptor.rasterSampleCount = sampleCount
         pipelineDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float
         pipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
@@ -63,13 +71,17 @@ final class AvatarBatteryBadgePipeline {
 final class AvatarSpeedBadgePipeline {
     let pipelineState: MTLRenderPipelineState
 
-    init(metalDevice: MTLDevice, layer: CAMetalLayer, library: MTLLibrary) {
+    init(metalDevice: MTLDevice,
+         layer: CAMetalLayer,
+         library: MTLLibrary,
+         sampleCount: Int = 1) {
         let vertexFunction = library.makeFunction(name: "avatarSpeedBadgeVertex")
         let fragmentFunction = library.makeFunction(name: "avatarSpeedBadgeFragment")
 
         let pipelineDescriptor = MTLRenderPipelineDescriptor()
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
+        pipelineDescriptor.rasterSampleCount = sampleCount
         pipelineDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float
         pipelineDescriptor.colorAttachments[0].isBlendingEnabled = true

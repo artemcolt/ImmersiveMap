@@ -7,13 +7,17 @@ import MetalKit
 final class AvatarBeamPipeline {
     let pipelineState: MTLRenderPipelineState
 
-    init(metalDevice: MTLDevice, layer: CAMetalLayer, library: MTLLibrary) {
+    init(metalDevice: MTLDevice,
+         layer: CAMetalLayer,
+         library: MTLLibrary,
+         sampleCount: Int = 1) {
         let vertexFunction = library.makeFunction(name: "avatarBeamVertex")
         let fragmentFunction = library.makeFunction(name: "avatarBeamFragment")
 
         let pipelineDescriptor = MTLRenderPipelineDescriptor()
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
+        pipelineDescriptor.rasterSampleCount = sampleCount
         pipelineDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float
         pipelineDescriptor.colorAttachments[0].isBlendingEnabled = true

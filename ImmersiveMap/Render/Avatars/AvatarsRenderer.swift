@@ -60,11 +60,21 @@ final class AvatarsRenderer {
     init(metalDevice: MTLDevice,
          layer: CAMetalLayer,
          library: MTLLibrary,
+         sampleCount: Int = 1,
          config: ImmersiveMapSettings.AvatarSettings) {
         self.config = config
-        self.avatarPipeline = AvatarPipeline(metalDevice: metalDevice, layer: layer, library: library)
-        self.batteryBadgePipeline = AvatarBatteryBadgePipeline(metalDevice: metalDevice, layer: layer, library: library)
-        self.speedBadgePipeline = AvatarSpeedBadgePipeline(metalDevice: metalDevice, layer: layer, library: library)
+        self.avatarPipeline = AvatarPipeline(metalDevice: metalDevice,
+                                             layer: layer,
+                                             library: library,
+                                             sampleCount: sampleCount)
+        self.batteryBadgePipeline = AvatarBatteryBadgePipeline(metalDevice: metalDevice,
+                                                               layer: layer,
+                                                               library: library,
+                                                               sampleCount: sampleCount)
+        self.speedBadgePipeline = AvatarSpeedBadgePipeline(metalDevice: metalDevice,
+                                                           layer: layer,
+                                                           library: library,
+                                                           sampleCount: sampleCount)
         self.instanceBufferStore = DynamicMetalBuffer(metalDevice: metalDevice)
         self.screenPointBufferStore = DynamicMetalBuffer(metalDevice: metalDevice)
         self.clusterInstanceBufferStore = DynamicMetalBuffer(metalDevice: metalDevice)

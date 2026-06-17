@@ -17,7 +17,10 @@ class ExtrudedTilePipeline {
         let surfaceID: UInt32
     }
 
-    init(metalDevice: MTLDevice, layer: CAMetalLayer, library: MTLLibrary) {
+    init(metalDevice: MTLDevice,
+         layer: CAMetalLayer,
+         library: MTLLibrary,
+         sampleCount: Int = 1) {
         let vertexFunction = library.makeFunction(name: "tileExtrudedVertexShader")
         let fragmentFunction = library.makeFunction(name: "tileExtrudedFragmentShader")
 
@@ -41,6 +44,7 @@ class ExtrudedTilePipeline {
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
+        pipelineDescriptor.rasterSampleCount = sampleCount
         pipelineDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float
         pipelineDescriptor.colorAttachments[0].isBlendingEnabled = true

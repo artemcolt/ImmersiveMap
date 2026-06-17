@@ -17,7 +17,10 @@ final class StarfieldPipeline {
     let starsPipelineState: MTLRenderPipelineState
     let sunPipelineState: MTLRenderPipelineState
 
-    init(metalDevice: MTLDevice, layer: CAMetalLayer, library: MTLLibrary) {
+    init(metalDevice: MTLDevice,
+         layer: CAMetalLayer,
+         library: MTLLibrary,
+         sampleCount: Int = 1) {
         let backgroundVertexFunction = library.makeFunction(name: "starfieldBackgroundVertexShader")
         let backgroundFragmentFunction = library.makeFunction(name: "starfieldBackgroundFragmentShader")
         let sunVertexFunction = library.makeFunction(name: "sunVertexShader")
@@ -50,6 +53,7 @@ final class StarfieldPipeline {
         let backgroundDescriptor = MTLRenderPipelineDescriptor()
         backgroundDescriptor.vertexFunction = backgroundVertexFunction
         backgroundDescriptor.fragmentFunction = backgroundFragmentFunction
+        backgroundDescriptor.rasterSampleCount = sampleCount
         backgroundDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         backgroundDescriptor.depthAttachmentPixelFormat = .depth32Float
 
@@ -57,6 +61,7 @@ final class StarfieldPipeline {
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
+        pipelineDescriptor.rasterSampleCount = sampleCount
         pipelineDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float
         pipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
@@ -70,6 +75,7 @@ final class StarfieldPipeline {
         let sunDescriptor = MTLRenderPipelineDescriptor()
         sunDescriptor.vertexFunction = sunVertexFunction
         sunDescriptor.fragmentFunction = sunFragmentFunction
+        sunDescriptor.rasterSampleCount = sampleCount
         sunDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat
         sunDescriptor.depthAttachmentPixelFormat = .depth32Float
         sunDescriptor.colorAttachments[0].isBlendingEnabled = true

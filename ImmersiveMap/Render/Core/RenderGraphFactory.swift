@@ -29,7 +29,8 @@ enum RenderGraphFactory {
         let buildingWinnerSubsystem = BuildingWinnerRenderSubsystem(extrudedTilePipeline: context.extrudedTilePipeline,
                                                                     extrudedDepthState: context.extrudedDepthState)
         let flatMapSurfaceSubsystem = FlatMapSurfaceRenderSubsystem(tilePipeline: context.tilePipeline,
-                                                                    separateRoadRenderingMinimumZoom: settings.style.flatSeparateRoadRenderingMinimumZoom)
+                                                                    separateRoadRenderingMinimumZoom: settings.style.flatSeparateRoadRenderingMinimumZoom,
+                                                                    debugOverlayControls: debugOverlayControls)
         let buildingExtrusionSubsystem = BuildingExtrusionRenderSubsystem(buildingExtrusionAlpha: settings.style.buildingExtrusionAlpha,
                                                                           buildingWinnerIDTextureProvider: buildingWinnerIDTextureProvider,
                                                                           extrudedTilePipeline: context.extrudedTilePipeline,
@@ -40,7 +41,8 @@ enum RenderGraphFactory {
                                                                 globePipeline: context.globePipeline,
                                                                 mapSurfaceGridBuffers: context.mapSurfaceGridBuffers,
                                                                 nightLightsTexture: context.nightLightsTexture,
-                                                                tilesTexture: context.tilesTexture)
+                                                                tilesTexture: context.tilesTexture,
+                                                                debugOverlayControls: debugOverlayControls)
         let globeCapSubsystem = GlobeCapRenderSubsystem(globeCapDepthState: context.globeCapDepthState,
                                                         depthDisabledState: context.depthDisabledState,
                                                         globeCapRenderer: context.globeCapRenderer,

@@ -26,7 +26,9 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         var settings = ImmersiveMapSettings.default.debug
         settings.enableDebugPanel = true
         view.apply(isDebugPanelEnabled: true,
-                   controls: DebugOverlayControlSnapshot(axesEnabled: false, tileLayersEnabled: false))
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: false,
+                                                         wireframeEnabled: false))
         view.apply(snapshot: DebugOverlayHUDSnapshot(
             coordinateLines: DebugOverlayCoordinateLines(zoom: "z: 1.00", latLon: "lat: 0.000 lon: 0.000"),
             diagnosticsLines: [],
@@ -64,7 +66,9 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         var settings = ImmersiveMapSettings.default.debug
         settings.enableDebugPanel = true
         view.apply(isDebugPanelEnabled: true,
-                   controls: DebugOverlayControlSnapshot(axesEnabled: false, tileLayersEnabled: false))
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: false,
+                                                         wireframeEnabled: false))
         view.apply(snapshot: makeSnapshot(settings: settings,
                                           atlasPages: (0..<12).map(makeAtlasPage)))
 

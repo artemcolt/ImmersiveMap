@@ -6,16 +6,50 @@ import Metal
 
 final class FrameAttachmentStore {
     private let metalDevice: MTLDevice
+    private let renderSampleCount: Int
+    private var colorTexture: MTLTexture?
     private var depthTexture: MTLTexture?
     private var buildingWinnerIDTexture: MTLTexture?
     private var buildingWinnerDepthTexture: MTLTexture?
 
-    init(metalDevice: MTLDevice) {
+    init(metalDevice: MTLDevice,
+         renderSampleCount: Int) {
         self.metalDevice = metalDevice
+        self.renderSampleCount = max(1, renderSampleCount)
     }
 
     var currentBuildingWinnerIDTexture: MTLTexture? {
         buildingWinnerIDTexture
+    }
+
+    func ensureColorTexture(drawSize: CGSize,
+                            pixelFormat: MTLPixelFormat) -> MTLTexture? {
+        guard renderSampleCount > 1 else { return nil }
+
+        let width = Int(drawSize.width)
+        let height = Int(drawSize.height)
+        guard width > 0, height > 0 else { return nil }
+
+        if let colorTexture,
+           colorTexture.width == width,
+           colorTexture.height == height,
+           colorTexture.pixelFormat == pixelFormat,
+           colorTexture.sampleCount == renderSampleCount {
+            return colorTexture
+        }
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: pixelFormat,
+                                                                  width: width,
+                                                                  height: height,
+                                                                  mipmapped: false)
+        descriptor.textureType = .type2DMultisample
+        descriptor.sampleCount = renderSampleCount
+        descriptor.usage = [.renderTarget]
+        descriptor.storageMode = .private
+        let newTexture = metalDevice.makeTexture(descriptor: descriptor)
+        newTexture?.label = RenderResourceName.colorTexture.rawValue
+        colorTexture = newTexture
+        return newTexture
     }
 
     func ensureDepthTexture(drawSize: CGSize) -> MTLTexture? {
@@ -25,7 +59,8 @@ final class FrameAttachmentStore {
 
         if let depthTexture,
            depthTexture.width == width,
-           depthTexture.height == height {
+           depthTexture.height == height,
+           depthTexture.sampleCount == renderSampleCount {
             return depthTexture
         }
 
@@ -33,6 +68,10 @@ final class FrameAttachmentStore {
                                                                   width: width,
                                                                   height: height,
                                                                   mipmapped: false)
+        if renderSampleCount > 1 {
+            descriptor.textureType = .type2DMultisample
+            descriptor.sampleCount = renderSampleCount
+        }
         descriptor.usage = [.renderTarget]
         descriptor.storageMode = .private
         let newTexture = metalDevice.makeTexture(descriptor: descriptor)
@@ -88,6 +127,7 @@ final class FrameAttachmentStore {
     }
 
     func reset() {
+        colorTexture = nil
         depthTexture = nil
         buildingWinnerIDTexture = nil
         buildingWinnerDepthTexture = nil

@@ -16,8 +16,12 @@ enum FlatMapSurfaceDrawer {
                      separateRoadRenderingMinimumZoom: Int,
                      placeTilesContext: PlaceTilesContext,
                      flatRenderState: FlatRenderState,
-                     tilePipeline: TilePipeline) {
+                     tilePipeline: TilePipeline,
+                     isWireframeEnabled: Bool) {
         tilePipeline.selectPipeline(renderEncoder: renderEncoder)
+        if isWireframeEnabled {
+            renderEncoder.setTriangleFillMode(.lines)
+        }
         var cameraUniformValue = cameraUniform
         var overviewFadeUniform = TileOverviewFadeUniform(
             overviewAlpha: LowZoomOverviewFade.alpha(for: cameraZoom, kind: .overviewFeatures),
@@ -76,6 +80,9 @@ enum FlatMapSurfaceDrawer {
             }
         } else {
             drawLayer(\.bridgeOverlay)
+        }
+        if isWireframeEnabled {
+            renderEncoder.setTriangleFillMode(.fill)
         }
     }
 

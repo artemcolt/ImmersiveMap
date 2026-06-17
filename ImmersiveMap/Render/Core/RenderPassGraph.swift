@@ -38,18 +38,25 @@ final class RenderPassGraph {
             self.depthTexture = depthTexture
         }
 
-        func makeRenderPassDescriptor(frameContext _: FrameContext,
-                                      attachments _: FrameAttachmentStore,
+        func makeRenderPassDescriptor(frameContext: FrameContext,
+                                      attachments: FrameAttachmentStore,
                                       drawable: CAMetalDrawable?) -> MTLRenderPassDescriptor? {
             guard let drawable else {
                 return nil
             }
 
             let descriptor = MTLRenderPassDescriptor()
-            descriptor.colorAttachments[0].texture = drawable.texture
+            if let colorTexture = attachments.ensureColorTexture(drawSize: frameContext.drawSize,
+                                                                 pixelFormat: drawable.texture.pixelFormat) {
+                descriptor.colorAttachments[0].texture = colorTexture
+                descriptor.colorAttachments[0].resolveTexture = drawable.texture
+                descriptor.colorAttachments[0].storeAction = .multisampleResolve
+            } else {
+                descriptor.colorAttachments[0].texture = drawable.texture
+                descriptor.colorAttachments[0].storeAction = .store
+            }
             descriptor.colorAttachments[0].loadAction = .clear
             descriptor.colorAttachments[0].clearColor = clearColor
-            descriptor.colorAttachments[0].storeAction = .store
             if let depthTexture {
                 descriptor.depthAttachment.texture = depthTexture
                 descriptor.depthAttachment.loadAction = .clear

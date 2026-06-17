@@ -28,11 +28,15 @@ final class GlobeCapRenderer {
     init(metalDevice: MTLDevice,
          layer: CAMetalLayer,
          library: MTLLibrary,
+         sampleCount: Int = 1,
          maxLatitude: Double,
          mapBaseColors: ImmersiveMapBaseColors,
          stacks: Int = 12,
          slices: Int = 48) {
-        pipeline = GlobeCapPipeline(metalDevice: metalDevice, layer: layer, library: library)
+        pipeline = GlobeCapPipeline(metalDevice: metalDevice,
+                                    layer: layer,
+                                    library: library,
+                                    sampleCount: sampleCount)
         fallbackTexture = Self.makeFallbackTexture(metalDevice: metalDevice)
 
         let maxLatitude = Float(maxLatitude)

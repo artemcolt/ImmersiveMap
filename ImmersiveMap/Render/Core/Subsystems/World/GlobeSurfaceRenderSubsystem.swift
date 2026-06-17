@@ -11,17 +11,20 @@ final class GlobeSurfaceRenderSubsystem: RenderSubsystem {
     private let mapSurfaceGridBuffers: MapSurfaceGridBuffers
     private let nightLightsTexture: NightLightsTexture
     private let tilesTexture: GlobeTilesTexture
+    private let debugOverlayControls: DebugOverlayControlState
 
     init(globeDepthState: MTLDepthStencilState,
          globePipeline: GlobePipeline,
          mapSurfaceGridBuffers: MapSurfaceGridBuffers,
          nightLightsTexture: NightLightsTexture,
-         tilesTexture: GlobeTilesTexture) {
+         tilesTexture: GlobeTilesTexture,
+         debugOverlayControls: DebugOverlayControlState) {
         self.globeDepthState = globeDepthState
         self.globePipeline = globePipeline
         self.mapSurfaceGridBuffers = mapSurfaceGridBuffers
         self.nightLightsTexture = nightLightsTexture
         self.tilesTexture = tilesTexture
+        self.debugOverlayControls = debugOverlayControls
     }
 
     func update(frameContext _: FrameContext) {}
@@ -47,7 +50,8 @@ final class GlobeSurfaceRenderSubsystem: RenderSubsystem {
                                 nightLightsTexture: nightTexture,
                                 globePipeline: globePipeline,
                                 mapSurfaceGridBuffers: mapSurfaceGridBuffers,
-                                tilesTexture: tilesTexture)
+                                tilesTexture: tilesTexture,
+                                isWireframeEnabled: debugOverlayControls.snapshot().wireframeEnabled)
     }
 
     func handleMemoryWarning() {}

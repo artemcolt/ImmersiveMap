@@ -16,6 +16,7 @@ enum RenderResourceName: String {
     case nightLightsTexture = "NightLightsTexture"
     case baseLabelRuntimeBuffer = "BaseLabelRuntimeBuffer"
     case roadLabelRuntimeBuffer = "RoadLabelRuntimeBuffer"
+    case colorTexture = "ColorTexture"
     case depthTexture = "DepthTexture"
     case buildingWinnerIDTexture = "BuildingWinnerIDTexture"
     case buildingWinnerDepthTexture = "BuildingWinnerDepthTexture"

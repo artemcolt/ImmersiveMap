@@ -51,9 +51,13 @@ final class StarfieldRenderer {
     init(metalDevice: MTLDevice,
          layer: CAMetalLayer,
          library: MTLLibrary,
+         sampleCount: Int = 1,
          spaceColor: SIMD4<Double>,
          config: ImmersiveMapSettings.StarfieldSettings) {
-        pipeline = StarfieldPipeline(metalDevice: metalDevice, layer: layer, library: library)
+        pipeline = StarfieldPipeline(metalDevice: metalDevice,
+                                     layer: layer,
+                                     library: library,
+                                     sampleCount: sampleCount)
         self.config = config
         backgroundParams = Self.makeBackgroundParams(spaceColor: spaceColor)
 

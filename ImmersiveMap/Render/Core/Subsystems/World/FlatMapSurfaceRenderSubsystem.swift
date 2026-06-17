@@ -8,11 +8,14 @@ final class FlatMapSurfaceRenderSubsystem: RenderSubsystem {
 
     private let tilePipeline: TilePipeline
     private let separateRoadRenderingMinimumZoom: Int
+    private let debugOverlayControls: DebugOverlayControlState
 
     init(tilePipeline: TilePipeline,
-         separateRoadRenderingMinimumZoom: Int) {
+         separateRoadRenderingMinimumZoom: Int,
+         debugOverlayControls: DebugOverlayControlState) {
         self.tilePipeline = tilePipeline
         self.separateRoadRenderingMinimumZoom = separateRoadRenderingMinimumZoom
+        self.debugOverlayControls = debugOverlayControls
     }
 
     func update(frameContext _: FrameContext) {}
@@ -31,7 +34,8 @@ final class FlatMapSurfaceRenderSubsystem: RenderSubsystem {
                                   separateRoadRenderingMinimumZoom: separateRoadRenderingMinimumZoom,
                                   placeTilesContext: frameContext.sharedState.tilePlacementState.placeTilesContext,
                                   flatRenderState: frameContext.resolvedPresentation.flatRenderState,
-                                  tilePipeline: tilePipeline)
+                                  tilePipeline: tilePipeline,
+                                  isWireframeEnabled: debugOverlayControls.snapshot().wireframeEnabled)
     }
 
     func handleMemoryWarning() {}

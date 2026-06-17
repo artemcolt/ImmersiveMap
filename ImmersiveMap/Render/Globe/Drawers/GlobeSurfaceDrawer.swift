@@ -11,13 +11,17 @@ enum GlobeSurfaceDrawer {
                      nightLightsTexture: MTLTexture,
                      globePipeline: GlobePipeline,
                      mapSurfaceGridBuffers: MapSurfaceGridBuffers,
-                     tilesTexture: GlobeTilesTexture) {
+                     tilesTexture: GlobeTilesTexture,
+                     isWireframeEnabled: Bool) {
         var cameraUniformValue = cameraUniform
         var earthSceneValue = earthScene
         var globeValue = globe
 
         globePipeline.selectPipeline(renderEncoder: renderEncoder)
         renderEncoder.setCullMode(.front)
+        if isWireframeEnabled {
+            renderEncoder.setTriangleFillMode(.lines)
+        }
         renderEncoder.setVertexBytes(&cameraUniformValue, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setVertexBytes(&globeValue, length: MemoryLayout<GlobeUniform>.stride, index: 2)
         renderEncoder.setFragmentBytes(&cameraUniformValue, length: MemoryLayout<CameraUniform>.stride, index: 1)
@@ -42,6 +46,9 @@ enum GlobeSurfaceDrawer {
                                                 indexType: .uint32,
                                                 indexBuffer: mapSurfaceGridBuffers.indicesBuffer,
                                                 indexBufferOffset: 0)
+        }
+        if isWireframeEnabled {
+            renderEncoder.setTriangleFillMode(.fill)
         }
     }
 }

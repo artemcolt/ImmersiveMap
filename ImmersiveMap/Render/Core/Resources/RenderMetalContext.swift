@@ -7,6 +7,7 @@ struct RenderMetalContext {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
     let library: MTLLibrary
+    let renderSampleCount: Int
 
     func makeCommandBuffer() -> MTLCommandBuffer? {
         commandQueue.makeCommandBuffer()

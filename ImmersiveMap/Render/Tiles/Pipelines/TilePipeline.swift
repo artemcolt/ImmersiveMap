@@ -14,7 +14,10 @@ class TilePipeline {
         let _padding2: UInt8 = 0
     }
     
-    init(metalDevice: MTLDevice, layer: CAMetalLayer, library: MTLLibrary) {
+    init(metalDevice: MTLDevice,
+         layer: CAMetalLayer,
+         library: MTLLibrary,
+         sampleCount: Int = 1) {
         let vertexFunction = library.makeFunction(name: "tileVertexShader")
         let fragmentFunction = library.makeFunction(name: "tileFragmentShader")
         
@@ -33,7 +36,7 @@ class TilePipeline {
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
-//        pipelineDescriptor.rasterSampleCount = 4
+        pipelineDescriptor.rasterSampleCount = sampleCount
         
         
         pipelineDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat

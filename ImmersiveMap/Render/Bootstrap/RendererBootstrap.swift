@@ -16,7 +16,14 @@ enum RendererSetup {
         }
         let bundle = Bundle.module
         let library = makeLibrary(metalDevice: metalDevice, bundle: bundle)
-        return RenderMetalContext(device: metalDevice, commandQueue: queue, library: library)
+        return RenderMetalContext(device: metalDevice,
+                                  commandQueue: queue,
+                                  library: library,
+                                  renderSampleCount: preferredRenderSampleCount(metalDevice: metalDevice))
+    }
+
+    static func preferredRenderSampleCount(metalDevice: MTLDevice) -> Int {
+        metalDevice.supportsTextureSampleCount(4) ? 4 : 1
     }
 
     static func makeLibrary(metalDevice: MTLDevice, bundle: Bundle) -> MTLLibrary {
@@ -31,7 +38,7 @@ enum RendererSetup {
     }
 
     static func makeMapSurfaceGridBuffers(metalDevice: MTLDevice) -> MapSurfaceGridBuffers {
-        let baseGrid = SphereGeometry.createGrid(stacks: 50, slices: 50)
+        let baseGrid = SphereGeometry.createGrid(stacks: 60, slices: 60)
         return MapSurfaceGridBuffers(
             verticesBuffer: metalDevice.makeBuffer(
                 bytes: baseGrid.vertices,
