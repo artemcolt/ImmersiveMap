@@ -25,14 +25,7 @@ enum GlobeSurfaceDrawer {
         renderEncoder.setFragmentTexture(nightLightsTexture, index: 1)
         renderEncoder.setVertexBuffer(mapSurfaceGridBuffers.verticesBuffer, offset: 0, index: 0)
 
-        var pageMappings: [(pageIndex: Int, mapping: GlobeTilesTexture.TileData)] = []
-        for (pageIndex, page) in tilesTexture.pages.enumerated() {
-            for mapping in page.tileData {
-                pageMappings.append((pageIndex: pageIndex, mapping: mapping))
-            }
-        }
-        pageMappings.sort { $0.pageIndex < $1.pageIndex }
-
+        let pageMappings = GlobeTilePageMappingSorter.sortedPageMappings(tilesTexture: tilesTexture)
         var activePageIndex: Int?
         for pageMapping in pageMappings {
             if activePageIndex != pageMapping.pageIndex {

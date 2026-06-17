@@ -8,6 +8,15 @@ struct TilePlacementPlanner {
                                 previousZoom: Int,
                                 previousContext: PlaceTilesContext) -> PlaceTilesContext {
         var placeTiles: [PlaceTile] = []
+        let readyReplacementCandidates = readyTilesBySource.values.compactMap { $0 }.sorted { lhs, rhs in
+            if lhs.tile.z != rhs.tile.z {
+                return lhs.tile.z > rhs.tile.z
+            }
+            if lhs.tile.x != rhs.tile.x {
+                return lhs.tile.x < rhs.tile.x
+            }
+            return lhs.tile.y < rhs.tile.y
+        }
 
         for target in targets {
             let sourceTile = target.tile
@@ -64,33 +73,19 @@ struct TilePlacementPlanner {
             }
 
             func findCurrentReadyParentReplacement() -> Bool {
-                var bestReplacement: MetalTile?
-                for candidate in readyTilesBySource.values {
-                    guard let candidate else {
-                        continue
-                    }
+                for candidate in readyReplacementCandidates {
                     let candidateTile = candidate.tile
                     guard candidateTile != target.tile,
                           candidateTile.covers(target.tile) else {
                         continue
                     }
-                    if let currentBest = bestReplacement {
-                        if candidateTile.z > currentBest.tile.z {
-                            bestReplacement = candidate
-                        }
-                    } else {
-                        bestReplacement = candidate
-                    }
+                    placeTiles.append(PlaceTile(metalTile: candidate,
+                                                placeIn: target,
+                                                lodKind: .retainedReplacement))
+                    return true
                 }
 
-                guard let bestReplacement else {
-                    return false
-                }
-
-                placeTiles.append(PlaceTile(metalTile: bestReplacement,
-                                            placeIn: target,
-                                            lodKind: .retainedReplacement))
-                return true
+                return false
             }
 
             // Replace missing tile with temporary tiles from the previous frame.

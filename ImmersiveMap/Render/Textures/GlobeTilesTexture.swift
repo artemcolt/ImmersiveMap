@@ -14,6 +14,7 @@ class GlobeTilesTexture {
         let textureSize: simd_int1
         let cellSize: simd_int1
         let tile: simd_int3
+        let sourceTile: simd_int3
     }
 
     struct Page {
@@ -120,6 +121,7 @@ class GlobeTilesTexture {
         }
         
         let placeIn = placeTile.placeIn
+        let metalTile = placeTile.metalTile
         let count = 1 << atlasDepth
         if count != previousProjectionCount {
             projection = Matrix.orthographicMatrix(left: 0, right: Float(4096 * count), bottom: 0, top: Float(4096 * count), near: -1, far: 1)
@@ -132,7 +134,10 @@ class GlobeTilesTexture {
         pages[allocation.pageIndex].tileData.append(TileData(position: simd_int1(freePtr),
                                                              textureSize: simd_int1(size),
                                                              cellSize: simd_int1(cellSize),
-                                                             tile: simd_int3(Int32(placeIn.x), Int32(placeIn.y), Int32(placeIn.z))))
+                                                             tile: simd_int3(Int32(placeIn.x), Int32(placeIn.y), Int32(placeIn.z)),
+                                                             sourceTile: simd_int3(Int32(metalTile.tile.x),
+                                                                                   Int32(metalTile.tile.y),
+                                                                                   Int32(metalTile.tile.z))))
         
         
         // Add text metadata for drawing coordinate text on the map texture
@@ -152,7 +157,6 @@ class GlobeTilesTexture {
         
         // Place the tile to cover the required area
         // To do that, scale and translate the tile
-        let metalTile = placeTile.metalTile
         let placeInCount = 1 << placeIn.z
         let zDiff = placeIn.z - metalTile.tile.z
         let scale = powf(2.0, Float(zDiff))

@@ -54,6 +54,7 @@ final class GlobeCapEdgeSamplerTests: XCTestCase {
         GlobeTilesTexture.TileData(position: simd_int1(position),
                                    textureSize: simd_int1(textureSize),
                                    cellSize: simd_int1(cellSize),
-                                   tile: tile)
+                                   tile: tile,
+                                   sourceTile: tile)
     }
 }

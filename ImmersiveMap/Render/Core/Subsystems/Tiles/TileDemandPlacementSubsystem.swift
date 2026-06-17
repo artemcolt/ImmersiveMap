@@ -58,6 +58,7 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         var hashBuilder = Hasher()
         hashBuilder.combine(PreprocessedVisibleTilesHasher.computePreprocessedVisibleTilesHash(
             preprocessedVisibleTiles: preprocessedVisibleTiles,
+            demandedSourceTiles: demandedSourceTiles,
             readyTilesBySource: readyTilesBySource
         ))
         let preprocessedVisibleTilesHash = hashBuilder.finalize()

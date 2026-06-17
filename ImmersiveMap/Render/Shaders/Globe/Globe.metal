@@ -55,6 +55,7 @@ struct Tile {
     int textureSize;
     int cellSize;
     int3 tile;
+    int3 sourceTile;
 };
 
 

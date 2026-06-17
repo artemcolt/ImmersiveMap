@@ -96,7 +96,7 @@ final class GlobeCapRenderer {
         renderEncoder.setFragmentBytes(&fallbackTileData, length: MemoryLayout<GlobeTilesTexture.TileData>.stride, index: 3)
         drawCapPair(renderEncoder: renderEncoder, textureSamplingEnabled: false)
 
-        let pageMappings = Self.sortedPageMappings(tilesTexture: tilesTexture)
+        let pageMappings = GlobeTilePageMappingSorter.sortedPageMappings(tilesTexture: tilesTexture)
         var activePageIndex: Int?
         for pageMapping in pageMappings {
             if activePageIndex != pageMapping.pageIndex {
@@ -180,22 +180,12 @@ final class GlobeCapRenderer {
                                             indexBufferOffset: 0)
     }
 
-    private static func sortedPageMappings(tilesTexture: GlobeTilesTexture) -> [(pageIndex: Int, mapping: GlobeTilesTexture.TileData)] {
-        var pageMappings: [(pageIndex: Int, mapping: GlobeTilesTexture.TileData)] = []
-        for (pageIndex, page) in tilesTexture.pages.enumerated() {
-            for mapping in page.tileData {
-                pageMappings.append((pageIndex: pageIndex, mapping: mapping))
-            }
-        }
-        pageMappings.sort { $0.pageIndex < $1.pageIndex }
-        return pageMappings
-    }
-
     private static func makeFallbackTileData() -> GlobeTilesTexture.TileData {
         GlobeTilesTexture.TileData(position: simd_int1(0),
                                    textureSize: simd_int1(1),
                                    cellSize: simd_int1(1),
-                                   tile: simd_int3(0, 0, 0))
+                                   tile: simd_int3(0, 0, 0),
+                                   sourceTile: simd_int3(0, 0, 0))
     }
 
     private static func makeFallbackTexture(metalDevice: MTLDevice) -> MTLTexture {
