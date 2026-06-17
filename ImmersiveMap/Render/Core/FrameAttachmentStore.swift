@@ -8,7 +8,9 @@ final class FrameAttachmentStore {
     private let metalDevice: MTLDevice
     private let renderSampleCount: Int
     private var colorTexture: MTLTexture?
+    private var postProcessingInputTexture: MTLTexture?
     private var depthTexture: MTLTexture?
+    private var overlayDepthTexture: MTLTexture?
     private var buildingWinnerIDTexture: MTLTexture?
     private var buildingWinnerDepthTexture: MTLTexture?
 
@@ -20,6 +22,10 @@ final class FrameAttachmentStore {
 
     var currentBuildingWinnerIDTexture: MTLTexture? {
         buildingWinnerIDTexture
+    }
+
+    var currentPostProcessingInputTexture: MTLTexture? {
+        postProcessingInputTexture
     }
 
     func ensureColorTexture(drawSize: CGSize,
@@ -52,6 +58,31 @@ final class FrameAttachmentStore {
         return newTexture
     }
 
+    func ensurePostProcessingInputTexture(drawSize: CGSize,
+                                          pixelFormat: MTLPixelFormat) -> MTLTexture? {
+        let width = Int(drawSize.width)
+        let height = Int(drawSize.height)
+        guard width > 0, height > 0 else { return nil }
+
+        if let postProcessingInputTexture,
+           postProcessingInputTexture.width == width,
+           postProcessingInputTexture.height == height,
+           postProcessingInputTexture.pixelFormat == pixelFormat {
+            return postProcessingInputTexture
+        }
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: pixelFormat,
+                                                                  width: width,
+                                                                  height: height,
+                                                                  mipmapped: false)
+        descriptor.usage = [.renderTarget, .shaderRead]
+        descriptor.storageMode = .private
+        let newTexture = metalDevice.makeTexture(descriptor: descriptor)
+        newTexture?.label = RenderResourceName.postProcessingInputTexture.rawValue
+        postProcessingInputTexture = newTexture
+        return newTexture
+    }
+
     func ensureDepthTexture(drawSize: CGSize) -> MTLTexture? {
         let width = Int(drawSize.width)
         let height = Int(drawSize.height)
@@ -77,6 +108,29 @@ final class FrameAttachmentStore {
         let newTexture = metalDevice.makeTexture(descriptor: descriptor)
         newTexture?.label = RenderResourceName.depthTexture.rawValue
         depthTexture = newTexture
+        return newTexture
+    }
+
+    func ensureOverlayDepthTexture(drawSize: CGSize) -> MTLTexture? {
+        let width = Int(drawSize.width)
+        let height = Int(drawSize.height)
+        guard width > 0, height > 0 else { return nil }
+
+        if let overlayDepthTexture,
+           overlayDepthTexture.width == width,
+           overlayDepthTexture.height == height {
+            return overlayDepthTexture
+        }
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float,
+                                                                  width: width,
+                                                                  height: height,
+                                                                  mipmapped: false)
+        descriptor.usage = [.renderTarget]
+        descriptor.storageMode = .private
+        let newTexture = metalDevice.makeTexture(descriptor: descriptor)
+        newTexture?.label = RenderResourceName.overlayDepthTexture.rawValue
+        overlayDepthTexture = newTexture
         return newTexture
     }
 
@@ -128,7 +182,9 @@ final class FrameAttachmentStore {
 
     func reset() {
         colorTexture = nil
+        postProcessingInputTexture = nil
         depthTexture = nil
+        overlayDepthTexture = nil
         buildingWinnerIDTexture = nil
         buildingWinnerDepthTexture = nil
     }

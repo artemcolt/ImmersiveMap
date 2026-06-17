@@ -573,6 +573,14 @@ public struct ImmersiveMapSettings: Equatable {
         }
     }
 
+    public struct PostProcessingSettings: Equatable {
+        public var fxaaEnabled: Bool
+
+        public init(fxaaEnabled: Bool = false) {
+            self.fxaaEnabled = fxaaEnabled
+        }
+    }
+
     public struct AttributionSettings: Equatable {
         public var isVisible: Bool
         public var title: String
@@ -663,6 +671,7 @@ public struct ImmersiveMapSettings: Equatable {
     public var style: StyleSettings
     public var avatars: AvatarSettings
     public var attribution: AttributionSettings
+    public var postProcessing: PostProcessingSettings
     public var debug: DebugSettings
 
     public init(renderLoop: RenderLoopSettings,
@@ -674,6 +683,7 @@ public struct ImmersiveMapSettings: Equatable {
                 style: StyleSettings,
                 avatars: AvatarSettings,
                 attribution: AttributionSettings = AttributionSettings(),
+                postProcessing: PostProcessingSettings = PostProcessingSettings(),
                 debug: DebugSettings) {
         self.renderLoop = renderLoop
         self.camera = camera
@@ -684,6 +694,7 @@ public struct ImmersiveMapSettings: Equatable {
         self.style = style
         self.avatars = avatars
         self.attribution = attribution
+        self.postProcessing = postProcessing
         self.debug = debug
     }
 
@@ -780,6 +791,7 @@ public struct ImmersiveMapSettings: Equatable {
                                 springK: 0.25,
                                 smoothing: 0.6),
         attribution: AttributionSettings(),
+        postProcessing: PostProcessingSettings(fxaaEnabled: false),
         debug: DebugSettings(enableDebugPanel: false,
                              coordinateScale: 80.0,
                              diagnosticsScale: 60.0,

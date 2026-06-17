@@ -11,6 +11,7 @@ public enum ImmersiveMapSettingsChangeDomain: String, CaseIterable, Equatable {
     case style
     case avatars
     case attribution
+    case postProcessing
     case debug
 }
 
@@ -93,6 +94,9 @@ public enum ImmersiveMapSettingsApplicationPlanner {
         }
         if oldValue.attribution != newValue.attribution {
             mark(.attribution, actions: [.liveApply])
+        }
+        if oldValue.postProcessing != newValue.postProcessing {
+            mark(.postProcessing, actions: [.liveApply])
         }
 
         return ImmersiveMapSettingsApplicationPlan(changedDomains: changedDomains, actions: actions)

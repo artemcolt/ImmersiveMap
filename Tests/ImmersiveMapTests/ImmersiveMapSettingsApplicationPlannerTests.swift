@@ -53,6 +53,18 @@ final class ImmersiveMapSettingsApplicationPlannerTests: XCTestCase {
         XCTAssertFalse(plan.requiresRendererRecreation)
     }
 
+    func testPostProcessingFXAAChangeIsLiveApplied() {
+        let oldSettings = ImmersiveMapSettings.default
+        var newSettings = oldSettings
+        newSettings.postProcessing.fxaaEnabled = true
+
+        let plan = ImmersiveMapSettingsApplicationPlanner.makePlan(from: oldSettings, to: newSettings)
+
+        XCTAssertEqual(plan.changedDomains, [.postProcessing])
+        XCTAssertEqual(plan.actions, [.liveApply])
+        XCTAssertFalse(plan.requiresRendererRecreation)
+    }
+
     func testLabelFallbackPolicyChangeRebuildsPreparedData() {
         let oldSettings = ImmersiveMapSettings.default
         var newSettings = oldSettings

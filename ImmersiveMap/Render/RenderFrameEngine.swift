@@ -51,6 +51,9 @@ final class RenderFrameEngine {
                                                               settings: settings,
                                                               initialZoom: Int(renderCamera.currentCameraState().zoom),
                                                               debugOverlayControls: debugOverlayControls,
+                                                              postProcessingInputTextureProvider: { [attachments] in
+                                                                  attachments.currentPostProcessingInputTexture
+                                                              },
                                                               buildingWinnerIDTextureProvider: { [attachments] in
                                                                   attachments.currentBuildingWinnerIDTexture
                                                               })

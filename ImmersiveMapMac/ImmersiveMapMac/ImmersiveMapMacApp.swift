@@ -103,6 +103,7 @@ struct HostMapScreen: View {
         settings.debug.enableDebugPanel = Self.environmentFlag("IMMERSIVE_MAP_DEBUG_PANEL",
                                                                environment: environment,
                                                                defaultValue: true)
+        settings.labels.language = .french
         return settings
     }
 

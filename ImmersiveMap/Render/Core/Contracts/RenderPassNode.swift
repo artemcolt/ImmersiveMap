@@ -6,7 +6,9 @@ import QuartzCore
 
 enum RenderPassName: String, CaseIterable {
     case buildingWinner
-    case mainDrawable
+    case world
+    case postProcessing
+    case overlay
 }
 
 protocol RenderPassDescriptorProvider: AnyObject {

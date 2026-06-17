@@ -15,6 +15,7 @@ enum RenderLayer: String, CaseIterable {
     case globeCap
     case flatMapSurface
     case buildingExtrusion
+    case postProcessing
     case labels
     case avatars
     case debugOverlay

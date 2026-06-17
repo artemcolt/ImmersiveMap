@@ -19,6 +19,7 @@ final class RenderPersistentContext {
     let globeTileTexturePipeline: TilePipeline
     let extrudedTilePipeline: ExtrudedTilePipeline
     let globePipeline: GlobePipeline
+    let fxaaPipeline: FXAAPipeline
 
     // MARK: - Scene Resources
 
@@ -73,6 +74,7 @@ final class RenderPersistentContext {
         self.globeTileTexturePipeline = pipelines.globeTileTexturePipeline
         self.extrudedTilePipeline = pipelines.extrudedTilePipeline
         self.globePipeline = pipelines.globePipeline
+        self.fxaaPipeline = pipelines.fxaaPipeline
         self.starfieldRenderer = pipelines.starfieldRenderer
 
         self.mapSurfaceGridBuffers = RendererSetup.makeMapSurfaceGridBuffers(metalDevice: metal.device)
@@ -87,7 +89,7 @@ final class RenderPersistentContext {
 
         self.textRenderer = TextRenderer(device: metal.device,
                                          library: metal.library,
-                                         sampleCount: metal.renderSampleCount)
+                                         sampleCount: 1)
         self.poiSpriteAtlas = PoiSpriteAtlas(device: metal.device)
         self.tilesTexture = GlobeTilesTexture(metalDevice: metal.device,
                                               tilePipeline: globeTileTexturePipeline)
@@ -104,7 +106,7 @@ final class RenderPersistentContext {
         self.avatarsRenderer = AvatarsRenderer(metalDevice: metal.device,
                                                layer: layer,
                                                library: metal.library,
-                                               sampleCount: metal.renderSampleCount,
+                                               sampleCount: 1,
                                                config: config.avatars)
         self.debugOverlayRenderer = DebugOverlayRenderer(metalDevice: metal.device, settings: config.debug)
     }

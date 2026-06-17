@@ -28,7 +28,7 @@ final class RenderPassGraph {
         }
     }
 
-    private final class MainDrawableDescriptorProvider: RenderPassDescriptorProvider {
+    private final class WorldDescriptorProvider: RenderPassDescriptorProvider {
         private let clearColor: MTLClearColor
         private let depthTexture: MTLTexture?
 
@@ -41,7 +41,11 @@ final class RenderPassGraph {
         func makeRenderPassDescriptor(frameContext: FrameContext,
                                       attachments: FrameAttachmentStore,
                                       drawable: CAMetalDrawable?) -> MTLRenderPassDescriptor? {
-            guard let drawable else {
+            guard let drawable,
+                  let postProcessingInputTexture = attachments.ensurePostProcessingInputTexture(
+                    drawSize: frameContext.drawSize,
+                    pixelFormat: drawable.texture.pixelFormat
+                  ) else {
                 return nil
             }
 
@@ -49,10 +53,10 @@ final class RenderPassGraph {
             if let colorTexture = attachments.ensureColorTexture(drawSize: frameContext.drawSize,
                                                                  pixelFormat: drawable.texture.pixelFormat) {
                 descriptor.colorAttachments[0].texture = colorTexture
-                descriptor.colorAttachments[0].resolveTexture = drawable.texture
+                descriptor.colorAttachments[0].resolveTexture = postProcessingInputTexture
                 descriptor.colorAttachments[0].storeAction = .multisampleResolve
             } else {
-                descriptor.colorAttachments[0].texture = drawable.texture
+                descriptor.colorAttachments[0].texture = postProcessingInputTexture
                 descriptor.colorAttachments[0].storeAction = .store
             }
             descriptor.colorAttachments[0].loadAction = .clear
@@ -63,6 +67,43 @@ final class RenderPassGraph {
                 descriptor.depthAttachment.storeAction = .dontCare
                 descriptor.depthAttachment.clearDepth = 1.0
             }
+            return descriptor
+        }
+    }
+
+    private final class PostProcessingDescriptorProvider: RenderPassDescriptorProvider {
+        func makeRenderPassDescriptor(frameContext _: FrameContext,
+                                      attachments _: FrameAttachmentStore,
+                                      drawable: CAMetalDrawable?) -> MTLRenderPassDescriptor? {
+            guard let drawable else {
+                return nil
+            }
+
+            let descriptor = MTLRenderPassDescriptor()
+            descriptor.colorAttachments[0].texture = drawable.texture
+            descriptor.colorAttachments[0].loadAction = .dontCare
+            descriptor.colorAttachments[0].storeAction = .store
+            return descriptor
+        }
+    }
+
+    private final class OverlayDescriptorProvider: RenderPassDescriptorProvider {
+        func makeRenderPassDescriptor(frameContext: FrameContext,
+                                      attachments: FrameAttachmentStore,
+                                      drawable: CAMetalDrawable?) -> MTLRenderPassDescriptor? {
+            guard let drawable,
+                  let depthTexture = attachments.ensureOverlayDepthTexture(drawSize: frameContext.drawSize) else {
+                return nil
+            }
+
+            let descriptor = MTLRenderPassDescriptor()
+            descriptor.colorAttachments[0].texture = drawable.texture
+            descriptor.colorAttachments[0].loadAction = .load
+            descriptor.colorAttachments[0].storeAction = .store
+            descriptor.depthAttachment.texture = depthTexture
+            descriptor.depthAttachment.loadAction = .clear
+            descriptor.depthAttachment.storeAction = .dontCare
+            descriptor.depthAttachment.clearDepth = 1.0
             return descriptor
         }
     }
@@ -96,10 +137,35 @@ final class RenderPassGraph {
                                         descriptorProvider: BuildingWinnerDescriptorProvider(),
                                         layers: [.buildingWinner]))
         }
-        nodes.append(RenderPassNode(name: .mainDrawable,
-                                    descriptorProvider: MainDrawableDescriptorProvider(clearColor: clearColor,
-                                                                                       depthTexture: depthTexture),
-                                    layers: layerPlan))
+        let worldLayers = layerPlan.filter { layer in
+            switch layer {
+            case .starfield, .globeSurface, .globeCap, .flatMapSurface, .buildingExtrusion:
+                return true
+            case .buildingWinner, .postProcessing, .labels, .avatars, .debugOverlay:
+                return false
+            }
+        }
+        let overlayLayers = layerPlan.filter { layer in
+            switch layer {
+            case .labels, .avatars, .debugOverlay:
+                return true
+            case .buildingWinner, .starfield, .globeSurface, .globeCap, .flatMapSurface, .buildingExtrusion, .postProcessing:
+                return false
+            }
+        }
+
+        nodes.append(RenderPassNode(name: .world,
+                                    descriptorProvider: WorldDescriptorProvider(clearColor: clearColor,
+                                                                                depthTexture: depthTexture),
+                                    layers: worldLayers))
+        nodes.append(RenderPassNode(name: .postProcessing,
+                                    descriptorProvider: PostProcessingDescriptorProvider(),
+                                    layers: [.postProcessing]))
+        if overlayLayers.isEmpty == false {
+            nodes.append(RenderPassNode(name: .overlay,
+                                        descriptorProvider: OverlayDescriptorProvider(),
+                                        layers: overlayLayers))
+        }
         return nodes
     }
 }

@@ -8,6 +8,7 @@ enum RenderGraphFactory {
                                  settings: ImmersiveMapSettings,
                                  initialZoom: Int,
                                  debugOverlayControls: DebugOverlayControlState,
+                                 postProcessingInputTextureProvider: @escaping () -> MTLTexture?,
                                  buildingWinnerIDTextureProvider: @escaping () -> MTLTexture?) -> RenderGraph {
         let tileDemandPlacementSubsystem = TileDemandPlacementSubsystem(tileRenderStore: context.tileRenderStore,
                                                                         initialZoom: initialZoom)
@@ -37,6 +38,8 @@ enum RenderGraphFactory {
                                                                           extrudedColorPassDepthState: context.extrudedColorPassDepthState,
                                                                           depthDisabledState: context.depthDisabledState)
         let starfieldSubsystem = StarfieldRenderSubsystem(starfieldRenderer: context.starfieldRenderer)
+        let postProcessingSubsystem = PostProcessingRenderSubsystem(fxaaPipeline: context.fxaaPipeline,
+                                                                    inputTextureProvider: postProcessingInputTextureProvider)
         let globeSurfaceSubsystem = GlobeSurfaceRenderSubsystem(globeDepthState: context.extrudedDepthState,
                                                                 globePipeline: context.globePipeline,
                                                                 mapSurfaceGridBuffers: context.mapSurfaceGridBuffers,
@@ -67,6 +70,7 @@ enum RenderGraphFactory {
             starfieldSubsystem,
             globeSurfaceSubsystem,
             globeCapSubsystem,
+            postProcessingSubsystem,
             debugSubsystem
         ]
         let availabilityProviders: [any RenderPassAvailabilityProvider] = [
