@@ -127,6 +127,7 @@ final class StarfieldRenderer {
         var sunState = EarthSceneSunVisualState.make(earthScene: earthScene,
                                                      globe: globe,
                                                      cameraMatrix: starCameraMatrix,
+                                                     cameraEye: cameraEye,
                                                      drawSize: drawSize,
                                                      starfieldRadiusScale: config.radiusScale)
         guard sunState.hasVisibleContribution(earthScene: earthScene) else {

@@ -44,6 +44,7 @@ struct EarthSceneSunVisualState {
     static func make(earthScene: EarthSceneUniform,
                      globe: GlobeUniform,
                      cameraMatrix: matrix_float4x4,
+                     cameraEye: SIMD3<Float>,
                      drawSize: CGSize,
                      starfieldRadiusScale: Float = 10.5) -> EarthSceneSunVisualState {
         guard earthScene.isEnabled != 0,
@@ -87,6 +88,8 @@ struct EarthSceneSunVisualState {
 
         guard let globeProjection = Self.projectGlobeSilhouette(globe: globe,
                                                                 cameraMatrix: cameraMatrix,
+                                                                cameraEye: cameraEye,
+                                                                sunScreenCenter: screenCenter,
                                                                 aspectScale: aspectScale) else {
             return .disabled
         }
@@ -147,6 +150,8 @@ struct EarthSceneSunVisualState {
 
     private static func projectGlobeSilhouette(globe: GlobeUniform,
                                                cameraMatrix: matrix_float4x4,
+                                               cameraEye: SIMD3<Float>,
+                                               sunScreenCenter: SIMD2<Float>,
                                                aspectScale: SIMD2<Float>) -> (center: SIMD2<Float>, radius: Float)? {
         let centerWorld = SIMD3<Float>(0, 0, -globe.radius)
         guard let center = projectNormalized(worldPosition: centerWorld,
@@ -154,13 +159,34 @@ struct EarthSceneSunVisualState {
             return nil
         }
 
-        let radius = Self.sphereSampleDirections.reduce(Float(0)) { partial, direction in
-            guard let sample = projectNormalized(worldPosition: centerWorld + direction * globe.radius,
-                                                 cameraMatrix: cameraMatrix) else {
-                return partial
+        let samples = Self.projectedLimbSamples(centerWorld: centerWorld,
+                                                radius: globe.radius,
+                                                cameraEye: cameraEye,
+                                                cameraMatrix: cameraMatrix)
+        let projectedSamples = samples.isEmpty
+            ? Self.projectedSphereSamples(centerWorld: centerWorld,
+                                          radius: globe.radius,
+                                          cameraMatrix: cameraMatrix)
+            : samples
+        guard projectedSamples.isEmpty == false else {
+            return nil
+        }
+
+        let sunVector = (sunScreenCenter - center) * aspectScale
+        let sunDistance = simd_length(sunVector)
+        let radius: Float
+        if sunDistance > Float.ulpOfOne {
+            let sunDirection = sunVector / sunDistance
+            radius = projectedSamples.reduce(-Float.greatestFiniteMagnitude) { partial, sample in
+                let sampleVector = (sample - center) * aspectScale
+                let support = simd_dot(sampleVector, sunDirection)
+                return support.isFinite ? max(partial, support) : partial
             }
-            let distance = simd_length((sample - center) * aspectScale)
-            return distance.isFinite ? max(partial, distance) : partial
+        } else {
+            radius = projectedSamples.reduce(Float(0)) { partial, sample in
+                let distance = simd_length((sample - center) * aspectScale)
+                return distance.isFinite ? max(partial, distance) : partial
+            }
         }
 
         guard radius.isFinite,
@@ -168,6 +194,49 @@ struct EarthSceneSunVisualState {
             return nil
         }
         return (center, radius)
+    }
+
+    private static func projectedLimbSamples(centerWorld: SIMD3<Float>,
+                                             radius: Float,
+                                             cameraEye: SIMD3<Float>,
+                                             cameraMatrix: matrix_float4x4) -> [SIMD2<Float>] {
+        let centerToCamera = cameraEye - centerWorld
+        let cameraDistance = simd_length(centerToCamera)
+        guard cameraDistance.isFinite,
+              cameraDistance > radius,
+              radius > 0 else {
+            return []
+        }
+
+        let cameraAxis = centerToCamera / cameraDistance
+        let cosine = radius / cameraDistance
+        let sine = sqrt(max(0, 1 - cosine * cosine))
+        let basis = makeOrthonormalBasis(axis: cameraAxis)
+
+        return limbSampleAngles.compactMap { angle in
+            let radial = cameraAxis * cosine
+                + (basis.u * cos(angle) + basis.v * sin(angle)) * sine
+            return projectNormalized(worldPosition: centerWorld + radial * radius,
+                                     cameraMatrix: cameraMatrix)
+        }
+    }
+
+    private static func projectedSphereSamples(centerWorld: SIMD3<Float>,
+                                               radius: Float,
+                                               cameraMatrix: matrix_float4x4) -> [SIMD2<Float>] {
+        sphereSampleDirections.compactMap { direction in
+            projectNormalized(worldPosition: centerWorld + direction * radius,
+                              cameraMatrix: cameraMatrix)
+        }
+    }
+
+    private static func makeOrthonormalBasis(axis: SIMD3<Float>) -> (u: SIMD3<Float>, v: SIMD3<Float>) {
+        let helper = abs(axis.y) < 0.95
+            ? SIMD3<Float>(0, 1, 0)
+            : SIMD3<Float>(1, 0, 0)
+        let u = normalize(cross(axis, helper))
+        let v = normalize(cross(axis, u))
+        return (u, v)
     }
 
     private static func projectNormalized(worldPosition: SIMD3<Float>,
@@ -225,5 +294,12 @@ struct EarthSceneSunVisualState {
             return SIMD3<Float>(cos(theta) * radius, sin(theta) * radius, z)
         }
         return cardinal + fibonacci
+    }()
+
+    private static let limbSampleAngles: [Float] = {
+        let count = 192
+        return (0..<count).map { index in
+            2 * Float.pi * Float(index) / Float(count)
+        }
     }()
 }
