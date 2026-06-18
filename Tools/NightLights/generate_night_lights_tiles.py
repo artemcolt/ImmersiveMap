@@ -196,8 +196,12 @@ def generate(config: GenerationConfig) -> None:
         f"into {config.output_dir}"
     )
 
+    source_tiles_by_grid = {
+        (source_tile.column, source_tile.row): source_tile
+        for source_tile in source_tiles
+    }
     for source_tile in source_tiles:
-        generate_from_source_tile(source_tile, config)
+        generate_from_source_tile(source_tile, source_tiles_by_grid, config)
 
     write_metadata(config)
 
@@ -336,7 +340,11 @@ def clear_previous_outputs(output_dir: Path) -> None:
         metadata_path.unlink()
 
 
-def generate_from_source_tile(source_tile: SourceTile, config: GenerationConfig) -> None:
+def generate_from_source_tile(
+    source_tile: SourceTile,
+    source_tiles_by_grid: dict[tuple[int, int], SourceTile],
+    config: GenerationConfig,
+) -> None:
     with Image.open(source_tile.path) as opened:
         source = opened.convert("L")
 
@@ -344,6 +352,18 @@ def generate_from_source_tile(source_tile: SourceTile, config: GenerationConfig)
     global_width = source_tile_size * len(SOURCE_COLUMNS)
     global_height = source_tile_size * len(SOURCE_ROWS)
     processing_padding = CINEMATIC_PROCESSING_PADDING if config.style == STYLE_CINEMATIC else 0
+    source_margin = calculate_source_margin(
+        global_width=global_width,
+        min_zoom=config.min_zoom,
+        tile_size=config.tile_size,
+        processing_padding=processing_padding,
+    )
+    source = build_padded_source_image(
+        source=source,
+        source_tile=source_tile,
+        source_tiles_by_grid=source_tiles_by_grid,
+        margin=source_margin,
+    )
 
     print(f"Processing {source_tile.key}: {source_tile.path.name}")
     for z in range(config.min_zoom, config.max_zoom + 1):
@@ -365,6 +385,7 @@ def generate_from_source_tile(source_tile: SourceTile, config: GenerationConfig)
                     global_width=global_width,
                     global_height=global_height,
                     processing_padding=processing_padding,
+                    source_content_offset=source_margin,
                 )
                 processed = process_output_tile(image, style=config.style)
                 processed = crop_processed_tile(
@@ -392,9 +413,19 @@ def render_tile(
     global_width: int,
     global_height: int,
     processing_padding: int = 0,
+    source_content_offset: int = 0,
 ) -> Image.Image:
-    source_x0 = x / (1 << z) * global_width - source_tile.column * source.width
-    source_x1 = (x + 1) / (1 << z) * global_width - source_tile.column * source.width
+    source_tile_width = global_width / len(SOURCE_COLUMNS)
+    source_x0 = (
+        x / (1 << z) * global_width
+        - source_tile.column * source_tile_width
+        + source_content_offset
+    )
+    source_x1 = (
+        (x + 1) / (1 << z) * global_width
+        - source_tile.column * source_tile_width
+        + source_content_offset
+    )
     render_size = output_tile_size + processing_padding * 2
     tile_span_x = source_x1 - source_x0
     source_x0 -= tile_span_x * processing_padding / output_tile_size
@@ -407,7 +438,8 @@ def render_tile(
         pixel_y_offset=-processing_padding,
         source_x0=source_x0,
         source_x1=source_x1,
-        source_row_offset=source_tile.row * source.height,
+        source_row_offset=source_tile.row * (global_height / len(SOURCE_ROWS)),
+        source_y_offset=source_content_offset,
         global_height=global_height,
     )
     return source.transform(
@@ -432,6 +464,111 @@ def crop_processed_tile(image: Image.Image, tile_size: int, padding: int) -> Ima
     if padding <= 0:
         return image
     return image.crop((padding, padding, padding + tile_size, padding + tile_size))
+
+
+def calculate_source_margin(
+    global_width: int,
+    min_zoom: int,
+    tile_size: int,
+    processing_padding: int,
+) -> int:
+    if processing_padding <= 0:
+        return 0
+
+    widest_tile_span = global_width / (1 << min_zoom)
+    return math.ceil(widest_tile_span * processing_padding / tile_size)
+
+
+def build_padded_source_image(
+    source: Image.Image,
+    source_tile: SourceTile,
+    source_tiles_by_grid: dict[tuple[int, int], SourceTile],
+    margin: int,
+) -> Image.Image:
+    if margin <= 0:
+        return source
+
+    padded = Image.new(
+        source.mode,
+        (source.width + margin * 2, source.height + margin * 2),
+        0,
+    )
+    padded.paste(source, (margin, margin))
+
+    for row_delta in (-1, 0, 1):
+        for column_delta in (-1, 0, 1):
+            if row_delta == 0 and column_delta == 0:
+                continue
+
+            neighbor_tile = neighbor_source_tile(
+                source_tile=source_tile,
+                source_tiles_by_grid=source_tiles_by_grid,
+                column_delta=column_delta,
+                row_delta=row_delta,
+            )
+            if neighbor_tile is None:
+                continue
+
+            with Image.open(neighbor_tile.path) as opened:
+                neighbor = opened.convert(source.mode)
+            source_box, destination = source_margin_crop(
+                neighbor=neighbor,
+                column_delta=column_delta,
+                row_delta=row_delta,
+                margin=margin,
+            )
+            padded.paste(neighbor.crop(source_box), destination)
+
+    return padded
+
+
+def neighbor_source_tile(
+    source_tile: SourceTile,
+    source_tiles_by_grid: dict[tuple[int, int], SourceTile],
+    column_delta: int,
+    row_delta: int,
+) -> SourceTile | None:
+    row = source_tile.row + row_delta
+    if row < 0 or row >= len(SOURCE_ROWS):
+        return None
+
+    column = (source_tile.column + column_delta) % len(SOURCE_COLUMNS)
+    return source_tiles_by_grid.get((column, row))
+
+
+def source_margin_crop(
+    neighbor: Image.Image,
+    column_delta: int,
+    row_delta: int,
+    margin: int,
+) -> tuple[tuple[int, int, int, int], tuple[int, int]]:
+    if column_delta < 0:
+        source_x0 = neighbor.width - margin
+        source_x1 = neighbor.width
+        destination_x = 0
+    elif column_delta > 0:
+        source_x0 = 0
+        source_x1 = margin
+        destination_x = margin + neighbor.width
+    else:
+        source_x0 = 0
+        source_x1 = neighbor.width
+        destination_x = margin
+
+    if row_delta < 0:
+        source_y0 = neighbor.height - margin
+        source_y1 = neighbor.height
+        destination_y = 0
+    elif row_delta > 0:
+        source_y0 = 0
+        source_y1 = margin
+        destination_y = margin + neighbor.height
+    else:
+        source_y0 = 0
+        source_y1 = neighbor.height
+        destination_y = margin
+
+    return (source_x0, source_y0, source_x1, source_y1), (destination_x, destination_y)
 
 
 def make_cinematic_tile(source: Image.Image) -> Image.Image:
@@ -473,7 +610,8 @@ def build_mercator_mesh(
     pixel_y_offset: int,
     source_x0: float,
     source_x1: float,
-    source_row_offset: int,
+    source_row_offset: float,
+    source_y_offset: int,
     global_height: int,
 ) -> list[tuple[tuple[int, int, int, int], tuple[float, float, float, float, float, float, float, float]]]:
     mesh = []
@@ -485,14 +623,14 @@ def build_mercator_mesh(
             pixel_y=top + pixel_y_offset,
             output_tile_size=output_tile_size,
             global_height=global_height,
-        ) - source_row_offset
+        ) - source_row_offset + source_y_offset
         source_y1 = mercator_pixel_y_to_equirectangular_y(
             z=z,
             tile_y=y,
             pixel_y=bottom + pixel_y_offset,
             output_tile_size=output_tile_size,
             global_height=global_height,
-        ) - source_row_offset
+        ) - source_row_offset + source_y_offset
         mesh.append(
             (
                 (0, top, render_size, bottom),

@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 import importlib.util
 import sys
+import tempfile
 
 from PIL import Image
 
@@ -57,10 +58,65 @@ class CinematicNightLightsTests(unittest.TestCase):
         self.assertLess(mapped[5], 235)
 
     def test_crop_processed_tile_removes_processing_padding(self):
-        source = Image.new("RGB", (8, 8), (0, 0, 0))
+        source = Image.new("RGB", (8, 8))
+        for y in range(source.height):
+            for x in range(source.width):
+                source.putpixel((x, y), (x, y, x + y))
+
         cropped = generator.crop_processed_tile(source, tile_size=4, padding=2)
 
         self.assertEqual(cropped.size, (4, 4))
+        self.assertEqual(cropped.getpixel((0, 0)), source.getpixel((2, 2)))
+        self.assertEqual(cropped.getpixel((3, 0)), source.getpixel((5, 2)))
+        self.assertEqual(cropped.getpixel((0, 3)), source.getpixel((2, 5)))
+        self.assertEqual(cropped.getpixel((3, 3)), source.getpixel((5, 5)))
+
+    def test_padded_source_image_stitches_neighbor_margins(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            source_dir = Path(temporary_directory)
+            bases = {
+                "A1": 10,
+                "B1": 30,
+                "C1": 50,
+                "D1": 70,
+                "A2": 90,
+                "B2": 110,
+                "C2": 130,
+                "D2": 150,
+            }
+            source_tiles = {}
+            for row_index, row in enumerate(generator.SOURCE_ROWS):
+                for column_index, column in enumerate(generator.SOURCE_COLUMNS):
+                    key = f"{column}{row}"
+                    path = source_dir / f"{key}.png"
+                    image = Image.new("RGB", (3, 3))
+                    for y in range(image.height):
+                        for x in range(image.width):
+                            image.putpixel((x, y), (bases[key], x, y))
+                    image.save(path)
+                    source_tiles[(column_index, row_index)] = generator.SourceTile(
+                        key=key,
+                        path=path,
+                        column=column_index,
+                        row=row_index,
+                    )
+
+            source_tile = source_tiles[(3, 0)]
+            with Image.open(source_tile.path) as source:
+                padded = generator.build_padded_source_image(
+                    source=source,
+                    source_tile=source_tile,
+                    source_tiles_by_grid=source_tiles,
+                    margin=1,
+                )
+
+        self.assertEqual(padded.size, (5, 5))
+        self.assertEqual(padded.getpixel((1, 1)), (bases["D1"], 0, 0))
+        self.assertEqual(padded.getpixel((0, 1)), (bases["C1"], 2, 0))
+        self.assertEqual(padded.getpixel((4, 1)), (bases["A1"], 0, 0))
+        self.assertEqual(padded.getpixel((1, 4)), (bases["D2"], 0, 0))
+        self.assertEqual(padded.getpixel((4, 4)), (bases["A2"], 0, 0))
+        self.assertEqual(padded.getpixel((1, 0)), (0, 0, 0))
 
 
 if __name__ == "__main__":
