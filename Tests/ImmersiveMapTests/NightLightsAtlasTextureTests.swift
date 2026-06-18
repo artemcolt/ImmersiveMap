@@ -43,11 +43,11 @@ final class NightLightsAtlasTextureTests: XCTestCase {
         let wrongWidth = NightLightsTileData(tile: Tile(x: 2, y: 0, z: 4),
                                             width: 512,
                                             height: 1024,
-                                            bytes: [UInt8](repeating: 1, count: 512 * 1024))
+                                            bytes: [UInt8](repeating: 1, count: 512 * 1024 * 2))
         let wrongByteCount = NightLightsTileData(tile: Tile(x: 3, y: 0, z: 4),
                                                 width: 1024,
                                                 height: 1024,
-                                                bytes: [UInt8](repeating: 1, count: 1024))
+                                                bytes: [UInt8](repeating: 1, count: 1024 * 1024))
 
         let state = atlas.update(tiles: [wrongWidth, validTile, wrongByteCount])
 
@@ -128,7 +128,9 @@ final class NightLightsAtlasTextureTests: XCTestCase {
             (pageSize: 0, tileSize: 1024),
             (pageSize: 4096, tileSize: 0),
             (pageSize: 512, tileSize: 1024),
-            (pageSize: 3000, tileSize: 1024)
+            (pageSize: 3000, tileSize: 1024),
+            (pageSize: Int.max - 1, tileSize: 1),
+            (pageSize: Int.max, tileSize: Int.max)
         ]
 
         for input in invalidInputs {
@@ -142,27 +144,47 @@ final class NightLightsAtlasTextureTests: XCTestCase {
         }
     }
 
-    func testUploadsTilesRowMajorAndClearsUntouchedSlots() throws {
+    func testUploadsTwoChannelTilesRowMajorAndClearsUntouchedSlots() throws {
         let atlas = try makeAtlas(pageSize: 4, tileSize: 2)
         let tiles = [
-            makeTileData(tile: Tile(x: 0, y: 0, z: 1), width: 2, height: 2, bytes: [1, 2, 3, 4]),
-            makeTileData(tile: Tile(x: 1, y: 0, z: 1), width: 2, height: 2, bytes: [5, 6, 7, 8]),
-            makeTileData(tile: Tile(x: 0, y: 1, z: 1), width: 2, height: 2, bytes: [9, 10, 11, 12])
+            makeTileData(tile: Tile(x: 0, y: 0, z: 1),
+                         width: 2,
+                         height: 2,
+                         bytes: [
+                            1, 101, 2, 102,
+                            3, 103, 4, 104
+                         ]),
+            makeTileData(tile: Tile(x: 1, y: 0, z: 1),
+                         width: 2,
+                         height: 2,
+                         bytes: [
+                            5, 105, 6, 106,
+                            7, 107, 8, 108
+                         ]),
+            makeTileData(tile: Tile(x: 0, y: 1, z: 1),
+                         width: 2,
+                         height: 2,
+                         bytes: [
+                            9, 109, 10, 110,
+                            11, 111, 12, 112
+                         ])
         ]
 
         let state = atlas.update(tiles: tiles)
 
         let page = try XCTUnwrap(state.pages.first)
-        var bytes = [UInt8](repeating: 255, count: 4 * 4)
+        XCTAssertEqual(page.pixelFormat, .rg8Unorm)
+
+        var bytes = [UInt8](repeating: 255, count: 4 * 4 * 2)
         page.getBytes(&bytes,
-                      bytesPerRow: 4,
+                      bytesPerRow: 4 * 2,
                       from: MTLRegionMake2D(0, 0, 4, 4),
                       mipmapLevel: 0)
         XCTAssertEqual(bytes, [
-            1, 2, 5, 6,
-            3, 4, 7, 8,
-            9, 10, 0, 0,
-            11, 12, 0, 0
+            1, 101, 2, 102, 5, 105, 6, 106,
+            3, 103, 4, 104, 7, 107, 8, 108,
+            9, 109, 10, 110, 0, 0, 0, 0,
+            11, 111, 12, 112, 0, 0, 0, 0
         ])
     }
 
@@ -174,7 +196,7 @@ final class NightLightsAtlasTextureTests: XCTestCase {
     }
 
     private func makeTexture(device: MTLDevice, label: String) -> MTLTexture? {
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r8Unorm,
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rg8Unorm,
                                                                   width: 4,
                                                                   height: 4,
                                                                   mipmapped: false)
@@ -188,7 +210,9 @@ final class NightLightsAtlasTextureTests: XCTestCase {
         makeTileData(tile: tile,
                      width: 1024,
                      height: 1024,
-                     bytes: [UInt8](repeating: UInt8(tile.x), count: 1024 * 1024))
+                     bytes: interleavedBytes(core: UInt8(tile.x),
+                                             halo: UInt8(truncatingIfNeeded: tile.x + 128),
+                                             pixelCount: 1024 * 1024))
     }
 
     private func makeTileData(tile: Tile, width: Int, height: Int, bytes: [UInt8]) -> NightLightsTileData {
@@ -196,5 +220,15 @@ final class NightLightsAtlasTextureTests: XCTestCase {
                             width: width,
                             height: height,
                             bytes: bytes)
+    }
+
+    private func interleavedBytes(core: UInt8, halo: UInt8, pixelCount: Int) -> [UInt8] {
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(pixelCount * 2)
+        for _ in 0..<pixelCount {
+            bytes.append(core)
+            bytes.append(halo)
+        }
+        return bytes
     }
 }

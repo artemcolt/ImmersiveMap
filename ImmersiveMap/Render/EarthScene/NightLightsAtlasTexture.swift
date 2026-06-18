@@ -6,6 +6,7 @@ import Metal
 final class NightLightsAtlasTexture {
     private static let defaultPageSize = 4096
     private static let defaultTileSize = 1024
+    private static let bytesPerPixel = 2
 
     private let device: MTLDevice
     private let pageSize: Int
@@ -45,6 +46,9 @@ final class NightLightsAtlasTexture {
             guard let page = texturePage(at: pageIndex) else {
                 continue
             }
+            guard let tileBytesPerRow = Self.bytesPerRow(forSideLength: tileSize) else {
+                continue
+            }
 
             let originX = column * tileSize
             let originY = row * tileSize
@@ -56,7 +60,7 @@ final class NightLightsAtlasTexture {
                 page.replace(region: region,
                              mipmapLevel: 0,
                              withBytes: baseAddress,
-                             bytesPerRow: tileSize)
+                             bytesPerRow: tileBytesPerRow)
             }
 
             let uvScale = SIMD2<Float>(Float(tileSize) / Float(pageSize),
@@ -86,9 +90,12 @@ final class NightLightsAtlasTexture {
     }
 
     private func isValid(_ tileData: NightLightsTileData) -> Bool {
-        tileData.width == tileSize &&
+        guard let expectedByteCount = Self.textureByteCount(forSideLength: tileSize) else {
+            return false
+        }
+        return tileData.width == tileSize &&
         tileData.height == tileSize &&
-        tileData.bytes.count == tileSize * tileSize
+        tileData.bytes.count == expectedByteCount
     }
 
     private func texturePage(at index: Int) -> MTLTexture? {
@@ -102,7 +109,11 @@ final class NightLightsAtlasTexture {
     }
 
     private func makeTexturePage(index: Int) -> MTLTexture? {
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r8Unorm,
+        guard let pageBytesPerRow = Self.bytesPerRow(forSideLength: pageSize),
+              let clearByteCount = Self.textureByteCount(forSideLength: pageSize) else {
+            return nil
+        }
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rg8Unorm,
                                                                   width: pageSize,
                                                                   height: pageSize,
                                                                   mipmapped: false)
@@ -112,13 +123,13 @@ final class NightLightsAtlasTexture {
         let texture = device.makeTexture(descriptor: descriptor)
         texture?.label = "NightLightsAtlasTexturePage\(index)"
         if let texture {
-            clearTexture(texture)
+            clearTexture(texture, byteCount: clearByteCount, bytesPerRow: pageBytesPerRow)
         }
         return texture
     }
 
-    private func clearTexture(_ texture: MTLTexture) {
-        let bytes = [UInt8](repeating: 0, count: pageSize * pageSize)
+    private func clearTexture(_ texture: MTLTexture, byteCount: Int, bytesPerRow: Int) {
+        let bytes = [UInt8](repeating: 0, count: byteCount)
         bytes.withUnsafeBytes { rawBuffer in
             guard let baseAddress = rawBuffer.baseAddress else {
                 return
@@ -126,21 +137,49 @@ final class NightLightsAtlasTexture {
             texture.replace(region: MTLRegionMake2D(0, 0, pageSize, pageSize),
                             mipmapLevel: 0,
                             withBytes: baseAddress,
-                            bytesPerRow: pageSize)
+                            bytesPerRow: bytesPerRow)
         }
     }
 
     private func requiredPageCount(forEntryCount entryCount: Int) -> Int {
-        (entryCount + slotsPerPage - 1) / slotsPerPage
+        guard entryCount > 0 else {
+            return 0
+        }
+        return ((entryCount - 1) / slotsPerPage) + 1
     }
 
     private static func validatedGeometry(pageSize: Int, tileSize: Int) -> (pageSize: Int, tileSize: Int) {
         guard pageSize > 0,
               tileSize > 0,
               tileSize <= pageSize,
-              pageSize % tileSize == 0 else {
+              pageSize % tileSize == 0,
+              bytesPerRow(forSideLength: tileSize) != nil,
+              bytesPerRow(forSideLength: pageSize) != nil,
+              textureByteCount(forSideLength: tileSize) != nil,
+              textureByteCount(forSideLength: pageSize) != nil else {
+            return (defaultPageSize, defaultTileSize)
+        }
+
+        let slotsPerSide = pageSize / tileSize
+        guard checkedProduct(slotsPerSide, slotsPerSide) != nil else {
             return (defaultPageSize, defaultTileSize)
         }
         return (pageSize, tileSize)
+    }
+
+    private static func bytesPerRow(forSideLength sideLength: Int) -> Int? {
+        checkedProduct(sideLength, bytesPerPixel)
+    }
+
+    private static func textureByteCount(forSideLength sideLength: Int) -> Int? {
+        guard let pixelCount = checkedProduct(sideLength, sideLength) else {
+            return nil
+        }
+        return checkedProduct(pixelCount, bytesPerPixel)
+    }
+
+    private static func checkedProduct(_ lhs: Int, _ rhs: Int) -> Int? {
+        let result = lhs.multipliedReportingOverflow(by: rhs)
+        return result.overflow ? nil : result.partialValue
     }
 }
