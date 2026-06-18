@@ -84,10 +84,6 @@ class DefaultMapStyle: ImmersiveMapStyle {
             || isLandmarkClass(normalizedTypeValue)
             || isLandmarkClass(normalizedClassValue)
 
-        if properties["name_ru"]?.stringValue == "Москва" {
-            //print("Podolsk")
-        }
-        
         if isContinent {
             return LabelTextStyle(
                 key: 1,

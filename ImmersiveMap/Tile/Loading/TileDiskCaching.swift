@@ -42,29 +42,17 @@ class TileDiskCaching {
         let x = tile.x
         let y = tile.y
         let cachePath = cachePathFor(zoom: zoom, x: x, y: y)
-        let data = loadCachedTile(at: cachePath)
-        //if (data != nil) { print("Get from disk cache \(tile)") }
-        return data
+        return loadCachedTile(at: cachePath)
     }
     
     func clearAllCache() throws {
         let fileManager = FileManager.default
         if fileManager.fileExists(atPath: cacheRootDirectory.path) {
             try fileManager.removeItem(at: cacheRootDirectory)
-            #if DEBUG
-            print("MapTiles cache directory removed successfully.")
-            #endif
-        } else {
-            #if DEBUG
-            print("MapTiles cache directory does not exist.")
-            #endif
         }
         // Recreate the cache directory after clearing
         do {
             try fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-            #if DEBUG
-            print("MapTiles cache directory recreated successfully.")
-            #endif
         } catch {
             #if DEBUG
             print("Failed to recreate cache directory: \(error)")
@@ -128,7 +116,6 @@ class TileDiskCaching {
         do {
             // Save tile data
             try data.write(to: cachePath, options: .atomic)
-            //print("Saved tile to: \(cachePath.path)")
         } catch {
             #if DEBUG
             print("Failed to save tile to \(cachePath.path): \(error)")
@@ -141,7 +128,6 @@ class TileDiskCaching {
         
         // Check if tile exists
         guard fileManager.fileExists(atPath: cachePath.path) else {
-            //print("Tile not found at: \(cachePath.path)")
             return nil
         }
         
@@ -158,16 +144,12 @@ class TileDiskCaching {
         if currentDate.timeIntervalSince(modificationDate) > cacheDuration {
             // Tile is outdated, remove it
             try? fileManager.removeItem(at: cachePath)
-            #if DEBUG
-            print("Removed outdated tile at: \(cachePath.path)")
-            #endif
             return nil
         }
         
         // Load tile data
         do {
             let data = try Data(contentsOf: cachePath)
-            //print("Loaded cached tile from: \(cachePath.path)")
             return data
         } catch {
             #if DEBUG

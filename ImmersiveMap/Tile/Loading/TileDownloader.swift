@@ -78,10 +78,6 @@ class TileDownloader {
         let x = tile.x
         let y = tile.y
         
-        #if DEBUG
-        print("Download tile \(tile)")
-        #endif
-        
         let tileURL = mapTileDownloader.get(tileX: x, tileY: y, tileZ: zoom)
         var request = URLRequest(url: tileURL)
         if let authorizationToken, authorizationMode == .bearerHeader {
@@ -126,9 +122,6 @@ class TileDownloader {
                 return .failure(.emptyBody)
             }
 
-            #if DEBUG
-            print("Tile is downloaded \(tile)")
-            #endif
             return .success(data)
         } catch {
             #if DEBUG

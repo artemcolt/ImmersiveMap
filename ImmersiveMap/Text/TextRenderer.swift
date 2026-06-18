@@ -320,9 +320,6 @@ class TextRenderer {
         ]
         do {
             let texture = try textureLoader.newTexture(URL: url, options: options)
-            #if DEBUG
-            print("Atlas texture loaded: \(name).png \(texture.width)x\(texture.height)")
-            #endif
             return texture
         } catch {
             #if DEBUG
@@ -342,9 +339,6 @@ class TextRenderer {
         do {
             let data = try Data(contentsOf: url)
             let atlas = try JSONDecoder().decode(AtlasData.self, from: data)
-            #if DEBUG
-            print("Atlas JSON loaded: \(name).json \(atlas.glyphs.count) glyphs")
-            #endif
             return atlas
         } catch {
             #if DEBUG
