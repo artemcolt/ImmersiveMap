@@ -31,6 +31,7 @@ CINEMATIC_CORE_EXPOSURE = 2.2
 CINEMATIC_CORE_GAMMA = 0.72
 CINEMATIC_HALO_BLUR_RADIUS = 2.6
 CINEMATIC_HALO_GAIN = 0.62
+CINEMATIC_PROCESSING_PADDING = 32
 NASA_SOURCE_PAGE = "https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/"
 SOURCE_BASE_URL = (
     "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/"
@@ -342,6 +343,7 @@ def generate_from_source_tile(source_tile: SourceTile, config: GenerationConfig)
     source_tile_size = source.width
     global_width = source_tile_size * len(SOURCE_COLUMNS)
     global_height = source_tile_size * len(SOURCE_ROWS)
+    processing_padding = CINEMATIC_PROCESSING_PADDING if config.style == STYLE_CINEMATIC else 0
 
     print(f"Processing {source_tile.key}: {source_tile.path.name}")
     for z in range(config.min_zoom, config.max_zoom + 1):
@@ -362,8 +364,14 @@ def generate_from_source_tile(source_tile: SourceTile, config: GenerationConfig)
                     output_tile_size=config.tile_size,
                     global_width=global_width,
                     global_height=global_height,
+                    processing_padding=processing_padding,
                 )
                 processed = process_output_tile(image, style=config.style)
+                processed = crop_processed_tile(
+                    processed,
+                    tile_size=config.tile_size,
+                    padding=processing_padding,
+                )
                 output_path = config.output_dir / OUTPUT_NAME_TEMPLATE.format(z=z, x=x, y=y)
                 processed.save(
                     output_path,
@@ -383,20 +391,27 @@ def render_tile(
     output_tile_size: int,
     global_width: int,
     global_height: int,
+    processing_padding: int = 0,
 ) -> Image.Image:
     source_x0 = x / (1 << z) * global_width - source_tile.column * source.width
     source_x1 = (x + 1) / (1 << z) * global_width - source_tile.column * source.width
+    render_size = output_tile_size + processing_padding * 2
+    tile_span_x = source_x1 - source_x0
+    source_x0 -= tile_span_x * processing_padding / output_tile_size
+    source_x1 += tile_span_x * processing_padding / output_tile_size
     mesh = build_mercator_mesh(
         z=z,
         y=y,
         output_tile_size=output_tile_size,
+        render_size=render_size,
+        pixel_y_offset=-processing_padding,
         source_x0=source_x0,
         source_x1=source_x1,
         source_row_offset=source_tile.row * source.height,
         global_height=global_height,
     )
     return source.transform(
-        (output_tile_size, output_tile_size),
+        (render_size, render_size),
         Image.Transform.MESH,
         mesh,
         resample=Image.Resampling.BICUBIC,
@@ -411,6 +426,12 @@ def process_output_tile(image: Image.Image, style: str) -> Image.Image:
     if style == STYLE_CINEMATIC:
         return make_cinematic_tile(source)
     raise ValueError(f"unsupported night-lights style: {style}")
+
+
+def crop_processed_tile(image: Image.Image, tile_size: int, padding: int) -> Image.Image:
+    if padding <= 0:
+        return image
+    return image.crop((padding, padding, padding + tile_size, padding + tile_size))
 
 
 def make_cinematic_tile(source: Image.Image) -> Image.Image:
@@ -448,31 +469,33 @@ def build_mercator_mesh(
     z: int,
     y: int,
     output_tile_size: int,
+    render_size: int,
+    pixel_y_offset: int,
     source_x0: float,
     source_x1: float,
     source_row_offset: int,
     global_height: int,
 ) -> list[tuple[tuple[int, int, int, int], tuple[float, float, float, float, float, float, float, float]]]:
     mesh = []
-    for top in range(0, output_tile_size, MESH_BAND_HEIGHT):
-        bottom = min(top + MESH_BAND_HEIGHT, output_tile_size)
+    for top in range(0, render_size, MESH_BAND_HEIGHT):
+        bottom = min(top + MESH_BAND_HEIGHT, render_size)
         source_y0 = mercator_pixel_y_to_equirectangular_y(
             z=z,
             tile_y=y,
-            pixel_y=top,
+            pixel_y=top + pixel_y_offset,
             output_tile_size=output_tile_size,
             global_height=global_height,
         ) - source_row_offset
         source_y1 = mercator_pixel_y_to_equirectangular_y(
             z=z,
             tile_y=y,
-            pixel_y=bottom,
+            pixel_y=bottom + pixel_y_offset,
             output_tile_size=output_tile_size,
             global_height=global_height,
         ) - source_row_offset
         mesh.append(
             (
-                (0, top, output_tile_size, bottom),
+                (0, top, render_size, bottom),
                 (
                     source_x0,
                     source_y0,

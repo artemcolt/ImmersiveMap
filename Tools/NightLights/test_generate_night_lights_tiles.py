@@ -56,6 +56,12 @@ class CinematicNightLightsTests(unittest.TestCase):
         self.assertGreater(mapped[5], mapped[4])
         self.assertLess(mapped[5], 235)
 
+    def test_crop_processed_tile_removes_processing_padding(self):
+        source = Image.new("RGB", (8, 8), (0, 0, 0))
+        cropped = generator.crop_processed_tile(source, tile_size=4, padding=2)
+
+        self.assertEqual(cropped.size, (4, 4))
+
 
 if __name__ == "__main__":
     unittest.main()
