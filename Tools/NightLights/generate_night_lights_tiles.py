@@ -684,6 +684,8 @@ def write_metadata(config: GenerationConfig) -> None:
             "minZoom": config.min_zoom,
             "maxZoom": config.max_zoom,
             "quality": config.quality,
+            "style": config.style,
+            "channels": channel_semantics(config.style),
             "sourcePage": NASA_SOURCE_PAGE,
             "sourceGrid": {
                 "columns": list(SOURCE_COLUMNS),
@@ -695,6 +697,22 @@ def write_metadata(config: GenerationConfig) -> None:
     }
     metadata_path = config.output_dir / METADATA_FILE_NAME
     metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=False) + "\n")
+
+
+def channel_semantics(style: str) -> dict[str, str]:
+    if style == STYLE_CINEMATIC:
+        return {
+            "red": "cinematic light core",
+            "green": "cinematic light halo",
+            "blue": "unused by runtime; decoded JPEG may contain compression leakage",
+        }
+    if style == STYLE_RAW:
+        return {
+            "red": "raw grayscale night light intensity",
+            "green": "same as red after RGB JPEG decode",
+            "blue": "same as red after RGB JPEG decode",
+        }
+    raise ValueError(f"unsupported night-lights style: {style}")
 
 
 def expected_tile_count(min_zoom: int, max_zoom: int) -> int:

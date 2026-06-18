@@ -5,6 +5,7 @@
 import unittest
 from pathlib import Path
 import importlib.util
+import json
 import sys
 import tempfile
 
@@ -44,6 +45,66 @@ class CinematicNightLightsTests(unittest.TestCase):
         self.assertEqual(result.mode, "L")
         self.assertEqual(result.getpixel((0, 0)), 32)
         self.assertEqual(result.getpixel((1, 0)), 240)
+
+    def test_metadata_records_cinematic_style_and_channel_semantics(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_dir = Path(temporary_directory)
+            config = generator.GenerationConfig(
+                source_dir=output_dir,
+                output_dir=output_dir,
+                tile_size=1024,
+                min_zoom=4,
+                max_zoom=6,
+                quality=90,
+                download=False,
+                style="cinematic",
+            )
+
+            generator.write_metadata(config)
+
+            metadata = json.loads(
+                (output_dir / generator.METADATA_FILE_NAME).read_text()
+            )
+
+        self.assertEqual(metadata["generationParameters"]["style"], "cinematic")
+        self.assertEqual(
+            metadata["generationParameters"]["channels"],
+            {
+                "red": "cinematic light core",
+                "green": "cinematic light halo",
+                "blue": "unused by runtime; decoded JPEG may contain compression leakage",
+            },
+        )
+
+    def test_metadata_records_raw_style_and_channel_semantics(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_dir = Path(temporary_directory)
+            config = generator.GenerationConfig(
+                source_dir=output_dir,
+                output_dir=output_dir,
+                tile_size=256,
+                min_zoom=0,
+                max_zoom=0,
+                quality=75,
+                download=False,
+                style="raw",
+            )
+
+            generator.write_metadata(config)
+
+            metadata = json.loads(
+                (output_dir / generator.METADATA_FILE_NAME).read_text()
+            )
+
+        self.assertEqual(metadata["generationParameters"]["style"], "raw")
+        self.assertEqual(
+            metadata["generationParameters"]["channels"],
+            {
+                "red": "raw grayscale night light intensity",
+                "green": "same as red after RGB JPEG decode",
+                "blue": "same as red after RGB JPEG decode",
+            },
+        )
 
     def test_cinematic_curve_compresses_highlights_and_preserves_dim_lights(self):
         values = [0, 4, 16, 64, 160, 255]
