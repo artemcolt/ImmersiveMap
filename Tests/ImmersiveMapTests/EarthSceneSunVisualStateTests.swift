@@ -14,7 +14,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = normalize(SIMD3<Float>(0.9, 0, 0.44))
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
@@ -28,7 +28,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         var earthScene = Self.earthScene(limbHaloIntensity: 1)
         earthScene.sunDirection = SIMD3<Float>(0, 0, 1)
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
@@ -43,7 +43,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
     }
 
     func testDisabledEarthSceneReturnsDisabledState() {
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: .disabled,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
@@ -75,7 +75,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
             0.5 + earthScene.sunDirection.y * 10.5 * 0.05 * 0.5
         )
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: cameraMatrix,
@@ -110,7 +110,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         cameraMatrix[0][0] = 0.05
         cameraMatrix[1][1] = 0.05
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: cameraMatrix,
@@ -139,7 +139,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         cameraMatrix[0][0] = 0.05
         cameraMatrix[1][1] = 0.05
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: cameraMatrix,
@@ -164,7 +164,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         let limbDistance = abs(distanceFromGlobeCenter - expectedGlobeRadius)
         let expectedHalo = max(0, 1 - limbDistance / earthScene.sunLimbHaloWidth)
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
@@ -187,7 +187,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         let direction = normalize(SIMD3<Float>(0.47, 0, 0.88))
         earthScene.sunDirection = direction
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
@@ -210,7 +210,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         cameraMatrix[0][0] = 0.5
         cameraMatrix[1][1] = 0.5
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: cameraMatrix,
@@ -230,7 +230,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         let direction = normalize(SIMD3<Float>(0.53, 0, 0.85))
         earthScene.sunDirection = direction
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
@@ -249,14 +249,14 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = SIMD3<Float>(0, 0.5, Float(sqrt(0.75)))
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
             drawSize: CGSize(width: 1000, height: 500)
         )
 
-        XCTAssertEqual(state.globeScreenRadius, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(state.globeScreenRadius, 0.5, accuracy: 0.0001)
         XCTAssertEqual(state.diskAlpha, 0.0, accuracy: 0.0001)
         XCTAssertEqual(state.edgeGlareAlpha, 1.0, accuracy: 0.0001)
         XCTAssertEqual(state.limbHaloAlpha, 0.0, accuracy: 0.0001)
@@ -273,7 +273,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
             var earthScene = Self.earthScene()
             earthScene.sunDirection = direction
 
-            let state = EarthSceneSunVisualState.make(
+            let state = Self.makeState(
                 earthScene: earthScene,
                 globe: Self.globe,
                 cameraMatrix: matrix_identity_float4x4,
@@ -291,13 +291,13 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = normalize(SIMD3<Float>(0.55, 0, 0.83))
 
-        let unpanned = EarthSceneSunVisualState.make(
+        let unpanned = Self.makeState(
             earthScene: earthScene,
             globe: GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 0),
             cameraMatrix: matrix_identity_float4x4,
             drawSize: CGSize(width: 1000, height: 1000)
         )
-        let panned = EarthSceneSunVisualState.make(
+        let panned = Self.makeState(
             earthScene: earthScene,
             globe: GlobeUniform(panX: 0.5, panY: 0, radius: 1, transition: 0),
             cameraMatrix: matrix_identity_float4x4,
@@ -311,7 +311,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = normalize(SIMD3<Float>(1, 0, 0.12))
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 0),
             cameraMatrix: matrix_identity_float4x4,
@@ -332,13 +332,13 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         wideProjection[0][0] = 0.5
         wideProjection[1][1] = 0.5
 
-        let regular = EarthSceneSunVisualState.make(
+        let regular = Self.makeState(
             earthScene: earthScene,
             globe: globe,
             cameraMatrix: matrix_identity_float4x4,
             drawSize: CGSize(width: 1000, height: 1000)
         )
-        let wide = EarthSceneSunVisualState.make(
+        let wide = Self.makeState(
             earthScene: earthScene,
             globe: globe,
             cameraMatrix: wideProjection,
@@ -351,18 +351,20 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
     func testPerspectiveSilhouetteUsesDenseSphereSamples() {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = normalize(SIMD3<Float>(0.2, 0, -0.98))
+        let cameraEye = SIMD3<Float>(0.35, 0.2, 1.4)
         let cameraMatrix = Matrix.perspectiveMatrix(fovRadians: .pi / 4,
                                                     aspect: 1,
                                                     near: 0.01,
                                                     far: 20)
-            * Matrix.lookAt(eye: SIMD3<Float>(0.35, 0.2, 1.4),
+            * Matrix.lookAt(eye: cameraEye,
                             center: SIMD3<Float>(0, 0, -1),
                             up: SIMD3<Float>(0, 1, 0))
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: cameraMatrix,
+            cameraEye: cameraEye,
             drawSize: CGSize(width: 1000, height: 1000)
         )
 
@@ -376,7 +378,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         cameraMatrix[0][0] = 0.05
         cameraMatrix[1][1] = 0.05
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: cameraMatrix,
@@ -391,7 +393,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         var earthScene = Self.earthScene()
         earthScene.sunDirection = normalize(SIMD3<Float>(0.2, 0, 1))
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: Matrix.perspectiveMatrix(fovRadians: .pi / 4,
@@ -413,7 +415,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
             now: .distantPast
         )
 
-        let state = EarthSceneSunVisualState.make(
+        let state = Self.makeState(
             earthScene: earthScene,
             globe: Self.globe,
             cameraMatrix: matrix_identity_float4x4,
@@ -435,7 +437,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
         ]
 
         for drawSize in invalidSizes {
-            let state = EarthSceneSunVisualState.make(
+            let state = Self.makeState(
                 earthScene: Self.earthScene(),
                 globe: Self.globe,
                 cameraMatrix: matrix_identity_float4x4,
@@ -463,7 +465,7 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
             var earthScene = Self.earthScene()
             earthScene.sunDirection = direction
 
-            let state = EarthSceneSunVisualState.make(
+            let state = Self.makeState(
                 earthScene: earthScene,
                 globe: Self.globe,
                 cameraMatrix: matrix_identity_float4x4,
@@ -494,6 +496,20 @@ final class EarthSceneSunVisualStateTests: XCTestCase {
 
 private extension EarthSceneSunVisualStateTests {
     static let globe = GlobeUniform(panX: 0, panY: 0, radius: 1, transition: 0)
+
+    static func makeState(earthScene: EarthSceneUniform,
+                          globe: GlobeUniform,
+                          cameraMatrix: matrix_float4x4,
+                          cameraEye: SIMD3<Float> = SIMD3<Float>(0, 0, 0),
+                          drawSize: CGSize,
+                          starfieldRadiusScale: Float = 10.5) -> EarthSceneSunVisualState {
+        EarthSceneSunVisualState.make(earthScene: earthScene,
+                                      globe: globe,
+                                      cameraMatrix: cameraMatrix,
+                                      cameraEye: cameraEye,
+                                      drawSize: drawSize,
+                                      starfieldRadiusScale: starfieldRadiusScale)
+    }
 
     static func earthScene(limbHaloIntensity: Float = 0.4) -> EarthSceneUniform {
         EarthSceneUniform(
