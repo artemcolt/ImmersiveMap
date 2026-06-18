@@ -14,6 +14,9 @@ enum RenderGraphFactory {
                                                                         initialZoom: initialZoom)
         let tileProjectionIndexSubsystem = TileProjectionIndexSubsystem(flatTileOriginCalculator: context.flatTileOriginCalculator)
         let tileGlobeTextureSubsystem = TileGlobeTextureSubsystem(tilesTexture: context.tilesTexture)
+        let nightLightsGlobeTextureSubsystem = NightLightsGlobeTextureSubsystem(tileSet: context.nightLightsTileSet,
+                                                                                tileCache: context.nightLightsTileCache,
+                                                                                atlasTexture: context.nightLightsAtlasTexture)
         let baseLabelSubsystem = BaseLabelPrepareSubsystem(baseLabelCache: context.baseLabelCache,
                                                            roadLabelCache: context.roadLabelCache,
                                                            metalDevice: context.metalContext.device,
@@ -60,6 +63,7 @@ enum RenderGraphFactory {
             tileDemandPlacementSubsystem,
             tileProjectionIndexSubsystem,
             tileGlobeTextureSubsystem,
+            nightLightsGlobeTextureSubsystem,
             baseLabelSubsystem,
             baseLabelDrawSubsystem,
             roadLabelDrawSubsystem,

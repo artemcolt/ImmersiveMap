@@ -48,6 +48,7 @@ final class GlobeSurfaceRenderSubsystem: RenderSubsystem {
                                 globe: frameContext.globeRenderUniform,
                                 earthScene: earthScene,
                                 nightLightsTexture: nightTexture,
+                                nightLightsAtlasState: frameContext.sharedState.nightLightsAtlasState,
                                 globePipeline: globePipeline,
                                 mapSurfaceGridBuffers: mapSurfaceGridBuffers,
                                 tilesTexture: tilesTexture,

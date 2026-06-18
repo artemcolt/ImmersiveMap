@@ -56,4 +56,9 @@ struct SunVisualState {
     uint padding;
 };
 
+struct NightLightsAtlasEntry {
+    int4 tileAndPage;
+    float4 uvOriginAndScale;
+};
+
 #endif

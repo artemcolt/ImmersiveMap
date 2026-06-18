@@ -26,6 +26,9 @@ final class RenderPersistentContext {
     let globeCapRenderer: GlobeCapRenderer
     let starfieldRenderer: StarfieldRenderer
     let nightLightsTexture: NightLightsTexture
+    let nightLightsTileSet: NightLightsTileSet?
+    let nightLightsTileCache: NightLightsTileCache
+    let nightLightsAtlasTexture: NightLightsAtlasTexture
     let mapSurfaceGridBuffers: MapSurfaceGridBuffers
     let flatTileOriginCalculator: FlatTileOriginCalculator
     let extrudedDepthState: MTLDepthStencilState
@@ -86,6 +89,12 @@ final class RenderPersistentContext {
                                                  maxLatitude: WebMercatorMath.maxLatitudeRadians,
                                                  mapBaseColors: mapBaseColors)
         self.nightLightsTexture = NightLightsTexture(device: metal.device)
+        let nightLightsTileSet = try? NightLightsTileSet()
+        self.nightLightsTileSet = nightLightsTileSet
+        self.nightLightsTileCache = NightLightsTileCache { tile in
+            nightLightsTileSet?.url(for: tile)
+        }
+        self.nightLightsAtlasTexture = NightLightsAtlasTexture(device: metal.device)
 
         self.textRenderer = TextRenderer(device: metal.device,
                                          library: metal.library,

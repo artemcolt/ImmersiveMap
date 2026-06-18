@@ -14,6 +14,7 @@ struct VertexOut {
     float4 position [[position]];
     float pointSize [[point_size]];
     float2 texCoord;
+    float2 tileLocalUV;
     float uvSize;
     float posU;
     float posV;
@@ -64,6 +65,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
                                    constant Globe& globe [[buffer(2)]],
                                    constant Tile& tileData [[buffer(3)]]) {
     
+    float2 tileLocalUV = vertexIn.uv;
     float vertexUvX = vertexIn.uv.x; // goes 0 to 1
     float vertexUvY = vertexIn.uv.y; // goes 0 to 1
     
@@ -163,6 +165,7 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     out.position = clip;
     out.pointSize = 5.0;
     out.texCoord = float2(t_u, t_v);
+    out.tileLocalUV = tileLocalUV;
     out.uvSize = 1.0 / count;
     out.posU = posU;
     out.posV = posV;
@@ -179,6 +182,123 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
 static float nightLightsMask(texture2d<float> nightLightsTexture, float2 uv) {
     constexpr sampler sampler2d(filter::linear, address::repeat, mip_filter::linear);
     return nightLightsTexture.sample(sampler2d, uv).r;
+}
+
+struct NightLightsAtlasSample {
+    float mask;
+    bool isValid;
+};
+
+static bool nightLightsTileCovers(int3 sourceTile, int3 drawnTile) {
+    int zoomDelta = drawnTile.z - sourceTile.z;
+    if (zoomDelta < 0 || zoomDelta > 20) {
+        return false;
+    }
+
+    int scale = 1 << zoomDelta;
+    return drawnTile.x / scale == sourceTile.x &&
+           drawnTile.y / scale == sourceTile.y;
+}
+
+static float2 nightLightsSourceTileUV(int3 sourceTile, int3 drawnTile, float2 drawnTileUV) {
+    int zoomDelta = drawnTile.z - sourceTile.z;
+    if (zoomDelta <= 0) {
+        return drawnTileUV;
+    }
+
+    int scale = 1 << zoomDelta;
+    int2 drawnXY = int2(drawnTile.x, drawnTile.y);
+    int2 sourceXY = int2(sourceTile.x, sourceTile.y);
+    float2 childOffset = float2(drawnXY - sourceXY * scale);
+    return (childOffset + drawnTileUV) / float(scale);
+}
+
+static float nightLightsAtlasPageMask(uint pageIndex,
+                                      float2 uv,
+                                      texture2d<float> page0,
+                                      texture2d<float> page1,
+                                      texture2d<float> page2,
+                                      texture2d<float> page3,
+                                      texture2d<float> page4,
+                                      texture2d<float> page5,
+                                      texture2d<float> page6,
+                                      texture2d<float> page7) {
+    constexpr sampler atlasSampler(filter::linear, address::clamp_to_edge, mip_filter::none);
+    switch (pageIndex) {
+        case 0:
+            return page0.sample(atlasSampler, uv).r;
+        case 1:
+            return page1.sample(atlasSampler, uv).r;
+        case 2:
+            return page2.sample(atlasSampler, uv).r;
+        case 3:
+            return page3.sample(atlasSampler, uv).r;
+        case 4:
+            return page4.sample(atlasSampler, uv).r;
+        case 5:
+            return page5.sample(atlasSampler, uv).r;
+        case 6:
+            return page6.sample(atlasSampler, uv).r;
+        case 7:
+            return page7.sample(atlasSampler, uv).r;
+        default:
+            return 0.0;
+    }
+}
+
+static NightLightsAtlasSample nightLightsAtlasMask(int3 drawnTile,
+                                                   float2 drawnTileUV,
+                                                   constant uint2& atlasCounts,
+                                                   constant NightLightsAtlasEntry* atlasEntries,
+                                                   texture2d<float> page0,
+                                                   texture2d<float> page1,
+                                                   texture2d<float> page2,
+                                                   texture2d<float> page3,
+                                                   texture2d<float> page4,
+                                                   texture2d<float> page5,
+                                                   texture2d<float> page6,
+                                                   texture2d<float> page7) {
+    uint entryCount = atlasCounts.x;
+    uint pageCount = atlasCounts.y;
+    float selectedMask = 0.0;
+    int selectedZoom = -1;
+    bool hasSample = false;
+
+    for (uint index = 0; index < entryCount; ++index) {
+        NightLightsAtlasEntry entry = atlasEntries[index];
+        int pageIndex = entry.tileAndPage.w;
+        if (pageIndex < 0 || uint(pageIndex) >= pageCount) {
+            continue;
+        }
+
+        int3 sourceTile = int3(entry.tileAndPage.x, entry.tileAndPage.y, entry.tileAndPage.z);
+        if (sourceTile.z < selectedZoom || !nightLightsTileCovers(sourceTile, drawnTile)) {
+            continue;
+        }
+
+        float2 sourceTileUV = nightLightsSourceTileUV(sourceTile, drawnTile, drawnTileUV);
+        float2 uvOrigin = entry.uvOriginAndScale.xy;
+        float2 uvScale = entry.uvOriginAndScale.zw;
+        float2 atlasUV = uvOrigin + clamp(sourceTileUV, float2(0.0), float2(1.0)) * uvScale;
+        float2 atlasHalfTexel = 0.5 / float2(page0.get_width(), page0.get_height());
+        atlasUV = clamp(atlasUV,
+                        uvOrigin + atlasHalfTexel,
+                        uvOrigin + uvScale - atlasHalfTexel);
+        selectedMask = nightLightsAtlasPageMask(uint(pageIndex),
+                                                atlasUV,
+                                                page0,
+                                                page1,
+                                                page2,
+                                                page3,
+                                                page4,
+                                                page5,
+                                                page6,
+                                                page7);
+        selectedZoom = sourceTile.z;
+        hasSample = true;
+    }
+
+    return NightLightsAtlasSample{selectedMask, hasSample};
 }
 
 struct GlobeCapAtlasSample {
@@ -246,8 +366,19 @@ static GlobeCapAtlasSample globeCapAtlasSampleUV(float latitude,
 fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
                                     texture2d<float> texture [[texture(0)]],
                                     texture2d<float> nightLightsTexture [[texture(1)]],
+                                    texture2d<float> nightLightsAtlasPage0 [[texture(2)]],
+                                    texture2d<float> nightLightsAtlasPage1 [[texture(3)]],
+                                    texture2d<float> nightLightsAtlasPage2 [[texture(4)]],
+                                    texture2d<float> nightLightsAtlasPage3 [[texture(5)]],
+                                    texture2d<float> nightLightsAtlasPage4 [[texture(6)]],
+                                    texture2d<float> nightLightsAtlasPage5 [[texture(7)]],
+                                    texture2d<float> nightLightsAtlasPage6 [[texture(8)]],
+                                    texture2d<float> nightLightsAtlasPage7 [[texture(9)]],
                                     constant Camera& camera [[buffer(1)]],
-                                    constant EarthScene& earthScene [[buffer(2)]]) {
+                                    constant EarthScene& earthScene [[buffer(2)]],
+                                    constant Tile& tileData [[buffer(3)]],
+                                    constant uint2& nightLightsAtlasCounts [[buffer(4)]],
+                                    constant NightLightsAtlasEntry* nightLightsAtlasEntries [[buffer(5)]]) {
     constexpr sampler textureSampler(filter::linear, mip_filter::linear, mag_filter::linear);
     
 //    return float4(1.0, 0, 0, 1);
@@ -291,7 +422,21 @@ fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
             float nightFactor = 1.0 - smoothstep(-earthScene.nightLightsTerminatorFadeWidth,
                                                  earthScene.nightLightsTerminatorFadeWidth,
                                                  sunDot);
-            float mask = nightLightsMask(nightLightsTexture, in.nightLightsUV);
+            NightLightsAtlasSample atlasSample = nightLightsAtlasMask(tileData.tile,
+                                                                      in.tileLocalUV,
+                                                                      nightLightsAtlasCounts,
+                                                                      nightLightsAtlasEntries,
+                                                                      nightLightsAtlasPage0,
+                                                                      nightLightsAtlasPage1,
+                                                                      nightLightsAtlasPage2,
+                                                                      nightLightsAtlasPage3,
+                                                                      nightLightsAtlasPage4,
+                                                                      nightLightsAtlasPage5,
+                                                                      nightLightsAtlasPage6,
+                                                                      nightLightsAtlasPage7);
+            float mask = atlasSample.isValid
+                ? atlasSample.mask
+                : nightLightsMask(nightLightsTexture, in.nightLightsUV);
             float3 warmLight = float3(1.0, 0.72, 0.36);
             float3 coolLight = float3(0.65, 0.78, 1.0);
             float3 lightColor = mix(warmLight, coolLight, pow(mask, 1.8));

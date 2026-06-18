@@ -9,6 +9,7 @@ enum GlobeSurfaceDrawer {
                      globe: GlobeUniform,
                      earthScene: EarthSceneUniform,
                      nightLightsTexture: MTLTexture,
+                     nightLightsAtlasState: NightLightsAtlasState,
                      globePipeline: GlobePipeline,
                      mapSurfaceGridBuffers: MapSurfaceGridBuffers,
                      tilesTexture: GlobeTilesTexture,
@@ -16,6 +17,13 @@ enum GlobeSurfaceDrawer {
         var cameraUniformValue = cameraUniform
         var earthSceneValue = earthScene
         var globeValue = globe
+        let nightLightsAtlasBinding = NightLightsAtlasSurfaceBinding(state: nightLightsAtlasState)
+        var nightLightsAtlasCounts = SIMD2<UInt32>(UInt32(nightLightsAtlasBinding.entryUniforms.count),
+                                                   UInt32(nightLightsAtlasBinding.pages.count))
+        var emptyNightLightsAtlasEntry = NightLightsAtlasEntryUniform(tile: SIMD3<Int32>(0, 0, 0),
+                                                                      pageIndex: 0,
+                                                                      uvOrigin: SIMD2<Float>(0, 0),
+                                                                      uvScale: SIMD2<Float>(0, 0))
 
         globePipeline.selectPipeline(renderEncoder: renderEncoder)
         renderEncoder.setCullMode(.front)
@@ -27,6 +35,29 @@ enum GlobeSurfaceDrawer {
         renderEncoder.setFragmentBytes(&cameraUniformValue, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setFragmentBytes(&earthSceneValue, length: MemoryLayout<EarthSceneUniform>.stride, index: 2)
         renderEncoder.setFragmentTexture(nightLightsTexture, index: 1)
+        renderEncoder.setFragmentBytes(&nightLightsAtlasCounts,
+                                       length: MemoryLayout<SIMD2<UInt32>>.stride,
+                                       index: 4)
+        if nightLightsAtlasBinding.entryUniforms.isEmpty {
+            renderEncoder.setFragmentBytes(&emptyNightLightsAtlasEntry,
+                                           length: MemoryLayout<NightLightsAtlasEntryUniform>.stride,
+                                           index: 5)
+        } else {
+            nightLightsAtlasBinding.entryUniforms.withUnsafeBytes { rawBuffer in
+                guard let baseAddress = rawBuffer.baseAddress else {
+                    return
+                }
+                renderEncoder.setFragmentBytes(baseAddress,
+                                               length: rawBuffer.count,
+                                               index: 5)
+            }
+        }
+        for pageIndex in 0..<NightLightsAtlasSurfaceBinding.maxPageCount {
+            let texture = pageIndex < nightLightsAtlasBinding.pages.count
+                ? nightLightsAtlasBinding.pages[pageIndex]
+                : nightLightsTexture
+            renderEncoder.setFragmentTexture(texture, index: 2 + pageIndex)
+        }
         renderEncoder.setVertexBuffer(mapSurfaceGridBuffers.verticesBuffer, offset: 0, index: 0)
 
         let pageMappings = GlobeTilePageMappingSorter.sortedPageMappings(tilesTexture: tilesTexture)
@@ -41,6 +72,9 @@ enum GlobeSurfaceDrawer {
             renderEncoder.setVertexBytes(&mappingValue,
                                          length: MemoryLayout<GlobeTilesTexture.TileData>.stride,
                                          index: 3)
+            renderEncoder.setFragmentBytes(&mappingValue,
+                                           length: MemoryLayout<GlobeTilesTexture.TileData>.stride,
+                                           index: 3)
             renderEncoder.drawIndexedPrimitives(type: .triangle,
                                                 indexCount: mapSurfaceGridBuffers.indicesCount,
                                                 indexType: .uint32,
