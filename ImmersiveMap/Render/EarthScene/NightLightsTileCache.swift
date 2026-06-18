@@ -9,6 +9,9 @@ struct NightLightsTileData {
     let tile: Tile
     let width: Int
     let height: Int
+
+    /// Interleaved two-channel bytes: red light core, then green light halo per pixel.
+    /// Grayscale source tiles draw into equal red and green values for backward compatibility.
     let bytes: [UInt8]
 }
 
@@ -78,19 +81,38 @@ final class NightLightsTileCache {
             return nil
         }
 
-        var bytes = [UInt8](repeating: 0, count: pixelCount.partialValue)
-        let colorSpace = CGColorSpaceCreateDeviceGray()
-        guard let context = CGContext(data: &bytes,
+        let rgbaByteCount = pixelCount.partialValue.multipliedReportingOverflow(by: 4)
+        let outputByteCount = pixelCount.partialValue.multipliedReportingOverflow(by: 2)
+        let bytesPerRow = width.multipliedReportingOverflow(by: 4)
+        guard !rgbaByteCount.overflow,
+              !outputByteCount.overflow,
+              !bytesPerRow.overflow else {
+            return nil
+        }
+
+        var rgbaBytes = [UInt8](repeating: 0, count: rgbaByteCount.partialValue)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.noneSkipLast.rawValue
+        guard let context = CGContext(data: &rgbaBytes,
                                       width: width,
                                       height: height,
                                       bitsPerComponent: 8,
-                                      bytesPerRow: width,
+                                      bytesPerRow: bytesPerRow.partialValue,
                                       space: colorSpace,
-                                      bitmapInfo: CGImageAlphaInfo.none.rawValue) else {
+                                      bitmapInfo: bitmapInfo) else {
             return nil
         }
 
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var bytes = [UInt8](repeating: 0, count: outputByteCount.partialValue)
+        for pixelIndex in 0..<pixelCount.partialValue {
+            let sourceIndex = pixelIndex * 4
+            let outputIndex = pixelIndex * 2
+            bytes[outputIndex] = rgbaBytes[sourceIndex]
+            bytes[outputIndex + 1] = rgbaBytes[sourceIndex + 1]
+        }
+
         return NightLightsTileData(tile: tile, width: width, height: height, bytes: bytes)
     }
 }

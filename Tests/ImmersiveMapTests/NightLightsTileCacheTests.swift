@@ -21,7 +21,7 @@ final class NightLightsTileCacheTests: XCTestCase {
         XCTAssertEqual(data.tile, tile)
         XCTAssertEqual(data.width, 2)
         XCTAssertEqual(data.height, 2)
-        XCTAssertEqual(data.bytes.count, 4)
+        XCTAssertEqual(data.bytes.count, 8)
         XCTAssertGreaterThan(data.bytes.max() ?? 0, data.bytes.min() ?? 0)
     }
 
@@ -31,7 +31,7 @@ final class NightLightsTileCacheTests: XCTestCase {
         XCTAssertNil(cache.tileData(for: Tile(x: 1, y: 2, z: 3)))
     }
 
-    func testLoadsPNGIntoRowMajorGrayscaleBytes() throws {
+    func testLoadsPNGIntoInterleavedEqualCoreAndHaloBytesForGrayscale() throws {
         let tile = Tile(x: 4, y: 5, z: 6)
         let url = try makePNG(width: 3,
                               height: 2,
@@ -48,8 +48,38 @@ final class NightLightsTileCacheTests: XCTestCase {
         XCTAssertEqual(data.width, 3)
         XCTAssertEqual(data.height, 2)
         XCTAssertEqual(data.bytes, [
-            10, 60, 110,
-            160, 210, 250
+            10, 10,
+            60, 60,
+            110, 110,
+            160, 160,
+            210, 210,
+            250, 250
+        ])
+    }
+
+    func testLoadsRGBPNGIntoInterleavedCoreAndHaloBytes() throws {
+        let tile = Tile(x: 7, y: 8, z: 9)
+        let url = try makeRGBPNG(width: 2,
+                                 height: 2,
+                                 rgbBytes: [
+                                     10, 20, 0,
+                                     30, 40, 0,
+                                     50, 60, 0,
+                                     70, 80, 0
+                                 ])
+        let cache = NightLightsTileCache { requestedTile in
+            requestedTile == tile ? url : nil
+        }
+
+        let data = try XCTUnwrap(cache.tileData(for: tile))
+
+        XCTAssertEqual(data.width, 2)
+        XCTAssertEqual(data.height, 2)
+        XCTAssertEqual(data.bytes, [
+            10, 20,
+            30, 40,
+            50, 60,
+            70, 80
         ])
     }
 
@@ -158,6 +188,43 @@ final class NightLightsTileCacheTests: XCTestCase {
                                       bytesPerRow: width,
                                       space: colorSpace,
                                       bitmapInfo: CGImageAlphaInfo.none.rawValue),
+              let image = context.makeImage(),
+              let destination = CGImageDestinationCreateWithURL(url as CFURL,
+                                                                UTType.png.identifier as CFString,
+                                                                1,
+                                                                nil) else {
+            throw XCTSkip("Could not create test PNG")
+        }
+
+        CGImageDestinationAddImage(destination, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return url
+    }
+
+    private func makeRGBPNG(width: Int, height: Int, rgbBytes: [UInt8]) throws -> URL {
+        XCTAssertEqual(rgbBytes.count, width * height * 3)
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("png")
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var rgbaBytes = [UInt8]()
+        rgbaBytes.reserveCapacity(width * height * 4)
+        for pixelStart in stride(from: 0, to: rgbBytes.count, by: 3) {
+            rgbaBytes.append(rgbBytes[pixelStart])
+            rgbaBytes.append(rgbBytes[pixelStart + 1])
+            rgbaBytes.append(rgbBytes[pixelStart + 2])
+            rgbaBytes.append(255)
+        }
+
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let context = CGContext(data: &rgbaBytes,
+                                      width: width,
+                                      height: height,
+                                      bitsPerComponent: 8,
+                                      bytesPerRow: width * 4,
+                                      space: colorSpace,
+                                      bitmapInfo: bitmapInfo),
               let image = context.makeImage(),
               let destination = CGImageDestinationCreateWithURL(url as CFURL,
                                                                 UTType.png.identifier as CFString,
