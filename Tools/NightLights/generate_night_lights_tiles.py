@@ -23,7 +23,14 @@ from typing import Any, Iterable
 
 Image: Any = None
 
-GENERATOR_VERSION = 2
+GENERATOR_VERSION = 3
+STYLE_RAW = "raw"
+STYLE_CINEMATIC = "cinematic"
+CINEMATIC_NOISE_FLOOR = 5
+CINEMATIC_CORE_EXPOSURE = 2.2
+CINEMATIC_CORE_GAMMA = 0.72
+CINEMATIC_HALO_BLUR_RADIUS = 2.6
+CINEMATIC_HALO_GAIN = 0.62
 NASA_SOURCE_PAGE = "https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/"
 SOURCE_BASE_URL = (
     "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/"
@@ -100,6 +107,7 @@ class GenerationConfig:
     max_zoom: int
     quality: int
     download: bool
+    style: str
 
 
 def parse_args() -> GenerationConfig:
@@ -117,6 +125,12 @@ def parse_args() -> GenerationConfig:
         action="store_true",
         help="Download missing NASA 2016 grayscale 500m JPEG sources into --source-dir.",
     )
+    parser.add_argument(
+        "--style",
+        default=STYLE_CINEMATIC,
+        choices=(STYLE_RAW, STYLE_CINEMATIC),
+        help="Output style: raw grayscale source mask or cinematic RGB core/halo texture.",
+    )
     args = parser.parse_args()
 
     if args.min_zoom > args.max_zoom:
@@ -130,6 +144,7 @@ def parse_args() -> GenerationConfig:
         max_zoom=args.max_zoom,
         quality=args.quality,
         download=args.download,
+        style=args.style,
     )
 
 
@@ -348,8 +363,9 @@ def generate_from_source_tile(source_tile: SourceTile, config: GenerationConfig)
                     global_width=global_width,
                     global_height=global_height,
                 )
+                processed = process_output_tile(image, style=config.style)
                 output_path = config.output_dir / OUTPUT_NAME_TEMPLATE.format(z=z, x=x, y=y)
-                image.save(
+                processed.save(
                     output_path,
                     format="JPEG",
                     quality=config.quality,
@@ -385,6 +401,47 @@ def render_tile(
         mesh,
         resample=Image.Resampling.BICUBIC,
     )
+
+
+def process_output_tile(image: Image.Image, style: str) -> Image.Image:
+    load_pillow()
+    source = image.convert("L")
+    if style == STYLE_RAW:
+        return source
+    if style == STYLE_CINEMATIC:
+        return make_cinematic_tile(source)
+    raise ValueError(f"unsupported night-lights style: {style}")
+
+
+def make_cinematic_tile(source: Image.Image) -> Image.Image:
+    from PIL import ImageFilter
+
+    core = source.point(cinematic_core_value)
+    halo_source = core.filter(ImageFilter.GaussianBlur(radius=CINEMATIC_HALO_BLUR_RADIUS))
+    halo = halo_source.point(cinematic_halo_value)
+
+    empty = Image.new("L", source.size, 0)
+    return Image.merge("RGB", (core, halo, empty))
+
+
+def cinematic_core_value(value: int) -> int:
+    if value <= CINEMATIC_NOISE_FLOOR:
+        return 0
+
+    normalized = (value - CINEMATIC_NOISE_FLOOR) / (255 - CINEMATIC_NOISE_FLOOR)
+    lifted = normalized ** CINEMATIC_CORE_GAMMA
+    exposed = 1.0 - math.exp(-lifted * CINEMATIC_CORE_EXPOSURE)
+    shoulder = exposed / (1.0 + exposed * 0.22)
+    return max(0, min(234, round(shoulder * 255)))
+
+
+def cinematic_halo_value(value: int) -> int:
+    if value <= 1:
+        return 0
+
+    normalized = value / 255
+    halo = (normalized ** 0.82) * CINEMATIC_HALO_GAIN
+    return max(0, min(180, round(halo * 255)))
 
 
 def build_mercator_mesh(
