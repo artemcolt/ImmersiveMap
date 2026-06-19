@@ -2,15 +2,6 @@
 
 ImmersiveMap is a standalone iOS and Mac Catalyst Metal map engine.
 
-It provides:
-
-- `ImmersiveMapView` for SwiftUI.
-- `ImmersiveMapUIView` for UIKit.
-- Flat and globe presentation modes.
-- Vector tile loading and parsing.
-- Roads, land, water, buildings, labels, POI icons, trees, and avatar markers.
-- Runtime configuration through `MapSettings`.
-
 ## Requirements
 
 - iOS 18.0+
@@ -64,7 +55,7 @@ the map will request:
 https://example.com/api/v1/map/tiles/12/2411/1539.mvt
 ```
 
-If your tile server requires a bearer token, set `authorizationToken`. If it does not require authentication, leave the token as `nil`.
+Configure the endpoint with `ImmersiveMapTileSource.url(...)`. If your tile server requires a bearer token, add `.token(...)`. If it does not require authentication, leave the token as `nil`.
 
 ## Xcode Workspace
 
@@ -78,27 +69,15 @@ The workspace contains:
 
 Both host apps link the local package checkout, so changes under `ImmersiveMap/` are built directly into the app.
 
-The host apps read optional launch environment variables:
-
-```text
-IMMERSIVE_MAP_TILE_BASE_URL=https://example.com/api/v1/map/tiles
-IMMERSIVE_MAP_AUTH_TOKEN=your-token
-IMMERSIVE_MAP_LABEL_LANGUAGE=ru
-IMMERSIVE_MAP_LABEL_FALLBACK_POLICY=international
-```
-
-Do not commit bearer tokens. Use Xcode scheme environment variables, or launch the installed simulator app with `SIMCTL_CHILD_IMMERSIVE_MAP_AUTH_TOKEN` when you need to test a protected tile server.
-
-For Mapbox-hosted vector tiles, set these Xcode scheme environment variables instead:
+The host apps read one optional launch environment variable:
 
 ```text
 IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN=your-mapbox-public-token
-IMMERSIVE_MAP_MAPBOX_TILESET_ID=mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2
 ```
 
-When `IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN` is present, the host apps request tiles from `https://api.mapbox.com/v4/{tileset_id}/{z}/{x}/{y}.mvt?access_token=...`. The default Mapbox tileset ID is `mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2`.
+Do not commit Mapbox tokens. Use Xcode scheme environment variables, or launch the installed simulator app with `SIMCTL_CHILD_IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN` when you need to test Mapbox-hosted vector tiles.
 
-Set `IMMERSIVE_MAP_LABEL_LANGUAGE` to a preferred label language code such as `en`, `ru`, or `pt-BR` when you need to test localized vector tile labels. Set `IMMERSIVE_MAP_LABEL_FALLBACK_POLICY` to `international` for `name_<language> -> name_en -> name`, or `localFirst` for `name_<language> -> name -> name_en`.
+When `IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN` is present, the host apps request tiles from `https://api.mapbox.com/v4/{tileset_id}/{z}/{x}/{y}.mvt?access_token=...`. The default Mapbox tileset ID is `mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2`.
 
 ## SwiftUI Quick Start
 
@@ -107,12 +86,11 @@ import SwiftUI
 import ImmersiveMap
 
 struct MapScreen: View {
-    private let camera = MapCameraController()
+    @State private var camera = ImmersiveMapCameraController()
     private let avatars = ImmersiveMapAvatarsController()
 
     var body: some View {
         ImmersiveMapView(
-            settings: mapSettings,
             avatarsController: avatars,
             cameraPosition: .init(
                 latitudeDegrees: 55.7558,
@@ -123,14 +101,8 @@ struct MapScreen: View {
             ),
             cameraController: camera
         )
+        .tileSource(.url(URL(string: "https://example.com/api/v1/map/tiles")!))
         .ignoresSafeArea()
-    }
-
-    private var mapSettings: MapSettings {
-        var settings = MapSettings.default
-        settings.tiles.network.tileBaseURL = URL(string: "https://example.com/api/v1/map/tiles")!
-        settings.tiles.network.authorizationToken = nil
-        return settings
     }
 }
 ```
@@ -142,14 +114,14 @@ import UIKit
 import ImmersiveMap
 
 final class MapViewController: UIViewController {
-    private let camera = MapCameraController()
+    private let camera = ImmersiveMapCameraController()
     private let avatars = ImmersiveMapAvatarsController()
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        var settings = MapSettings.default
-        settings.tiles.network.tileBaseURL = URL(string: "https://example.com/api/v1/map/tiles")!
+        let settings = ImmersiveMapSettings.default
+            .tileSource(.url(URL(string: "https://example.com/api/v1/map/tiles")!))
 
         let mapView = ImmersiveMapUIView(
             frame: view.bounds,
@@ -171,10 +143,10 @@ final class MapViewController: UIViewController {
 
 ## Camera Control
 
-Keep a `MapCameraController` and pass it to `ImmersiveMapView`.
+Keep an `ImmersiveMapCameraController` and pass it to `ImmersiveMapView`.
 
 ```swift
-let camera = MapCameraController()
+let camera = ImmersiveMapCameraController()
 
 camera.jump(to: .init(
     latitudeDegrees: 48.8566,
@@ -241,27 +213,38 @@ Pass it into SwiftUI:
 
 ```swift
 ImmersiveMapView(
-    settings: settings,
     selectionController: selection
+)
+.tileSource(
+    .url(URL(string: "https://example.com/api/v1/map/tiles")!)
 )
 ```
 
 ## Common Configuration
 
 ```swift
-var settings = MapSettings.default
+ImmersiveMapView()
+    .tileSource(
+        .url(URL(string: "https://example.com/api/v1/map/tiles")!)
+            .token("your-token")
+    )
 
-settings.tiles.network.tileBaseURL = URL(string: "https://example.com/api/v1/map/tiles")!
-settings.tiles.network.authorizationToken = "your-token"
+ImmersiveMapView()
+    .tileSource(.mapbox(accessToken: "your-mapbox-public-token"))
+```
+
+Use `ImmersiveMapSettings` directly when you need to tune lower-level renderer, cache, label, or camera settings:
+
+```swift
+var settings = ImmersiveMapSettings.default
+    .tileSource(
+        .url(URL(string: "https://example.com/api/v1/map/tiles")!)
+            .token("your-token")
+    )
+
 settings.tiles.network.maxConcurrentFetches = 6
 settings.labels.language = .french
 settings.labels.fallbackPolicy = .international
-
-// Mapbox-style query token auth:
-settings.tiles.network.tileBaseURL = URL(string: "https://api.mapbox.com/v4/mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2")!
-settings.tiles.network.authorizationToken = "your-mapbox-public-token"
-settings.tiles.network.authorizationMode = .accessTokenQuery(parameterName: "access_token")
-
 settings.renderLoop.forceContinuousRendering = false
 settings.camera.maximumZoom = 18
 settings.camera.maximumPitch = Float.pi * 65 / 180

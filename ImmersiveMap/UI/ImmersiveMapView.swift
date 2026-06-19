@@ -7,7 +7,7 @@ import SwiftUI
 import UIKit // For UIView
 
 public struct ImmersiveMapView: UIViewRepresentable {
-    private let settings: ImmersiveMapSettings
+    private var settings: ImmersiveMapSettings
     private let cameraPosition: ImmersiveMapCameraPosition?
     private let avatarsController: ImmersiveMapAvatarsController?
     private let cameraController: ImmersiveMapCameraController?
@@ -45,6 +45,29 @@ public struct ImmersiveMapView: UIViewRepresentable {
 
     public static func dismantleUIView(_ uiView: ImmersiveMapUIView, coordinator: ()) {
         uiView.dismantle()
+    }
+
+    public func tileSource(_ source: ImmersiveMapTileSource) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.tileSource(source)
+        return view
+    }
+
+    public func tileSource(url: URL,
+                           accessToken: String?,
+                           authorization: ImmersiveMapSettings.TileSettings.NetworkSettings.AuthorizationMode = .bearerHeader) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.tileSource(url: url,
+                                                 accessToken: accessToken,
+                                                 authorization: authorization)
+        return view
+    }
+
+    public func mapboxTiles(url: URL = URL(string: "https://api.mapbox.com/v4/mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2")!,
+                            accessToken: String?) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.tileSource(ImmersiveMapTileSource(tileBaseURL: url).accessToken(accessToken))
+        return view
     }
 }
 

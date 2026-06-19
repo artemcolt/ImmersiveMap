@@ -801,3 +801,26 @@ public struct ImmersiveMapSettings: Equatable {
                              textColor: SIMD3<Float>(0.82, 0.36, 0.0))
     )
 }
+
+public extension ImmersiveMapSettings {
+    func tileSource(_ source: ImmersiveMapTileSource) -> ImmersiveMapSettings {
+        var settings = self
+        settings.tiles.network.tileBaseURL = source.tileBaseURL
+        settings.tiles.network.authorizationToken = source.accessToken
+        settings.tiles.network.authorizationMode = source.authorization
+        return settings
+    }
+
+    func tileSource(url: URL,
+                    accessToken: String?,
+                    authorization: TileSettings.NetworkSettings.AuthorizationMode = .bearerHeader) -> ImmersiveMapSettings {
+        tileSource(ImmersiveMapTileSource(tileBaseURL: url,
+                                          accessToken: accessToken,
+                                          authorization: authorization))
+    }
+
+    func mapboxTiles(url: URL = URL(string: "https://api.mapbox.com/v4/mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2")!,
+                     accessToken: String?) -> ImmersiveMapSettings {
+        tileSource(ImmersiveMapTileSource(tileBaseURL: url).accessToken(accessToken))
+    }
+}
