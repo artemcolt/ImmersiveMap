@@ -90,19 +90,20 @@ struct MapScreen: View {
     private let avatars = ImmersiveMapAvatarsController()
 
     var body: some View {
-        ImmersiveMapView(
-            avatarsController: avatars,
-            cameraPosition: .init(
-                latitudeDegrees: 55.7558,
-                longitudeDegrees: 37.6173,
-                zoom: 12,
-                bearing: 0,
-                pitch: 0
-            ),
-            cameraController: camera
-        )
-        .tileSource(.url(URL(string: "https://example.com/api/v1/map/tiles")!))
-        .ignoresSafeArea()
+        ImmersiveMapView()
+            .avatars(avatars)
+            .camera(
+                camera,
+                position: .init(
+                    latitudeDegrees: 55.7558,
+                    longitudeDegrees: 37.6173,
+                    zoom: 12,
+                    bearing: 0,
+                    pitch: 0
+                )
+            )
+            .tileSource(.url(URL(string: "https://example.com/api/v1/map/tiles")!))
+            .ignoresSafeArea()
     }
 }
 ```
@@ -143,7 +144,7 @@ final class MapViewController: UIViewController {
 
 ## Camera Control
 
-Keep an `ImmersiveMapCameraController` and pass it to `ImmersiveMapView`.
+Keep an `ImmersiveMapCameraController` and attach it with `.camera(...)`.
 
 ```swift
 let camera = ImmersiveMapCameraController()
@@ -191,10 +192,10 @@ avatars.move(id: 1, latitude: 55.7562, longitude: 37.6180)
 
 ## Selection
 
-Attach a `MapSelectionController` if you need callbacks when users tap map objects or empty background.
+Attach an `ImmersiveMapSelectionController` if you need callbacks when users tap map objects or empty background.
 
 ```swift
-let selection = MapSelectionController()
+let selection = ImmersiveMapSelectionController()
 
 selection.onSelectionChanged = { event in
     print("Selected:", event.selection)
@@ -212,12 +213,11 @@ selection.onMapBackgroundTap = { point in
 Pass it into SwiftUI:
 
 ```swift
-ImmersiveMapView(
-    selectionController: selection
-)
-.tileSource(
-    .url(URL(string: "https://example.com/api/v1/map/tiles")!)
-)
+ImmersiveMapView()
+    .selection(selection)
+    .tileSource(
+        .url(URL(string: "https://example.com/api/v1/map/tiles")!)
+    )
 ```
 
 ## Common Configuration
@@ -233,22 +233,60 @@ ImmersiveMapView()
     .tileSource(.mapbox(accessToken: "your-mapbox-public-token"))
 ```
 
-Use `ImmersiveMapSettings` directly when you need to tune lower-level renderer, cache, label, or camera settings:
+Use fluent settings modifiers when you need to tune lower-level renderer, cache, label, or camera settings:
 
 ```swift
-var settings = ImmersiveMapSettings.default
+let labels = ImmersiveMapSettings.default.labels
+let camera = ImmersiveMapSettings.default.camera
+
+ImmersiveMapView()
     .tileSource(
         .url(URL(string: "https://example.com/api/v1/map/tiles")!)
             .token("your-token")
     )
-
-settings.tiles.network.maxConcurrentFetches = 6
-settings.labels.language = .french
-settings.labels.fallbackPolicy = .international
-settings.renderLoop.forceContinuousRendering = false
-settings.camera.maximumZoom = 18
-settings.camera.maximumPitch = Float.pi * 65 / 180
-settings.debug.enableDebugPanel = false
+    .labelSettings(
+        .init(
+            language: .french,
+            fallbackPolicy: .international,
+            houseNumbers: labels.houseNumbers,
+            settlementVisibility: labels.settlementVisibility,
+            landmarks: labels.landmarks,
+            base: labels.base,
+            road: labels.road
+        )
+    )
+    .cameraSettings(
+        .init(
+            maximumPitch: Float.pi * 65 / 180,
+            maximumZoom: 18,
+            focusedMarkerZoom: camera.focusedMarkerZoom,
+            globeMinimumAbsoluteBearing: camera.globeMinimumAbsoluteBearing,
+            globeBearingUnlockZoom: camera.globeBearingUnlockZoom,
+            globePitchUnlockZoom: camera.globePitchUnlockZoom,
+            highZoomPitchExtension: camera.highZoomPitchExtension,
+            highZoomPitchExtensionStartZoom: camera.highZoomPitchExtensionStartZoom,
+            highZoomPitchExtensionEndZoom: camera.highZoomPitchExtensionEndZoom,
+            extraHighZoomPitchExtension: camera.extraHighZoomPitchExtension,
+            extraHighZoomPitchExtensionStartZoom: camera.extraHighZoomPitchExtensionStartZoom,
+            extraHighZoomPitchExtensionEndZoom: camera.extraHighZoomPitchExtensionEndZoom,
+            gesturePanTranslationScale: camera.gesturePanTranslationScale,
+            worldPanSensitivity: camera.worldPanSensitivity,
+            worldPanSpeed: camera.worldPanSpeed,
+            pinchZoomFactor: camera.pinchZoomFactor,
+            pinchZoomVelocityFactor: camera.pinchZoomVelocityFactor,
+            pinchZoomVelocityLimit: camera.pinchZoomVelocityLimit,
+            dragZoomFactor: camera.dragZoomFactor,
+            dragZoomVelocityFactor: camera.dragZoomVelocityFactor,
+            dragZoomVelocityLimit: camera.dragZoomVelocityLimit,
+            rotationGestureSensitivity: camera.rotationGestureSensitivity,
+            globePanInertiaEnabled: camera.globePanInertiaEnabled,
+            globePanInertiaHalfLife: camera.globePanInertiaHalfLife,
+            globePanInertiaActivationVelocity: camera.globePanInertiaActivationVelocity,
+            globePanInertiaStopVelocity: camera.globePanInertiaStopVelocity,
+            globePanInertiaMaxInitialVelocity: camera.globePanInertiaMaxInitialVelocity
+        )
+    )
+    .debugPanel(false)
 ```
 
 ## Build This Package
@@ -275,7 +313,7 @@ xcodebuild \
 
 - The package contains Metal shaders and runtime resources. Always add it as a Swift Package product, not by copying individual Swift files.
 - The tile parser is designed for vector tiles with layers and attributes used by the engine's style system. If your tile source uses a different schema, you may need to adjust parsing or styling code.
-- The default settings are suitable for development, but production apps should explicitly set `tileBaseURL` and cache/network settings.
+- The default settings are suitable for development, but production apps should explicitly set `.tileSource(...)` and cache/network settings.
 
 ## License
 

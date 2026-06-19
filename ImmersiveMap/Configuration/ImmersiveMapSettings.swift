@@ -803,6 +803,78 @@ public struct ImmersiveMapSettings: Equatable {
 }
 
 public extension ImmersiveMapSettings {
+    func renderLoopSettings(_ renderLoop: RenderLoopSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.renderLoop = renderLoop
+        return settings
+    }
+
+    func cameraSettings(_ camera: CameraSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.camera = camera
+        return settings
+    }
+
+    func presentationSettings(_ presentation: PresentationSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.presentation = presentation
+        return settings
+    }
+
+    func tileSettings(_ tiles: TileSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.tiles = tiles
+        return settings
+    }
+
+    func labelSettings(_ labels: LabelSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.labels = labels
+        return settings
+    }
+
+    func sceneSettings(_ scene: SceneSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.scene = scene
+        return settings
+    }
+
+    func styleSettings(_ style: StyleSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.style = style
+        return settings
+    }
+
+    func avatarSettings(_ avatars: AvatarSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.avatars = avatars
+        return settings
+    }
+
+    func attributionSettings(_ attribution: AttributionSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.attribution = attribution
+        return settings
+    }
+
+    func postProcessingSettings(_ postProcessing: PostProcessingSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.postProcessing = postProcessing
+        return settings
+    }
+
+    func debugSettings(_ debug: DebugSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.debug = debug
+        return settings
+    }
+
+    func debugPanel(_ isEnabled: Bool = true) -> ImmersiveMapSettings {
+        var settings = self
+        settings.debug.enableDebugPanel = isEnabled
+        return settings
+    }
+
     func tileSource(_ source: ImmersiveMapTileSource) -> ImmersiveMapSettings {
         var settings = self
         settings.tiles.network.tileBaseURL = source.tileBaseURL

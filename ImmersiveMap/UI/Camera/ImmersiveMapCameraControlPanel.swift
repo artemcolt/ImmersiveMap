@@ -6,8 +6,10 @@ import SwiftUI
 
 public extension View {
     func immersiveMapCameraControls(camera: ImmersiveMapCameraController,
-                                    initialCameraPosition: ImmersiveMapCameraPosition,
-                                    maximumPitch: Float) -> some View {
+                                    initialCameraPosition: ImmersiveMapCameraPosition = ImmersiveMapCameraPosition(latitudeDegrees: 0,
+                                                                                                                   longitudeDegrees: 0,
+                                                                                                                   zoom: 0),
+                                    maximumPitch: Float = ImmersiveMapSettings.default.camera.maximumPitch) -> some View {
         modifier(ImmersiveMapCameraControlsModifier(camera: camera,
                                                     initialCameraPosition: initialCameraPosition,
                                                     maximumPitch: maximumPitch))
