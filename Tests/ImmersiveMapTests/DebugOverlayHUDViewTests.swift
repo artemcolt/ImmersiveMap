@@ -21,6 +21,22 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertTrue(didRequestSurfaceSwitch)
     }
 
+    func testAtlasTraceControlInvokesCallbackAndReflectsSnapshot() {
+        let view = DebugOverlayHUDView()
+        let fileURL = URL(fileURLWithPath: "/tmp/immersive-map-tile-trace.jsonl")
+        var didToggleRecording = false
+        view.onTileTraceRecordingToggle = {
+            didToggleRecording = true
+        }
+
+        view.apply(tileTraceSnapshot: TileTraceRecorderSnapshot(isRecording: true, fileURL: fileURL))
+        view.simulateTileTraceRecordingToggleForTesting()
+
+        XCTAssertTrue(didToggleRecording)
+        XCTAssertEqual(view.tileTraceButtonTitleForTesting, "Остановить запись")
+        XCTAssertEqual(view.tileTraceStatusTextForTesting, "Recording: immersive-map-tile-trace.jsonl")
+    }
+
     func testAtlasTabDisplaysAtlasSnapshotPages() {
         let view = DebugOverlayHUDView()
         var settings = ImmersiveMapSettings.default.debug

@@ -11,9 +11,11 @@ enum RenderGraphFactory {
                                  postProcessingInputTextureProvider: @escaping () -> MTLTexture?,
                                  buildingWinnerIDTextureProvider: @escaping () -> MTLTexture?) -> RenderGraph {
         let tileDemandPlacementSubsystem = TileDemandPlacementSubsystem(tileRenderStore: context.tileRenderStore,
+                                                                        tileTraceRecorder: context.tileTraceRecorder,
                                                                         initialZoom: initialZoom)
         let tileProjectionIndexSubsystem = TileProjectionIndexSubsystem(flatTileOriginCalculator: context.flatTileOriginCalculator)
-        let tileGlobeTextureSubsystem = TileGlobeTextureSubsystem(tilesTexture: context.tilesTexture)
+        let tileGlobeTextureSubsystem = TileGlobeTextureSubsystem(tilesTexture: context.tilesTexture,
+                                                                  tileTraceRecorder: context.tileTraceRecorder)
         let nightLightsGlobeTextureSubsystem = NightLightsGlobeTextureSubsystem(tileSet: context.nightLightsTileSet,
                                                                                 tileCache: context.nightLightsTileCache,
                                                                                 atlasTexture: context.nightLightsAtlasTexture)

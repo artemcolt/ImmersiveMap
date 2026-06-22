@@ -14,19 +14,22 @@ final class ImmersiveMapRendererBuilder {
     private let selectionHandler: ImmersiveMapSelectionHandler
     private let debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime
     private let debugOverlayControls: DebugOverlayControlState
+    private let tileTraceRecorder: TileTraceRecorder
 
     init(cameraRuntime: ImmersiveMapCameraRuntime,
          avatarRuntime: ImmersiveMapAvatarRuntime,
          renderRuntime: ImmersiveMapRenderRuntime,
          selectionHandler: ImmersiveMapSelectionHandler,
          debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime,
-         debugOverlayControls: DebugOverlayControlState) {
+         debugOverlayControls: DebugOverlayControlState,
+         tileTraceRecorder: TileTraceRecorder) {
         self.cameraRuntime = cameraRuntime
         self.avatarRuntime = avatarRuntime
         self.renderRuntime = renderRuntime
         self.selectionHandler = selectionHandler
         self.debugOverlayRuntime = debugOverlayRuntime
         self.debugOverlayControls = debugOverlayControls
+        self.tileTraceRecorder = tileTraceRecorder
     }
 
     func makeRenderer(layer: CAMetalLayer,
@@ -43,7 +46,8 @@ final class ImmersiveMapRendererBuilder {
                                  debugOverlayControls: debugOverlayControls,
                                  renderCamera: renderCamera,
                                  presentationStateResolver: cameraRuntime.presentationStateResolver,
-                                 eventSink: eventSink)
+                                 eventSink: eventSink,
+                                 tileTraceRecorder: tileTraceRecorder)
     }
 }
 

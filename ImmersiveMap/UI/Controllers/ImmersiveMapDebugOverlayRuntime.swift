@@ -9,14 +9,17 @@ import UIKit
 final class ImmersiveMapDebugOverlayRuntime {
     private let hudView = DebugOverlayHUDView()
     private let controls: DebugOverlayControlState
+    private let tileTraceRecorder: TileTraceRecorder
     private weak var renderRuntime: ImmersiveMapRenderRuntime?
 
     init(mapView: ImmersiveMapUIView,
          controls: DebugOverlayControlState,
+         tileTraceRecorder: TileTraceRecorder,
          renderRuntime: ImmersiveMapRenderRuntime,
          cameraRuntime: ImmersiveMapCameraRuntime,
          cameraAnimationRuntime: ImmersiveMapCameraAnimationRuntime) {
         self.controls = controls
+        self.tileTraceRecorder = tileTraceRecorder
         self.renderRuntime = renderRuntime
         hudView.onAxesEnabledChanged = { [weak controls, weak renderRuntime] isEnabled in
             controls?.setAxesEnabled(isEnabled)
@@ -34,6 +37,17 @@ final class ImmersiveMapDebugOverlayRuntime {
             cameraAnimationRuntime?.cancelAnimations()
             cameraRuntime?.switchRenderMode()
         }
+        hudView.onTileTraceRecordingToggle = { [weak self, weak renderRuntime] in
+            guard let self else { return }
+            if tileTraceRecorder.snapshot().isRecording {
+                tileTraceRecorder.stopRecording()
+            } else {
+                _ = tileTraceRecorder.startRecording()
+            }
+            hudView.apply(tileTraceSnapshot: tileTraceRecorder.snapshot())
+            renderRuntime?.requestFrame(reason: .externalStateChanged)
+        }
+        hudView.apply(tileTraceSnapshot: tileTraceRecorder.snapshot())
         mapView.addSubview(hudView)
     }
 
@@ -48,6 +62,7 @@ final class ImmersiveMapDebugOverlayRuntime {
     func apply(settings: ImmersiveMapSettings.DebugSettings) {
         hudView.apply(isDebugPanelEnabled: settings.enableDebugPanel,
                       controls: controls.snapshot())
+        hudView.apply(tileTraceSnapshot: tileTraceRecorder.snapshot())
         if settings.enableDebugPanel == false {
             hudView.apply(snapshot: nil)
         }

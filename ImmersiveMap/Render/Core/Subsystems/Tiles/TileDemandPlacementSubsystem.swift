@@ -14,6 +14,7 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
     let name: String = "TileDemandPlacement"
     
     private let tileRenderStore: TileRenderStore
+    private let tileTraceRecorder: TileTraceRecorder
     private let visibleTilesPreprocessor: VisibleTilesPreprocessor
 
     private var previousZoom: Int
@@ -23,9 +24,11 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
     private var placementVersion: UInt64 = 0
 
     init(tileRenderStore: TileRenderStore,
+         tileTraceRecorder: TileTraceRecorder,
          visibleTilesPreprocessor: VisibleTilesPreprocessor = VisibleTilesPreprocessor(),
          initialZoom: Int) {
         self.tileRenderStore = tileRenderStore
+        self.tileTraceRecorder = tileTraceRecorder
         self.visibleTilesPreprocessor = visibleTilesPreprocessor
         self.previousZoom = initialZoom
     }
@@ -52,7 +55,8 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
                                                          parentFallbackDepth: frameContext.renderSurfaceMode == .spherical ? 2 : 0)
         // Returns source-tile availability map for GPU rendering:
         // value contains Metal-ready tile buffers, or `nil` while still loading.
-        let tileRequestResult = tileRenderStore.requestTiles(demandedSourceTiles)
+        let tileRequestResult = tileRenderStore.requestTiles(demandedSourceTiles,
+                                                             frameIndex: frameContext.frameIndex)
         let readyTilesBySource = tileRequestResult.readyTilesBySource
 
         var hashBuilder = Hasher()
@@ -63,7 +67,8 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         ))
         let preprocessedVisibleTilesHash = hashBuilder.finalize()
 
-        if preprocessedVisibleTilesHashTracker.stage(preprocessedVisibleTilesHash) {
+        let placementChanged = preprocessedVisibleTilesHashTracker.stage(preprocessedVisibleTilesHash)
+        if placementChanged {
             placeTilesContext = TilePlacementPlanner.buildPlacements(targets: preprocessedVisibleTiles,
                                                                      readyTilesBySource: readyTilesBySource,
                                                                      zoom: tileZoomLevel,
@@ -83,6 +88,20 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         let readyTilesCount = tileRequestResult.readyTilesCount
         let requestedTilesCount = tileRequestResult.requestedTilesCount
         let renderedTilesCount = placeTilesContext.tilePlacements.count
+        let lodSummary = summarizeLOD(placeTilesContext.tilePlacements)
+        tileTraceRecorder.record(.tileDemandUpdate(frameIndex: frameContext.frameIndex,
+                                                   visible: visibleTilesCount,
+                                                   preprocessed: preprocessedVisibleTiles.count,
+                                                   demanded: demandedSourceTiles.count,
+                                                   ready: readyTilesCount,
+                                                   requested: requestedTilesCount,
+                                                   rendered: renderedTilesCount,
+                                                   placementChanged: placementChanged,
+                                                   placementVersion: placementVersion,
+                                                   surface: frameContext.renderSurfaceMode == .spherical ? "globe" : "flat",
+                                                   lodExact: lodSummary.exact,
+                                                   lodCoarse: lodSummary.coarse,
+                                                   lodRetained: lodSummary.retained))
 
         frameContext.sharedState.tilePlacementState = TilePlacementState(
             placeTilesContext: placeTilesContext,
@@ -162,5 +181,22 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         if seenTiles.insert(tile).inserted {
             uniqueTiles.append(tile)
         }
+    }
+
+    private func summarizeLOD(_ placements: [PlaceTile]) -> (exact: Int, coarse: Int, retained: Int) {
+        var exact = 0
+        var coarse = 0
+        var retained = 0
+        for placement in placements {
+            switch placement.lodKind {
+            case .exact:
+                exact += 1
+            case .coarseSubstitute:
+                coarse += 1
+            case .retainedReplacement:
+                retained += 1
+            }
+        }
+        return (exact: exact, coarse: coarse, retained: retained)
     }
 }

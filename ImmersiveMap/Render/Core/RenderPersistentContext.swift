@@ -50,15 +50,18 @@ final class RenderPersistentContext {
     let avatarSource: AvatarRenderSource
     let avatarsRenderer: AvatarsRenderer
     let debugOverlayRenderer: DebugOverlayRenderer
+    let tileTraceRecorder: TileTraceRecorder
 
     // MARK: - Initialization
 
     init(layer: CAMetalLayer,
          avatarSource: AvatarRenderSource,
          config: ImmersiveMapSettings,
-         eventSink: RenderFrameEventSink) {
+         eventSink: RenderFrameEventSink,
+         tileTraceRecorder: TileTraceRecorder) {
         let metal = RendererSetup.buildMetal(layer: layer)
         self.metalContext = metal
+        self.tileTraceRecorder = tileTraceRecorder
 
         self.extrudedDepthState = metal.device.makeDepthStencilState(descriptor: Self.makeSceneDepthDescriptor())!
         self.extrudedColorPassDepthState = metal.device.makeDepthStencilState(descriptor: Self.makeTransparentExtrudedDepthDescriptor())!
@@ -105,7 +108,8 @@ final class RenderPersistentContext {
         self.tileRenderStore = TileRenderStore(mapStyle: mapStyle,
                                                metalDevice: metal.device,
                                                textRenderer: textRenderer,
-                                               config: config)
+                                               config: config,
+                                               tileTraceRecorder: tileTraceRecorder)
         self.tileRenderStore.eventSink = eventSink
         self.baseLabelCache = BaseLabelCache(metalDevice: metal.device)
         self.roadLabelCache = RoadLabelCache(metalDevice: metal.device,

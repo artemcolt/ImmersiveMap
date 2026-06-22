@@ -50,8 +50,10 @@ final class ImmersiveMapRuntimeGraph {
                                                             viewportRuntime: viewportRuntime,
                                                             renderRuntime: renderRuntime)
         let debugOverlayControls = DebugOverlayControlState()
+        let tileTraceRecorder = TileTraceRecorder()
         let debugOverlayRuntime = ImmersiveMapDebugOverlayRuntime(mapView: mapView,
                                                                   controls: debugOverlayControls,
+                                                                  tileTraceRecorder: tileTraceRecorder,
                                                                   renderRuntime: renderRuntime,
                                                                   cameraRuntime: cameraRuntime,
                                                                   cameraAnimationRuntime: cameraAnimationRuntime)
@@ -63,7 +65,8 @@ final class ImmersiveMapRuntimeGraph {
                                                           renderRuntime: renderRuntime,
                                                           selectionHandler: selectionHandler,
                                                           debugOverlayRuntime: debugOverlayRuntime,
-                                                          debugOverlayControls: debugOverlayControls)
+                                                          debugOverlayControls: debugOverlayControls,
+                                                          tileTraceRecorder: tileTraceRecorder)
         let frameRenderDelegate = ImmersiveMapFrameRenderDelegate(layer: layer,
                                                                   renderRuntime: renderRuntime,
                                                                   viewportRuntime: viewportRuntime,

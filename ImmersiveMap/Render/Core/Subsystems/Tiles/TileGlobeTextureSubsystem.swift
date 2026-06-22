@@ -13,6 +13,7 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
     let name: String = "Tiles"
 
     private let tilesTexture: GlobeTilesTexture
+    private let tileTraceRecorder: TileTraceRecorder
 
     private let atlasQualityScale: Float = 1.0
     private var globeTextureVersionTracker = StagedHashChangeTracker()
@@ -23,8 +24,10 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
     private var roadFadeAlpha: Float = 0.0
     private var globeAtlasDebugSummary: GlobeAtlasDebugSummary?
 
-    init(tilesTexture: GlobeTilesTexture) {
+    init(tilesTexture: GlobeTilesTexture,
+         tileTraceRecorder: TileTraceRecorder) {
         self.tilesTexture = tilesTexture
+        self.tileTraceRecorder = tileTraceRecorder
     }
 
     func update(frameContext: FrameContext) {
@@ -41,7 +44,12 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
         hasher.combine(overviewFadeAlpha.bitPattern)
         hasher.combine(roadFadeAlpha.bitPattern)
         combineAtlasPlanHash(atlasPlan, into: &hasher)
-        _ = globeTextureVersionTracker.stage(hasher.finalize())
+        let textureChanged = globeTextureVersionTracker.stage(hasher.finalize())
+        tileTraceRecorder.record(.atlasTextureStage(frameIndex: frameContext.frameIndex,
+                                                    textureChanged: textureChanged,
+                                                    placementVersion: tilePlacementState.placementVersion,
+                                                    plan: atlasPlan,
+                                                    surface: frameContext.renderSurfaceMode == .spherical ? "globe" : "flat"))
     }
 
     func prepareGPU(frameContext: FrameContext, resourceRegistry _: RenderResourceRegistry) {
@@ -90,6 +98,9 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
         frameContext.sharedState.globeAtlasDebugSummary = atlasDebugSummary
 
         let allocationsByPage = Dictionary(grouping: atlasPlan.allocations, by: \.pageIndex)
+        tileTraceRecorder.record(.atlasTextureRedraw(frameIndex: frameContext.frameIndex,
+                                                     plan: atlasPlan,
+                                                     encodedPages: allocationsByPage.count))
 
         for pageIndex in allocationsByPage.keys.sorted() {
             guard let allocations = allocationsByPage[pageIndex],
@@ -135,12 +146,20 @@ final class TileGlobeTextureSubsystem: RenderSubsystem {
                                              textureSize: tilesTexture.size,
                                              qualityScale: atlasQualityScale)
         guard atlasPlanCacheKey != cacheKey else {
+            tileTraceRecorder.record(.atlasPlanReused(frameIndex: frameContext.frameIndex,
+                                                      placementVersion: placementVersion,
+                                                      plan: atlasPlan,
+                                                      surface: frameContext.renderSurfaceMode == .spherical ? "globe" : "flat"))
             return
         }
 
         atlasPlan = makeAtlasPlan(frameContext: frameContext)
         atlasPlanCacheKey = cacheKey
         globeAtlasDebugSummary = GlobeAtlasDebugSummary(plan: atlasPlan)
+        tileTraceRecorder.record(.atlasPlanRebuilt(frameIndex: frameContext.frameIndex,
+                                                   placementVersion: placementVersion,
+                                                   plan: atlasPlan,
+                                                   surface: frameContext.renderSurfaceMode == .spherical ? "globe" : "flat"))
     }
 
     private func combineAtlasPlanHash(_ atlasPlan: GlobeAtlasPlan,

@@ -18,6 +18,7 @@ final class DebugOverlayHUDView: UIView {
         static let headerHeight: CGFloat = 30.0
         static let controlRowHeight: CGFloat = 30.0
         static let controlSpacing: CGFloat = 6.0
+        static let traceStatusHeight: CGFloat = 18.0
         static let cornerRadius: CGFloat = 8.0
         static let backgroundAlpha: CGFloat = 0.46
         static let expandedMinimumWidth: CGFloat = 260.0
@@ -36,6 +37,8 @@ final class DebugOverlayHUDView: UIView {
     private let wireframeSwitch = UISwitch()
     private let surfaceModeButton = UIButton(type: .system)
     private let tabControl = UISegmentedControl(items: ["Stats", "Atlas"])
+    private let tileTraceButton = UIButton(type: .system)
+    private let tileTraceStatusLabel = UILabel()
     private let zoomLabel = UILabel()
     private let latLonLabel = UILabel()
     private let diagnosticsLabel = UILabel()
@@ -46,11 +49,13 @@ final class DebugOverlayHUDView: UIView {
     private var isPanelEnabled = false
     private var isCollapsed = false
     private var selectedTab: SelectedTab = .stats
+    private var tileTraceSnapshot = TileTraceRecorderSnapshot(isRecording: false, fileURL: nil)
 
     var onAxesEnabledChanged: ((Bool) -> Void)?
     var onTileLayersEnabledChanged: ((Bool) -> Void)?
     var onWireframeEnabledChanged: ((Bool) -> Void)?
     var onSurfaceModeSwitchRequested: (() -> Void)?
+    var onTileTraceRecordingToggle: (() -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -91,6 +96,12 @@ final class DebugOverlayHUDView: UIView {
         tabControl.selectedSegmentIndex = SelectedTab.stats.rawValue
         tabControl.addTarget(self, action: #selector(tabControlChanged), for: .valueChanged)
         containerView.addSubview(tabControl)
+        configureTileTraceButton()
+        containerView.addSubview(tileTraceButton)
+        tileTraceStatusLabel.textColor = UIColor.white.withAlphaComponent(0.78)
+        tileTraceStatusLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+        tileTraceStatusLabel.lineBreakMode = .byTruncatingMiddle
+        containerView.addSubview(tileTraceStatusLabel)
 
         [zoomLabel, latLonLabel, diagnosticsLabel].forEach { label in
             label.numberOfLines = 0
@@ -109,6 +120,7 @@ final class DebugOverlayHUDView: UIView {
         atlasScrollView.addSubview(atlasLayoutView)
         atlasScrollView.addSubview(atlasDetailsLabel)
         updateCollapseButtonImage()
+        updateTileTraceControl()
         updateVisibility()
     }
 
@@ -130,6 +142,12 @@ final class DebugOverlayHUDView: UIView {
         tileLayersSwitch.setOn(controls.tileLayersEnabled, animated: false)
         wireframeSwitch.setOn(controls.wireframeEnabled, animated: false)
         updateVisibility()
+        setNeedsLayout()
+    }
+
+    func apply(tileTraceSnapshot: TileTraceRecorderSnapshot) {
+        self.tileTraceSnapshot = tileTraceSnapshot
+        updateTileTraceControl()
         setNeedsLayout()
     }
 
@@ -166,6 +184,9 @@ final class DebugOverlayHUDView: UIView {
         let diagnosticsSize = diagnosticsLabel.sizeThatFits(constrainedSize)
         let atlasDetailsSize = atlasDetailsLabel.sizeThatFits(constrainedSize)
         let atlasPreviewHeight = atlasLayoutView.preferredHeight(forWidth: maxContentWidth)
+        let traceBlockHeight = selectedTab == .atlas
+            ? Layout.controlRowHeight + Layout.controlSpacing + Layout.traceStatusHeight + sectionSpacing
+            : 0
         let textContentWidth = min(max(zoomSize.width,
                                        latLonSize.width,
                                        diagnosticsSize.width,
@@ -178,6 +199,7 @@ final class DebugOverlayHUDView: UIView {
             + diagnosticsSize.height
         let atlasBodyHeight = atlasPreviewHeight
             + sectionSpacing
+            + traceBlockHeight
             + atlasDetailsSize.height
         let panelY = top - zoomSize.height - Layout.contentInset
         let chromeHeight = Layout.headerHeight
@@ -190,7 +212,7 @@ final class DebugOverlayHUDView: UIView {
             viewportHeight: bounds.height,
             panelMinY: panelY,
             chromeHeight: chromeHeight,
-            minimumBodyHeight: 48
+            minimumBodyHeight: 48 + traceBlockHeight
         )
         let bodyHeight = selectedTab == .atlas ? visibleAtlasBodyHeight : statsBodyHeight
         let contentHeight = Layout.headerHeight
@@ -257,10 +279,22 @@ final class DebugOverlayHUDView: UIView {
                                         y: latLonLabel.frame.maxY + sectionSpacing,
                                         width: contentWidth,
                                         height: diagnosticsSize.height)
-        atlasScrollView.frame = CGRect(x: Layout.contentInset,
+        tileTraceButton.frame = CGRect(x: Layout.contentInset,
                                        y: textTop,
                                        width: contentWidth,
-                                       height: visibleAtlasBodyHeight)
+                                       height: Layout.controlRowHeight)
+        tileTraceStatusLabel.frame = CGRect(x: Layout.contentInset,
+                                            y: tileTraceButton.frame.maxY + Layout.controlSpacing,
+                                            width: contentWidth,
+                                            height: Layout.traceStatusHeight)
+        let atlasScrollTop = selectedTab == .atlas
+            ? tileTraceStatusLabel.frame.maxY + sectionSpacing
+            : textTop
+        let atlasScrollHeight = max(0, visibleAtlasBodyHeight - traceBlockHeight)
+        atlasScrollView.frame = CGRect(x: Layout.contentInset,
+                                       y: atlasScrollTop,
+                                       width: contentWidth,
+                                       height: atlasScrollHeight)
         atlasLayoutView.frame = CGRect(x: 0,
                                        y: 0,
                                        width: contentWidth,
@@ -270,8 +304,8 @@ final class DebugOverlayHUDView: UIView {
                                          width: contentWidth,
                                          height: atlasDetailsSize.height)
         atlasScrollView.contentSize = CGSize(width: contentWidth,
-                                             height: atlasBodyHeight)
-        atlasScrollView.isScrollEnabled = atlasBodyHeight > visibleAtlasBodyHeight + 0.5
+                                             height: atlasPreviewHeight + sectionSpacing + atlasDetailsSize.height)
+        atlasScrollView.isScrollEnabled = atlasScrollView.contentSize.height > atlasScrollHeight + 0.5
         updateContentVisibility()
     }
 
@@ -353,6 +387,56 @@ final class DebugOverlayHUDView: UIView {
         }
     }
 
+    private func configureTileTraceButton() {
+        tileTraceButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        tileTraceButton.layer.cornerRadius = 6
+        tileTraceButton.layer.masksToBounds = true
+        tileTraceButton.addTarget(self, action: #selector(tileTraceButtonTapped), for: .touchUpInside)
+        if #available(iOS 15.0, *) {
+            var configuration = UIButton.Configuration.plain()
+            configuration.imagePadding = 6
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8)
+            configuration.baseForegroundColor = .white
+            configuration.background.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+            configuration.cornerStyle = .fixed
+            tileTraceButton.configuration = configuration
+        } else {
+            tileTraceButton.tintColor = .white
+            tileTraceButton.setTitleColor(.white, for: .normal)
+            tileTraceButton.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+            tileTraceButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: -4, bottom: 0, right: 4)
+        }
+    }
+
+    private func updateTileTraceControl() {
+        let title = tileTraceSnapshot.isRecording ? "Остановить запись" : "Начать запись"
+        let imageName = tileTraceSnapshot.isRecording ? "stop.circle" : "record.circle"
+        if #available(iOS 15.0, *) {
+            var configuration = tileTraceButton.configuration ?? UIButton.Configuration.plain()
+            configuration.title = title
+            configuration.image = UIImage(systemName: imageName)
+            configuration.baseForegroundColor = .white
+            configuration.background.backgroundColor = tileTraceSnapshot.isRecording
+                ? UIColor.systemRed.withAlphaComponent(0.35)
+                : UIColor.white.withAlphaComponent(0.12)
+            tileTraceButton.configuration = configuration
+        } else {
+            tileTraceButton.setTitle(title, for: .normal)
+            tileTraceButton.setImage(UIImage(systemName: imageName), for: .normal)
+            tileTraceButton.backgroundColor = tileTraceSnapshot.isRecording
+                ? UIColor.systemRed.withAlphaComponent(0.35)
+                : UIColor.white.withAlphaComponent(0.12)
+        }
+        tileTraceButton.accessibilityLabel = title
+
+        if let fileURL = tileTraceSnapshot.fileURL {
+            let prefix = tileTraceSnapshot.isRecording ? "Recording" : "Last trace"
+            tileTraceStatusLabel.text = "\(prefix): \(fileURL.lastPathComponent)"
+        } else {
+            tileTraceStatusLabel.text = "Trace recording is off"
+        }
+    }
+
     private func updateCollapseButtonImage() {
         let imageName = isCollapsed ? "chevron.down" : "chevron.up"
         collapseButton.setImage(UIImage(systemName: imageName), for: .normal)
@@ -369,6 +453,8 @@ final class DebugOverlayHUDView: UIView {
         [zoomLabel, latLonLabel, diagnosticsLabel].forEach {
             $0.isHidden = isStatsVisible == false
         }
+        tileTraceButton.isHidden = isAtlasVisible == false
+        tileTraceStatusLabel.isHidden = isAtlasVisible == false
         atlasScrollView.isHidden = isAtlasVisible == false
     }
 
@@ -424,6 +510,10 @@ final class DebugOverlayHUDView: UIView {
 
     @objc private func surfaceModeButtonTapped() {
         onSurfaceModeSwitchRequested?()
+    }
+
+    @objc private func tileTraceButtonTapped() {
+        onTileTraceRecordingToggle?()
     }
 
     @objc private func tabControlChanged() {
@@ -605,6 +695,10 @@ extension DebugOverlayHUDView {
         surfaceModeButtonTapped()
     }
 
+    func simulateTileTraceRecordingToggleForTesting() {
+        tileTraceButtonTapped()
+    }
+
     func simulateAtlasTabSelectionForTesting() {
         tabControl.selectedSegmentIndex = SelectedTab.atlas.rawValue
         tabControlChanged()
@@ -624,6 +718,17 @@ extension DebugOverlayHUDView {
 
     var isAtlasScrollEnabledForTesting: Bool {
         atlasScrollView.isScrollEnabled
+    }
+
+    var tileTraceButtonTitleForTesting: String? {
+        if #available(iOS 15.0, *) {
+            return tileTraceButton.configuration?.title
+        }
+        return tileTraceButton.title(for: .normal)
+    }
+
+    var tileTraceStatusTextForTesting: String? {
+        tileTraceStatusLabel.text
     }
 }
 #endif

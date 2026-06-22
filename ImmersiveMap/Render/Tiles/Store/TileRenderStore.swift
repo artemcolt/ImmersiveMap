@@ -15,6 +15,7 @@ final class TileRenderStore {
     private var memoryMetalTile: MemoryMetalTileCache!
     private let preparedDataBuilder: TilePreparedDataBuilder
     private let metalTileFactory: MetalTileFactory
+    private let tileTraceRecorder: TileTraceRecorder
 
     weak var eventSink: RenderFrameEventSink?
 
@@ -22,8 +23,10 @@ final class TileRenderStore {
         mapStyle: ImmersiveMapStyle,
         metalDevice: MTLDevice,
         textRenderer: TextRenderer,
-        config: ImmersiveMapSettings
+        config: ImmersiveMapSettings,
+        tileTraceRecorder: TileTraceRecorder
     ) {
+        self.tileTraceRecorder = tileTraceRecorder
         let preparedTileCacheIdentity = PreparedTileCacheIdentity(
             preparedFormatVersion: PreparedTileDiskCaching.preparedFormatVersion,
             styleRevision: mapStyle.preparedTileStyleRevision,
@@ -53,15 +56,16 @@ final class TileRenderStore {
         let maxCachedTilesMemory = config.tiles.cache.memoryCacheSizeInBytes
         memoryMetalTile = MemoryMetalTileCache(maxCacheSizeInBytes: maxCachedTilesMemory)
         mapNeedsTile = ImmersiveMapNeedsTile(tileRenderStore: self,
-                                    config: config,
-                                    preparedTileCacheIdentity: preparedTileCacheIdentity)
+                                             config: config,
+                                             preparedTileCacheIdentity: preparedTileCacheIdentity,
+                                             tileTraceRecorder: tileTraceRecorder)
     }
     
     func getMetalTile(tile: Tile) -> MetalTile? {
         return memoryMetalTile.getTile(forKey: tile)
     }
     
-    func requestTiles(_ tiles: [Tile]) -> TileRequestResult {
+    func requestTiles(_ tiles: [Tile], frameIndex: UInt64? = nil) -> TileRequestResult {
         var readyTilesBySource: [Tile: MetalTile?] = [:]
         readyTilesBySource.reserveCapacity(tiles.count)
         var request: [Tile] = []
@@ -84,6 +88,10 @@ final class TileRenderStore {
         
         // Send all missing tiles for loading
         mapNeedsTile!.request(tiles: request)
+        tileTraceRecorder.record(.tileStoreRequest(frameIndex: frameIndex,
+                                                   demanded: tiles.count,
+                                                   ready: readyTilesCount,
+                                                   requested: request.count))
 
         return TileRequestResult(readyTilesBySource: readyTilesBySource,
                                  readyTilesCount: readyTilesCount,
@@ -91,12 +99,16 @@ final class TileRenderStore {
     }
 
     func prepareTile(tile: Tile, data: Data) async -> PreparedTileCPU? {
+        tileTraceRecorder.record(.tilePrepareStart(tile))
         do {
-            return try preparedDataBuilder.build(tile: tile, data: data)
+            let preparedTile = try preparedDataBuilder.build(tile: tile, data: data)
+            tileTraceRecorder.record(.tilePrepareSuccess(tile))
+            return preparedTile
         } catch {
             #if DEBUG
             print("[WARN] Failed to parse tile \(tile): \(error)")
             #endif
+            tileTraceRecorder.record(.tilePrepareFailed(tile, error: error))
             return nil
         }
     }
@@ -112,6 +124,7 @@ final class TileRenderStore {
 
             eventSink?.invalidate(.tileAvailable)
         }
+        tileTraceRecorder.record(.tileMaterializeSuccess(preparedTile.tile))
         return true
     }
 
