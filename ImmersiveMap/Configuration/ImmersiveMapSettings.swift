@@ -740,7 +740,7 @@ public struct ImmersiveMapSettings: Equatable {
                                                               preparedDiskTimeToLive: 7 * 24 * 60 * 60,
                                                               memoryCacheSizeInBytes: 512 * 1024 * 1024),
                             parsing: TileSettings.ParsingSettings(addTestBorders: false)),
-        labels: LabelSettings(language: .russian,
+        labels: LabelSettings(language: .english,
                               fallbackPolicy: .international,
                               houseNumbers: LabelSettings.HouseNumberSettings(enabled: true,
                                                                               minimumZoom: 15),
@@ -824,6 +824,26 @@ public extension ImmersiveMapSettings {
     func tileSettings(_ tiles: TileSettings) -> ImmersiveMapSettings {
         var settings = self
         settings.tiles = tiles
+        return settings
+    }
+
+    func tileSettings(clearDiskCachesOnLaunch: Bool? = nil,
+                      rawDiskTimeToLive: TimeInterval? = nil,
+                      preparedDiskTimeToLive: TimeInterval? = nil,
+                      memoryCacheSizeInBytes: Int? = nil) -> ImmersiveMapSettings {
+        var settings = self
+        if let clearDiskCachesOnLaunch {
+            settings.tiles.cache.clearDiskCachesOnLaunch = clearDiskCachesOnLaunch
+        }
+        if let rawDiskTimeToLive {
+            settings.tiles.cache.rawDiskTimeToLive = rawDiskTimeToLive
+        }
+        if let preparedDiskTimeToLive {
+            settings.tiles.cache.preparedDiskTimeToLive = preparedDiskTimeToLive
+        }
+        if let memoryCacheSizeInBytes {
+            settings.tiles.cache.memoryCacheSizeInBytes = memoryCacheSizeInBytes
+        }
         return settings
     }
 

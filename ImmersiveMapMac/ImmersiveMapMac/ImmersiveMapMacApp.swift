@@ -28,6 +28,7 @@ private struct MapScreen: View {
                     pitch: .pi / 5
                 )
             )
+            .tileSettings(clearDiskCachesOnLaunch: false)
             .tileSource(.mapbox(accessToken: ProcessInfo.processInfo.environment["IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"]))
             .debugPanel()
             .ignoresSafeArea()

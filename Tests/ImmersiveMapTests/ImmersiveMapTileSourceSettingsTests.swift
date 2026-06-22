@@ -38,6 +38,47 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertTrue(settings.debug.enableDebugPanel)
     }
 
+    func testTileCacheSettingsModifierUpdatesOnlyProvidedCacheValues() {
+        var baseTiles = ImmersiveMapSettings.default.tiles
+        baseTiles.network.maxConcurrentFetches = 11
+        baseTiles.network.pendingRequestQueueCapacity = 27
+        baseTiles.parsing.addTestBorders = true
+        baseTiles.cache.clearDiskCachesOnLaunch = false
+        baseTiles.cache.rawDiskTimeToLive = 12
+        baseTiles.cache.preparedDiskTimeToLive = 34
+        baseTiles.cache.memoryCacheSizeInBytes = 56
+
+        let settings = ImmersiveMapSettings.default
+            .tileSettings(baseTiles)
+            .tileSettings(clearDiskCachesOnLaunch: true,
+                          preparedDiskTimeToLive: 78)
+
+        XCTAssertEqual(settings.tiles.network, baseTiles.network)
+        XCTAssertEqual(settings.tiles.parsing, baseTiles.parsing)
+        XCTAssertEqual(settings.tiles.coverage, baseTiles.coverage)
+        XCTAssertTrue(settings.tiles.cache.clearDiskCachesOnLaunch)
+        XCTAssertEqual(settings.tiles.cache.rawDiskTimeToLive, 12)
+        XCTAssertEqual(settings.tiles.cache.preparedDiskTimeToLive, 78)
+        XCTAssertEqual(settings.tiles.cache.memoryCacheSizeInBytes, 56)
+    }
+
+    #if canImport(UIKit)
+    func testImmersiveMapViewTileCacheSettingsModifierUpdatesOnlyProvidedCacheValues() {
+        let view = ImmersiveMapView()
+            .tileSettings(clearDiskCachesOnLaunch: true,
+                          memoryCacheSizeInBytes: 128)
+
+        let settings: ImmersiveMapSettings? = reflectedValue("settings", in: view)
+
+        XCTAssertTrue(settings?.tiles.cache.clearDiskCachesOnLaunch == true)
+        XCTAssertEqual(settings?.tiles.cache.memoryCacheSizeInBytes, 128)
+        XCTAssertEqual(settings?.tiles.cache.rawDiskTimeToLive,
+                       ImmersiveMapSettings.default.tiles.cache.rawDiskTimeToLive)
+        XCTAssertEqual(settings?.tiles.cache.preparedDiskTimeToLive,
+                       ImmersiveMapSettings.default.tiles.cache.preparedDiskTimeToLive)
+    }
+    #endif
+
     func testFluentSettingsModifiersReplaceEverySettingsDomain() {
         let renderLoop = ImmersiveMapSettings.RenderLoopSettings(forceContinuousRendering: true,
                                                                  interactionFramesPerSecond: 30,

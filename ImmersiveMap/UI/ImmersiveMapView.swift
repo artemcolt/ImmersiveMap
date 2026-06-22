@@ -109,6 +109,20 @@ public struct ImmersiveMapView: UIViewRepresentable {
         return view
     }
 
+    public func tileSettings(clearDiskCachesOnLaunch: Bool? = nil,
+                             rawDiskTimeToLive: TimeInterval? = nil,
+                             preparedDiskTimeToLive: TimeInterval? = nil,
+                             memoryCacheSizeInBytes: Int? = nil) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.tileSettings(
+            clearDiskCachesOnLaunch: clearDiskCachesOnLaunch,
+            rawDiskTimeToLive: rawDiskTimeToLive,
+            preparedDiskTimeToLive: preparedDiskTimeToLive,
+            memoryCacheSizeInBytes: memoryCacheSizeInBytes
+        )
+        return view
+    }
+
     public func labelSettings(_ labels: ImmersiveMapSettings.LabelSettings) -> ImmersiveMapView {
         var view = self
         view.settings = view.settings.labelSettings(labels)
