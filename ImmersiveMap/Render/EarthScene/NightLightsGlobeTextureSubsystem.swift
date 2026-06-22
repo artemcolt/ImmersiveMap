@@ -11,6 +11,7 @@ final class NightLightsGlobeTextureSubsystem: RenderSubsystem {
     private let atlasTexture: NightLightsAtlasTexture
 
     private var previousRequiredTiles: [Tile]?
+    private var previousReadyTiles: [Tile]?
     private var atlasState: NightLightsAtlasState = .empty
 
     init(tileSet: NightLightsTileSet?,
@@ -72,15 +73,18 @@ final class NightLightsGlobeTextureSubsystem: RenderSubsystem {
             .tilePlacements
             .map(\.placeIn.tile)
         let requiredTiles = Self.renderableRequiredNightLightTiles(for: visibleTiles, tileSet: tileSet)
+        tileCache.prefetchTiles(requiredTiles)
+        let tileData = requiredTiles.compactMap { tileCache.tileData(for: $0) }
+        let readyTiles = tileData.map(\.tile)
 
-        guard requiredTiles != previousRequiredTiles else {
+        guard requiredTiles != previousRequiredTiles || readyTiles != previousReadyTiles else {
             frameContext.sharedState.nightLightsAtlasState = atlasState
             return
         }
 
-        let tileData = requiredTiles.compactMap { tileCache.tileData(for: $0) }
         atlasState = atlasTexture.update(tiles: tileData)
         previousRequiredTiles = requiredTiles
+        previousReadyTiles = readyTiles
         frameContext.sharedState.nightLightsAtlasState = atlasState
     }
 
@@ -96,6 +100,7 @@ final class NightLightsGlobeTextureSubsystem: RenderSubsystem {
 
     private func publishEmptyState(frameContext: FrameContext) {
         previousRequiredTiles = nil
+        previousReadyTiles = nil
         atlasState = .empty
         frameContext.sharedState.nightLightsAtlasState = .empty
     }
@@ -104,6 +109,7 @@ final class NightLightsGlobeTextureSubsystem: RenderSubsystem {
         tileCache.removeAll()
         atlasTexture.removeAll()
         previousRequiredTiles = nil
+        previousReadyTiles = nil
         atlasState = .empty
     }
 }

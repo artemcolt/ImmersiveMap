@@ -37,6 +37,31 @@ final class NightLightsAtlasTextureTests: XCTestCase {
         XCTAssertEqual(state.entries.map(\.uvScale), Array(repeating: SIMD2<Float>(0.5, 0.5), count: 5))
     }
 
+    func testUpdateKeepsExistingTileSlotWhenVisibleSetChanges() throws {
+        let atlas = try makeAtlas(pageSize: 4, tileSize: 2)
+        let tileA = Tile(x: 0, y: 0, z: 1)
+        let tileB = Tile(x: 1, y: 0, z: 1)
+        let tileC = Tile(x: 0, y: 1, z: 1)
+        let tileD = Tile(x: 1, y: 1, z: 1)
+        let initialState = atlas.update(tiles: [
+            makeTileData(tile: tileA, width: 2, height: 2, bytes: interleavedBytes(core: 1, halo: 101, pixelCount: 4)),
+            makeTileData(tile: tileB, width: 2, height: 2, bytes: interleavedBytes(core: 2, halo: 102, pixelCount: 4)),
+            makeTileData(tile: tileC, width: 2, height: 2, bytes: interleavedBytes(core: 3, halo: 103, pixelCount: 4))
+        ])
+        let originalBEntry = try XCTUnwrap(initialState.entries.first { $0.tile == tileB })
+
+        let updatedState = atlas.update(tiles: [
+            makeTileData(tile: tileB, width: 2, height: 2, bytes: interleavedBytes(core: 2, halo: 102, pixelCount: 4)),
+            makeTileData(tile: tileD, width: 2, height: 2, bytes: interleavedBytes(core: 4, halo: 104, pixelCount: 4))
+        ])
+
+        let updatedBEntry = try XCTUnwrap(updatedState.entries.first { $0.tile == tileB })
+        let updatedDEntry = try XCTUnwrap(updatedState.entries.first { $0.tile == tileD })
+        XCTAssertEqual(updatedBEntry.uvOrigin, originalBEntry.uvOrigin)
+        XCTAssertEqual(updatedBEntry.pageIndex, originalBEntry.pageIndex)
+        XCTAssertEqual(updatedDEntry.uvOrigin, SIMD2<Float>(0.0, 0.0))
+    }
+
     func testInvalidTilesAreSkipped() throws {
         let atlas = try makeAtlas(pageSize: 2048, tileSize: 1024)
         let validTile = makeTileData(tile: Tile(x: 1, y: 0, z: 4))
@@ -144,7 +169,7 @@ final class NightLightsAtlasTextureTests: XCTestCase {
         }
     }
 
-    func testUploadsTwoChannelTilesRowMajorAndClearsUntouchedSlots() throws {
+    func testUploadsTwoChannelTilesIntoPublishedSlots() throws {
         let atlas = try makeAtlas(pageSize: 4, tileSize: 2)
         let tiles = [
             makeTileData(tile: Tile(x: 0, y: 0, z: 1),
@@ -175,16 +200,17 @@ final class NightLightsAtlasTextureTests: XCTestCase {
         let page = try XCTUnwrap(state.pages.first)
         XCTAssertEqual(page.pixelFormat, .rg8Unorm)
 
-        var bytes = [UInt8](repeating: 255, count: 4 * 4 * 2)
-        page.getBytes(&bytes,
-                      bytesPerRow: 4 * 2,
-                      from: MTLRegionMake2D(0, 0, 4, 4),
-                      mipmapLevel: 0)
-        XCTAssertEqual(bytes, [
-            1, 101, 2, 102, 5, 105, 6, 106,
-            3, 103, 4, 104, 7, 107, 8, 108,
-            9, 109, 10, 110, 0, 0, 0, 0,
-            11, 111, 12, 112, 0, 0, 0, 0
+        XCTAssertEqual(readTileBytes(from: page, originX: 0, originY: 0), [
+            1, 101, 2, 102,
+            3, 103, 4, 104
+        ])
+        XCTAssertEqual(readTileBytes(from: page, originX: 2, originY: 0), [
+            5, 105, 6, 106,
+            7, 107, 8, 108
+        ])
+        XCTAssertEqual(readTileBytes(from: page, originX: 0, originY: 2), [
+            9, 109, 10, 110,
+            11, 111, 12, 112
         ])
     }
 
@@ -204,6 +230,15 @@ final class NightLightsAtlasTextureTests: XCTestCase {
         let texture = device.makeTexture(descriptor: descriptor)
         texture?.label = label
         return texture
+    }
+
+    private func readTileBytes(from page: MTLTexture, originX: Int, originY: Int) -> [UInt8] {
+        var bytes = [UInt8](repeating: 255, count: 2 * 2 * 2)
+        page.getBytes(&bytes,
+                      bytesPerRow: 2 * 2,
+                      from: MTLRegionMake2D(originX, originY, 2, 2),
+                      mipmapLevel: 0)
+        return bytes
     }
 
     private func makeTileData(tile: Tile) -> NightLightsTileData {

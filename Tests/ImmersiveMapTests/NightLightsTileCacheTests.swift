@@ -9,6 +9,30 @@ import UniformTypeIdentifiers
 import XCTest
 
 final class NightLightsTileCacheTests: XCTestCase {
+    func testTileDataDoesNotDecodeMissingTilesSynchronouslyAndPrefetchLoadsInBackground() throws {
+        let tile = Tile(x: 1, y: 2, z: 3)
+        let url = try makeJPEG(width: 2, height: 2, bytes: [0, 80, 160, 255])
+        let didRequestURL = expectation(description: "prefetch requested tile URL")
+        var loadCount = 0
+        let cache = NightLightsTileCache { requestedTile in
+            loadCount += 1
+            didRequestURL.fulfill()
+            return requestedTile == tile ? url : nil
+        }
+
+        XCTAssertNil(cache.tileData(for: tile))
+        XCTAssertEqual(loadCount, 0)
+
+        cache.prefetchTiles([tile])
+        wait(for: [didRequestURL], timeout: 2.0)
+
+        let data = try waitForReadyTile(tile, in: cache)
+        XCTAssertEqual(data.tile, tile)
+        XCTAssertEqual(data.width, 2)
+        XCTAssertEqual(data.height, 2)
+        XCTAssertEqual(loadCount, 1)
+    }
+
     func testLoadsSmallGrayscaleJPEGIntoBytesAndDimensions() throws {
         let tile = Tile(x: 1, y: 2, z: 3)
         let url = try makeJPEG(width: 2, height: 2, bytes: [0, 80, 160, 255])
@@ -16,7 +40,8 @@ final class NightLightsTileCacheTests: XCTestCase {
             requestedTile == tile ? url : nil
         }
 
-        let data = try XCTUnwrap(cache.tileData(for: tile))
+        cache.prefetchTiles([tile])
+        let data = try waitForReadyTile(tile, in: cache)
 
         XCTAssertEqual(data.tile, tile)
         XCTAssertEqual(data.width, 2)
@@ -43,7 +68,8 @@ final class NightLightsTileCacheTests: XCTestCase {
             requestedTile == tile ? url : nil
         }
 
-        let data = try XCTUnwrap(cache.tileData(for: tile))
+        cache.prefetchTiles([tile])
+        let data = try waitForReadyTile(tile, in: cache)
 
         XCTAssertEqual(data.width, 3)
         XCTAssertEqual(data.height, 2)
@@ -71,7 +97,8 @@ final class NightLightsTileCacheTests: XCTestCase {
             requestedTile == tile ? url : nil
         }
 
-        let data = try XCTUnwrap(cache.tileData(for: tile))
+        cache.prefetchTiles([tile])
+        let data = try waitForReadyTile(tile, in: cache)
 
         XCTAssertEqual(data.width, 2)
         XCTAssertEqual(data.height, 2)
@@ -94,9 +121,13 @@ final class NightLightsTileCacheTests: XCTestCase {
             return tile == tileA ? urlA : urlB
         }
 
-        XCTAssertNotNil(cache.tileData(for: tileA))
-        XCTAssertNotNil(cache.tileData(for: tileB))
-        XCTAssertNotNil(cache.tileData(for: tileA))
+        cache.prefetchTiles([tileA])
+        XCTAssertNotNil(try waitForReadyTile(tileA, in: cache))
+        cache.prefetchTiles([tileB])
+        XCTAssertNotNil(try waitForReadyTile(tileB, in: cache))
+        XCTAssertNil(cache.tileData(for: tileA))
+        cache.prefetchTiles([tileA])
+        XCTAssertNotNil(try waitForReadyTile(tileA, in: cache))
 
         XCTAssertEqual(loadCounts[tileA], 2)
         XCTAssertEqual(loadCounts[tileB], 1)
@@ -117,12 +148,17 @@ final class NightLightsTileCacheTests: XCTestCase {
             return urls[tile]
         }
 
+        cache.prefetchTiles([tileA])
+        XCTAssertNotNil(try waitForReadyTile(tileA, in: cache))
+        cache.prefetchTiles([tileB])
+        XCTAssertNotNil(try waitForReadyTile(tileB, in: cache))
         XCTAssertNotNil(cache.tileData(for: tileA))
-        XCTAssertNotNil(cache.tileData(for: tileB))
+        cache.prefetchTiles([tileC])
+        XCTAssertNotNil(try waitForReadyTile(tileC, in: cache))
         XCTAssertNotNil(cache.tileData(for: tileA))
-        XCTAssertNotNil(cache.tileData(for: tileC))
-        XCTAssertNotNil(cache.tileData(for: tileA))
-        XCTAssertNotNil(cache.tileData(for: tileB))
+        XCTAssertNil(cache.tileData(for: tileB))
+        cache.prefetchTiles([tileB])
+        XCTAssertNotNil(try waitForReadyTile(tileB, in: cache))
 
         XCTAssertEqual(loadCounts[tileA], 1)
         XCTAssertEqual(loadCounts[tileB], 2)
@@ -138,9 +174,12 @@ final class NightLightsTileCacheTests: XCTestCase {
             return url
         }
 
-        XCTAssertNotNil(cache.tileData(for: tile))
+        cache.prefetchTiles([tile])
+        XCTAssertNotNil(try waitForReadyTile(tile, in: cache))
         cache.removeAll()
-        XCTAssertNotNil(cache.tileData(for: tile))
+        XCTAssertNil(cache.tileData(for: tile))
+        cache.prefetchTiles([tile])
+        XCTAssertNotNil(try waitForReadyTile(tile, in: cache))
 
         XCTAssertEqual(loadCount, 2)
     }
@@ -171,6 +210,20 @@ final class NightLightsTileCacheTests: XCTestCase {
         CGImageDestinationAddImage(destination, image, nil)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         return url
+    }
+
+    private func waitForReadyTile(_ tile: Tile,
+                                  in cache: NightLightsTileCache,
+                                  timeout: TimeInterval = 2.0) throws -> NightLightsTileData {
+        let deadline = Date().addingTimeInterval(timeout)
+        var data: NightLightsTileData?
+        while data == nil && Date() < deadline {
+            data = cache.tileData(for: tile)
+            if data == nil {
+                usleep(10_000)
+            }
+        }
+        return try XCTUnwrap(data)
     }
 
     private func makePNG(width: Int, height: Int, bytes: [UInt8]) throws -> URL {

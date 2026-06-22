@@ -15,15 +15,19 @@ struct NightLightsTileData {
     let bytes: [UInt8]
 }
 
-// Owned by the render preparation path; callers should keep access single-threaded.
 final class NightLightsTileCache {
     private static let maxPixelCount = 4096 * 4096
 
     private let capacity: Int
     private let loader: (Tile) -> URL?
+    private let stateQueue = DispatchQueue(label: "ImmersiveMap.NightLightsTileCache.state")
+    private let decodeQueue = DispatchQueue(label: "ImmersiveMap.NightLightsTileCache.decode", qos: .utility)
 
     private var cachedTiles: [Tile: NightLightsTileData] = [:]
     private var tileOrder: [Tile] = []
+    private var pendingTiles: Set<Tile> = []
+    private var unavailableTiles: Set<Tile> = []
+    private var generation: UInt64 = 0
 
     init(capacity: Int = 128, loader: @escaping (Tile) -> URL?) {
         self.capacity = max(1, capacity)
@@ -31,27 +35,72 @@ final class NightLightsTileCache {
     }
 
     func tileData(for tile: Tile) -> NightLightsTileData? {
-        if let cachedTile = cachedTiles[tile] {
+        stateQueue.sync {
+            guard let cachedTile = cachedTiles[tile] else {
+                return nil
+            }
             markRecentlyUsed(tile)
             return cachedTile
         }
+    }
 
-        guard let url = loader(tile),
-              let decodedTile = Self.decodeTile(tile, from: url) else {
-            return nil
+    func prefetchTiles(_ tiles: [Tile]) {
+        for tile in tiles {
+            let scheduledGeneration = stateQueue.sync {
+                guard cachedTiles[tile] == nil,
+                      !pendingTiles.contains(tile),
+                      !unavailableTiles.contains(tile) else {
+                    return nil as UInt64?
+                }
+                pendingTiles.insert(tile)
+                return generation
+            }
+
+            guard let scheduledGeneration else {
+                continue
+            }
+
+            decodeQueue.async { [weak self] in
+                self?.decodeAndStore(tile, generation: scheduledGeneration)
+            }
         }
-
-        insert(decodedTile)
-        return decodedTile
     }
 
     func removeAll() {
-        cachedTiles.removeAll()
-        tileOrder.removeAll()
+        stateQueue.sync {
+            cachedTiles.removeAll()
+            tileOrder.removeAll()
+            pendingTiles.removeAll()
+            unavailableTiles.removeAll()
+            generation &+= 1
+        }
+    }
+
+    private func decodeAndStore(_ tile: Tile, generation scheduledGeneration: UInt64) {
+        guard let url = loader(tile),
+              let decodedTile = Self.decodeTile(tile, from: url) else {
+            stateQueue.sync {
+                guard generation == scheduledGeneration else {
+                    return
+                }
+                pendingTiles.remove(tile)
+                unavailableTiles.insert(tile)
+            }
+            return
+        }
+
+        stateQueue.sync {
+            guard generation == scheduledGeneration else {
+                return
+            }
+            pendingTiles.remove(tile)
+            insert(decodedTile)
+        }
     }
 
     private func insert(_ tileData: NightLightsTileData) {
         cachedTiles[tileData.tile] = tileData
+        unavailableTiles.remove(tileData.tile)
         markRecentlyUsed(tileData.tile)
 
         while tileOrder.count > capacity, let leastRecentlyUsedTile = tileOrder.first {

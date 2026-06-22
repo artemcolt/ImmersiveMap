@@ -15,6 +15,9 @@ final class NightLightsAtlasTexture {
     private let slotsPerPage: Int
 
     private var pages: [MTLTexture] = []
+    private var tileSlots: [Tile: Int] = [:]
+    private var freeSlots: [Int] = []
+    private var nextSlotIndex: Int = 0
 
     init(device: MTLDevice, pageSize: Int = 4096, tileSize: Int = 1024) {
         let geometry = Self.validatedGeometry(pageSize: pageSize, tileSize: tileSize)
@@ -26,49 +29,60 @@ final class NightLightsAtlasTexture {
     }
 
     // Shaders must only sample slots described by `entries`; untouched slots are not part of the atlas contract.
-    // Newly created pages are still cleared to keep readbacks and accidental unused-slot access deterministic.
     func update(tiles: [NightLightsTileData]) -> NightLightsAtlasState {
-        guard !tiles.isEmpty else {
+        let validTiles = tiles.filter(isValid)
+        guard !validTiles.isEmpty else {
             removeAll()
             return .empty
         }
 
+        var requiredTiles = Set<Tile>()
+        for tileData in validTiles {
+            requiredTiles.insert(tileData.tile)
+        }
+        removeSlotsNotIn(requiredTiles)
+
         var entries: [NightLightsAtlasEntry] = []
-        entries.reserveCapacity(tiles.count)
+        entries.reserveCapacity(validTiles.count)
 
-        for tileData in tiles where isValid(tileData) {
-            let slotIndex = entries.count
-            let pageIndex = slotIndex / slotsPerPage
-            let slotInPage = slotIndex % slotsPerPage
-            let column = slotInPage % slotsPerSide
-            let row = slotInPage / slotsPerSide
+        for tileData in validTiles {
+            let slotIndex: Int
+            let shouldUpload: Bool
+            if let existingSlotIndex = tileSlots[tileData.tile] {
+                slotIndex = existingSlotIndex
+                shouldUpload = false
+            } else {
+                slotIndex = allocateSlot(for: tileData.tile)
+                shouldUpload = true
+            }
 
-            guard let page = texturePage(at: pageIndex) else {
+            let layout = slotLayout(for: slotIndex)
+            guard let page = texturePage(at: layout.pageIndex) else {
                 continue
             }
             guard let tileBytesPerRow = Self.bytesPerRow(forSideLength: tileSize) else {
                 continue
             }
 
-            let originX = column * tileSize
-            let originY = row * tileSize
-            let region = MTLRegionMake2D(originX, originY, tileSize, tileSize)
-            tileData.bytes.withUnsafeBytes { rawBuffer in
-                guard let baseAddress = rawBuffer.baseAddress else {
-                    return
+            if shouldUpload {
+                let region = MTLRegionMake2D(layout.originX, layout.originY, tileSize, tileSize)
+                tileData.bytes.withUnsafeBytes { rawBuffer in
+                    guard let baseAddress = rawBuffer.baseAddress else {
+                        return
+                    }
+                    page.replace(region: region,
+                                 mipmapLevel: 0,
+                                 withBytes: baseAddress,
+                                 bytesPerRow: tileBytesPerRow)
                 }
-                page.replace(region: region,
-                             mipmapLevel: 0,
-                             withBytes: baseAddress,
-                             bytesPerRow: tileBytesPerRow)
             }
 
             let uvScale = SIMD2<Float>(Float(tileSize) / Float(pageSize),
                                        Float(tileSize) / Float(pageSize))
-            let uvOrigin = SIMD2<Float>(Float(originX) / Float(pageSize),
-                                        Float(originY) / Float(pageSize))
+            let uvOrigin = SIMD2<Float>(Float(layout.originX) / Float(pageSize),
+                                        Float(layout.originY) / Float(pageSize))
             entries.append(NightLightsAtlasEntry(tile: tileData.tile,
-                                                 pageIndex: pageIndex,
+                                                 pageIndex: layout.pageIndex,
                                                  uvOrigin: uvOrigin,
                                                  uvScale: uvScale))
         }
@@ -78,7 +92,7 @@ final class NightLightsAtlasTexture {
             return .empty
         }
 
-        let exposedPages = Array(pages.prefix(requiredPageCount(forEntryCount: entries.count)))
+        let exposedPages = Array(pages.prefix(requiredPageCount(forSlotIndices: tileSlots.values)))
         if exposedPages.count < pages.count {
             pages = exposedPages
         }
@@ -87,6 +101,9 @@ final class NightLightsAtlasTexture {
 
     func removeAll() {
         pages.removeAll()
+        tileSlots.removeAll()
+        freeSlots.removeAll()
+        nextSlotIndex = 0
     }
 
     private func isValid(_ tileData: NightLightsTileData) -> Bool {
@@ -109,10 +126,6 @@ final class NightLightsAtlasTexture {
     }
 
     private func makeTexturePage(index: Int) -> MTLTexture? {
-        guard let pageBytesPerRow = Self.bytesPerRow(forSideLength: pageSize),
-              let clearByteCount = Self.textureByteCount(forSideLength: pageSize) else {
-            return nil
-        }
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rg8Unorm,
                                                                   width: pageSize,
                                                                   height: pageSize,
@@ -122,30 +135,44 @@ final class NightLightsAtlasTexture {
 
         let texture = device.makeTexture(descriptor: descriptor)
         texture?.label = "NightLightsAtlasTexturePage\(index)"
-        if let texture {
-            clearTexture(texture, byteCount: clearByteCount, bytesPerRow: pageBytesPerRow)
-        }
         return texture
     }
 
-    private func clearTexture(_ texture: MTLTexture, byteCount: Int, bytesPerRow: Int) {
-        let bytes = [UInt8](repeating: 0, count: byteCount)
-        bytes.withUnsafeBytes { rawBuffer in
-            guard let baseAddress = rawBuffer.baseAddress else {
-                return
-            }
-            texture.replace(region: MTLRegionMake2D(0, 0, pageSize, pageSize),
-                            mipmapLevel: 0,
-                            withBytes: baseAddress,
-                            bytesPerRow: bytesPerRow)
+    private func removeSlotsNotIn(_ requiredTiles: Set<Tile>) {
+        for (tile, slotIndex) in tileSlots where !requiredTiles.contains(tile) {
+            tileSlots.removeValue(forKey: tile)
+            freeSlots.append(slotIndex)
         }
+        freeSlots.sort()
     }
 
-    private func requiredPageCount(forEntryCount entryCount: Int) -> Int {
-        guard entryCount > 0 else {
+    private func allocateSlot(for tile: Tile) -> Int {
+        let slotIndex: Int
+        if freeSlots.isEmpty {
+            slotIndex = nextSlotIndex
+            nextSlotIndex += 1
+        } else {
+            slotIndex = freeSlots.removeFirst()
+        }
+        tileSlots[tile] = slotIndex
+        return slotIndex
+    }
+
+    private func slotLayout(for slotIndex: Int) -> (pageIndex: Int, originX: Int, originY: Int) {
+        let pageIndex = slotIndex / slotsPerPage
+        let slotInPage = slotIndex % slotsPerPage
+        let column = slotInPage % slotsPerSide
+        let row = slotInPage / slotsPerSide
+        return (pageIndex: pageIndex,
+                originX: column * tileSize,
+                originY: row * tileSize)
+    }
+
+    private func requiredPageCount(forSlotIndices slotIndices: Dictionary<Tile, Int>.Values) -> Int {
+        guard let maxSlotIndex = slotIndices.max() else {
             return 0
         }
-        return ((entryCount - 1) / slotsPerPage) + 1
+        return (maxSlotIndex / slotsPerPage) + 1
     }
 
     private static func validatedGeometry(pageSize: Int, tileSize: Int) -> (pageSize: Int, tileSize: Int) {
