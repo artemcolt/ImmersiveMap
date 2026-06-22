@@ -44,7 +44,8 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         view.apply(isDebugPanelEnabled: true,
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
-                                                         wireframeEnabled: false))
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
         view.apply(snapshot: DebugOverlayHUDSnapshot(
             coordinateLines: DebugOverlayCoordinateLines(zoom: "z: 1.00", latLon: "lat: 0.000 lon: 0.000"),
             diagnosticsLines: [],
@@ -77,6 +78,44 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertEqual(view.atlasPreviewPageCountForTesting, 1)
     }
 
+    func testControlsTabDisplaysDebugSwitchesWithoutStatsOrAtlasContent() {
+        let view = DebugOverlayHUDView()
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: true,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: makeSnapshot(settings: settings, atlasPages: []))
+
+        view.simulateControlsTabSelectionForTesting()
+        view.layoutIfNeeded()
+
+        XCTAssertTrue(view.isControlsTabSelectedForTesting)
+        XCTAssertTrue(view.areDebugControlsVisibleForTesting)
+        XCTAssertFalse(view.isStatsContentVisibleForTesting)
+        XCTAssertFalse(view.isAtlasContentVisibleForTesting)
+    }
+
+    func testEarthSceneControlReflectsSettingsAndInvokesCallback() {
+        let view = DebugOverlayHUDView()
+        var receivedValue: Bool?
+        view.onEarthSceneEnabledChanged = { isEnabled in
+            receivedValue = isEnabled
+        }
+
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: false,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: false)
+        view.simulateEarthSceneSwitchForTesting(true)
+
+        XCTAssertEqual(receivedValue, true)
+        XCTAssertTrue(view.isEarthSceneSwitchOnForTesting)
+    }
+
     func testAtlasTabCapsPanelHeightWhenManyAtlasPagesAreVisible() {
         let view = DebugOverlayHUDView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         var settings = ImmersiveMapSettings.default.debug
@@ -84,7 +123,8 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         view.apply(isDebugPanelEnabled: true,
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
-                                                         wireframeEnabled: false))
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
         view.apply(snapshot: makeSnapshot(settings: settings,
                                           atlasPages: (0..<12).map(makeAtlasPage)))
 
@@ -102,7 +142,8 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         view.apply(isDebugPanelEnabled: true,
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
-                                                         wireframeEnabled: false))
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
         view.apply(snapshot: makeSnapshot(settings: settings,
                                           atlasPages: [
                                               GlobeAtlasDebugPage(pageIndex: 0,

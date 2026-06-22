@@ -94,7 +94,7 @@ public class ImmersiveMapUIView: UIView {
                                                 layer: metalLayer,
                                                 settings: settings,
                                                 initialCameraPosition: initialCameraPosition)
-        debugOverlayRuntime.apply(settings: settings.debug)
+        debugOverlayRuntime.apply(settings: settings)
 
         createRenderer(settings: settings,
                        cameraPosition: initialCameraPosition)
@@ -156,7 +156,7 @@ public class ImmersiveMapUIView: UIView {
                                      notifiesCameraPositionChanged: plan.requiresRendererRecreation == false)
         cameraAnimationRuntime.updateSettings()
         controlsRuntime.applyAttributionSettings(settings.attribution)
-        debugOverlayRuntime.apply(settings: settings.debug)
+        debugOverlayRuntime.apply(settings: settings)
         setNeedsLayout()
         renderRuntime.updateRenderLoopSettings(settings.renderLoop)
         if plan.requiresRendererRecreation {
@@ -171,6 +171,12 @@ public class ImmersiveMapUIView: UIView {
 
     func requestFrame() {
         renderRuntime.requestFrame()
+    }
+
+    func setEarthSceneEnabledFromDebugOverlay(_ isEnabled: Bool) {
+        var settings = cameraRuntime.currentSettings
+        settings.scene.earth.isEnabled = isEnabled
+        applySettings(settings)
     }
 
     // MARK: - Controller Sync

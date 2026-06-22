@@ -9,6 +9,7 @@ final class DebugOverlayHUDView: UIView {
     private enum SelectedTab: Int {
         case stats = 0
         case atlas = 1
+        case controls = 2
     }
 
     private enum Layout {
@@ -35,8 +36,10 @@ final class DebugOverlayHUDView: UIView {
     private let tileLayersSwitch = UISwitch()
     private let wireframeLabel = UILabel()
     private let wireframeSwitch = UISwitch()
+    private let earthSceneLabel = UILabel()
+    private let earthSceneSwitch = UISwitch()
     private let surfaceModeButton = UIButton(type: .system)
-    private let tabControl = UISegmentedControl(items: ["Stats", "Atlas"])
+    private let tabControl = UISegmentedControl(items: ["Stats", "Atlas", "Controls"])
     private let tileTraceButton = UIButton(type: .system)
     private let tileTraceStatusLabel = UILabel()
     private let zoomLabel = UILabel()
@@ -54,6 +57,7 @@ final class DebugOverlayHUDView: UIView {
     var onAxesEnabledChanged: ((Bool) -> Void)?
     var onTileLayersEnabledChanged: ((Bool) -> Void)?
     var onWireframeEnabledChanged: ((Bool) -> Void)?
+    var onEarthSceneEnabledChanged: ((Bool) -> Void)?
     var onSurfaceModeSwitchRequested: (() -> Void)?
     var onTileTraceRecordingToggle: (() -> Void)?
 
@@ -82,15 +86,19 @@ final class DebugOverlayHUDView: UIView {
         configureControlLabel(axesLabel, text: "Axes")
         configureControlLabel(tileLayersLabel, text: "Tile layers")
         configureControlLabel(wireframeLabel, text: "Wireframe")
+        configureControlLabel(earthSceneLabel, text: "Earth scene")
         axesSwitch.addTarget(self, action: #selector(axesSwitchChanged), for: .valueChanged)
         tileLayersSwitch.addTarget(self, action: #selector(tileLayersSwitchChanged), for: .valueChanged)
         wireframeSwitch.addTarget(self, action: #selector(wireframeSwitchChanged), for: .valueChanged)
+        earthSceneSwitch.addTarget(self, action: #selector(earthSceneSwitchChanged), for: .valueChanged)
         containerView.addSubview(axesLabel)
         containerView.addSubview(axesSwitch)
         containerView.addSubview(tileLayersLabel)
         containerView.addSubview(tileLayersSwitch)
         containerView.addSubview(wireframeLabel)
         containerView.addSubview(wireframeSwitch)
+        containerView.addSubview(earthSceneLabel)
+        containerView.addSubview(earthSceneSwitch)
         configureSurfaceModeButton()
         containerView.addSubview(surfaceModeButton)
         tabControl.selectedSegmentIndex = SelectedTab.stats.rawValue
@@ -136,11 +144,13 @@ final class DebugOverlayHUDView: UIView {
     }
 
     func apply(isDebugPanelEnabled: Bool,
-               controls: DebugOverlayControlSnapshot) {
+               controls: DebugOverlayControlSnapshot,
+               earthSceneEnabled: Bool) {
         isPanelEnabled = isDebugPanelEnabled
         axesSwitch.setOn(controls.axesEnabled, animated: false)
         tileLayersSwitch.setOn(controls.tileLayersEnabled, animated: false)
         wireframeSwitch.setOn(controls.wireframeEnabled, animated: false)
+        earthSceneSwitch.setOn(earthSceneEnabled, animated: false)
         updateVisibility()
         setNeedsLayout()
     }
@@ -192,7 +202,7 @@ final class DebugOverlayHUDView: UIView {
                                        diagnosticsSize.width,
                                        atlasDetailsSize.width), maxContentWidth)
         let contentWidth = max(Layout.expandedMinimumWidth, textContentWidth)
-        let controlsHeight = Layout.controlRowHeight * 5 + Layout.controlSpacing * 4
+        let controlsBodyHeight = Layout.controlRowHeight * 5 + Layout.controlSpacing * 4
         let statsBodyHeight = zoomSize.height
             + latLonSize.height
             + sectionSpacing
@@ -204,7 +214,7 @@ final class DebugOverlayHUDView: UIView {
         let panelY = top - zoomSize.height - Layout.contentInset
         let chromeHeight = Layout.headerHeight
             + Layout.contentInset
-            + controlsHeight
+            + Layout.controlRowHeight
             + sectionSpacing
             + Layout.contentInset
         let visibleAtlasBodyHeight = DebugOverlayPanelLayout.visibleBodyHeight(
@@ -214,10 +224,18 @@ final class DebugOverlayHUDView: UIView {
             chromeHeight: chromeHeight,
             minimumBodyHeight: 48 + traceBlockHeight
         )
-        let bodyHeight = selectedTab == .atlas ? visibleAtlasBodyHeight : statsBodyHeight
+        let bodyHeight: CGFloat
+        switch selectedTab {
+        case .stats:
+            bodyHeight = statsBodyHeight
+        case .atlas:
+            bodyHeight = visibleAtlasBodyHeight
+        case .controls:
+            bodyHeight = controlsBodyHeight
+        }
         let contentHeight = Layout.headerHeight
             + Layout.contentInset
-            + controlsHeight
+            + Layout.controlRowHeight
             + sectionSpacing
             + bodyHeight
             + Layout.contentInset
@@ -232,7 +250,14 @@ final class DebugOverlayHUDView: UIView {
 
         let switchSize = axesSwitch.sizeThatFits(.zero)
         let labelWidth = contentWidth - switchSize.width - Layout.controlSpacing
-        let controlsTop = Layout.headerHeight + Layout.contentInset
+        let tabTop = Layout.headerHeight + Layout.contentInset
+        tabControl.frame = CGRect(x: Layout.contentInset,
+                                  y: tabTop,
+                                  width: contentWidth,
+                                  height: Layout.controlRowHeight)
+
+        let bodyTop = tabControl.frame.maxY + sectionSpacing
+        let controlsTop = bodyTop
         axesLabel.frame = CGRect(x: Layout.contentInset,
                                  y: controlsTop,
                                  width: labelWidth,
@@ -257,16 +282,20 @@ final class DebugOverlayHUDView: UIView {
                                        y: wireframeLabel.frame.minY + (Layout.controlRowHeight - switchSize.height) / 2,
                                        width: switchSize.width,
                                        height: switchSize.height)
+        earthSceneLabel.frame = CGRect(x: Layout.contentInset,
+                                       y: wireframeLabel.frame.maxY + Layout.controlSpacing,
+                                       width: labelWidth,
+                                       height: Layout.controlRowHeight)
+        earthSceneSwitch.frame = CGRect(x: containerSize.width - Layout.contentInset - switchSize.width,
+                                        y: earthSceneLabel.frame.minY + (Layout.controlRowHeight - switchSize.height) / 2,
+                                        width: switchSize.width,
+                                        height: switchSize.height)
         surfaceModeButton.frame = CGRect(x: Layout.contentInset,
-                                         y: wireframeLabel.frame.maxY + Layout.controlSpacing,
+                                         y: earthSceneLabel.frame.maxY + Layout.controlSpacing,
                                          width: contentWidth,
                                          height: Layout.controlRowHeight)
-        tabControl.frame = CGRect(x: Layout.contentInset,
-                                  y: surfaceModeButton.frame.maxY + Layout.controlSpacing,
-                                  width: contentWidth,
-                                  height: Layout.controlRowHeight)
 
-        let textTop = tabControl.frame.maxY + sectionSpacing
+        let textTop = bodyTop
         zoomLabel.frame = CGRect(x: Layout.contentInset,
                                  y: textTop,
                                  width: contentWidth,
@@ -447,8 +476,13 @@ final class DebugOverlayHUDView: UIView {
         let isContentHidden = isCollapsed
         let isAtlasVisible = selectedTab == .atlas && isContentHidden == false
         let isStatsVisible = selectedTab == .stats && isContentHidden == false
-        [axesLabel, axesSwitch, tileLayersLabel, tileLayersSwitch, wireframeLabel, wireframeSwitch, surfaceModeButton, tabControl].forEach {
+        let isControlsVisible = selectedTab == .controls && isContentHidden == false
+        [tabControl].forEach {
             $0.isHidden = isContentHidden
+        }
+        [axesLabel, axesSwitch, tileLayersLabel, tileLayersSwitch, wireframeLabel, wireframeSwitch, earthSceneLabel,
+         earthSceneSwitch, surfaceModeButton].forEach {
+            $0.isHidden = isControlsVisible == false
         }
         [zoomLabel, latLonLabel, diagnosticsLabel].forEach {
             $0.isHidden = isStatsVisible == false
@@ -506,6 +540,10 @@ final class DebugOverlayHUDView: UIView {
 
     @objc private func wireframeSwitchChanged() {
         onWireframeEnabledChanged?(wireframeSwitch.isOn)
+    }
+
+    @objc private func earthSceneSwitchChanged() {
+        onEarthSceneEnabledChanged?(earthSceneSwitch.isOn)
     }
 
     @objc private func surfaceModeButtonTapped() {
@@ -704,8 +742,42 @@ extension DebugOverlayHUDView {
         tabControlChanged()
     }
 
+    func simulateControlsTabSelectionForTesting() {
+        tabControl.selectedSegmentIndex = SelectedTab.controls.rawValue
+        tabControlChanged()
+    }
+
+    func simulateEarthSceneSwitchForTesting(_ isEnabled: Bool) {
+        earthSceneSwitch.setOn(isEnabled, animated: false)
+        earthSceneSwitchChanged()
+    }
+
     var isAtlasTabSelectedForTesting: Bool {
         selectedTab == .atlas
+    }
+
+    var isControlsTabSelectedForTesting: Bool {
+        selectedTab == .controls
+    }
+
+    var areDebugControlsVisibleForTesting: Bool {
+        [axesLabel, axesSwitch, tileLayersLabel, tileLayersSwitch, wireframeLabel, wireframeSwitch, earthSceneLabel,
+         earthSceneSwitch, surfaceModeButton]
+            .allSatisfy { $0.isHidden == false }
+    }
+
+    var isEarthSceneSwitchOnForTesting: Bool {
+        earthSceneSwitch.isOn
+    }
+
+    var isStatsContentVisibleForTesting: Bool {
+        [zoomLabel, latLonLabel, diagnosticsLabel].allSatisfy { $0.isHidden == false }
+    }
+
+    var isAtlasContentVisibleForTesting: Bool {
+        tileTraceButton.isHidden == false
+            || tileTraceStatusLabel.isHidden == false
+            || atlasScrollView.isHidden == false
     }
 
     var atlasPreviewPageCountForTesting: Int {

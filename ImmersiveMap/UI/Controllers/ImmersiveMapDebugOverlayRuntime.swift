@@ -33,6 +33,9 @@ final class ImmersiveMapDebugOverlayRuntime {
             controls?.setWireframeEnabled(isEnabled)
             renderRuntime?.requestFrame(reason: .externalStateChanged)
         }
+        hudView.onEarthSceneEnabledChanged = { [weak mapView] isEnabled in
+            mapView?.setEarthSceneEnabledFromDebugOverlay(isEnabled)
+        }
         hudView.onSurfaceModeSwitchRequested = { [weak cameraRuntime, weak cameraAnimationRuntime] in
             cameraAnimationRuntime?.cancelAnimations()
             cameraRuntime?.switchRenderMode()
@@ -59,11 +62,12 @@ final class ImmersiveMapDebugOverlayRuntime {
         hudView.apply(snapshot: snapshot)
     }
 
-    func apply(settings: ImmersiveMapSettings.DebugSettings) {
-        hudView.apply(isDebugPanelEnabled: settings.enableDebugPanel,
-                      controls: controls.snapshot())
+    func apply(settings: ImmersiveMapSettings) {
+        hudView.apply(isDebugPanelEnabled: settings.debug.enableDebugPanel,
+                      controls: controls.snapshot(),
+                      earthSceneEnabled: settings.scene.earth.isEnabled)
         hudView.apply(tileTraceSnapshot: tileTraceRecorder.snapshot())
-        if settings.enableDebugPanel == false {
+        if settings.debug.enableDebugPanel == false {
             hudView.apply(snapshot: nil)
         }
     }
