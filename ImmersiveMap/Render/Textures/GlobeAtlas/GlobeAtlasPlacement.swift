@@ -136,6 +136,10 @@ struct GlobeAtlasDebugAllocation: Equatable {
         lodKind = candidate.placeTile.lodKind
         isFallback = candidate.isFallback
     }
+
+    var atlasPreviewLabel: String {
+        "z\(targetTile.z)/\(targetTile.x)/\(targetTile.y)"
+    }
 }
 
 struct GlobeAtlasDebugPage: Equatable {

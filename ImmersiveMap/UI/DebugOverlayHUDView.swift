@@ -557,6 +557,26 @@ private final class DebugOverlayAtlasLayoutView: UIView {
         context.setStrokeColor(color.cgColor)
         context.setLineWidth(allocation.isFallback ? 2 : 1)
         context.stroke(allocationRect.insetBy(dx: 0.5, dy: 0.5))
+        drawAllocationLabel(allocation, in: allocationRect)
+    }
+
+    private func drawAllocationLabel(_ allocation: GlobeAtlasDebugAllocation,
+                                     in allocationRect: CGRect) {
+        let inset = min(max(allocationRect.width * 0.08, 2), 5)
+        let labelRect = allocationRect.insetBy(dx: inset, dy: inset)
+        guard labelRect.width >= 10, labelRect.height >= 8 else { return }
+
+        let fontSize = min(10, max(6, labelRect.height * 0.28))
+        let shadow = NSShadow()
+        shadow.shadowColor = UIColor.black.withAlphaComponent(0.82)
+        shadow.shadowBlurRadius = 1.5
+        shadow.shadowOffset = CGSize(width: 0, height: 1)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.monospacedSystemFont(ofSize: fontSize, weight: .bold),
+            .foregroundColor: UIColor.white.withAlphaComponent(0.95),
+            .shadow: shadow
+        ]
+        allocation.atlasPreviewLabel.draw(in: labelRect, withAttributes: attributes)
     }
 
     private func color(for allocation: GlobeAtlasDebugAllocation) -> UIColor {

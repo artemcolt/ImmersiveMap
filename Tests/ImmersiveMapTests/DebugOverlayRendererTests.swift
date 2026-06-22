@@ -106,6 +106,21 @@ final class DebugOverlayRendererTests: XCTestCase {
         XCTAssertEqual(snapshot?.atlasPages[0].allocations.first?.targetTile, Tile(x: 0, y: 0, z: 1))
     }
 
+    func testAtlasAllocationLabelUsesTargetTileCoordinate() {
+        let allocation = GlobeAtlasDebugAllocation(pageIndex: 0,
+                                                   slotColumn: 0,
+                                                   slotRow: 0,
+                                                   slotsPerSide: 4,
+                                                   cellSizePx: 1024,
+                                                   atlasDepth: .depth2,
+                                                   sourceTile: Tile(x: 0, y: 0, z: 2),
+                                                   targetTile: Tile(x: 2, y: 1, z: 2),
+                                                   screenDemandPx: 512,
+                                                   isFallback: false)
+
+        XCTAssertEqual(allocation.atlasPreviewLabel, "z2/2/1")
+    }
+
     func testOverlayDiagnosticsIncludeCameraLinesWithoutFrameDiagnostics() {
         let lines = DebugOverlayRenderer.makeOverlayDiagnosticsTextLines(
             cameraDebugLines: ["camera z:5.41 pitch:36.00 bearing:18.00"],
