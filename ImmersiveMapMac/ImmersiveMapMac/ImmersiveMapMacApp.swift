@@ -31,6 +31,7 @@ private struct MapScreen: View {
             .tileSettings(clearDiskCachesOnLaunch: false)
             .tileSource(.mapbox(accessToken: ProcessInfo.processInfo.environment["IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"]))
             .debugPanel()
+            .earthScene(isEnabled: true)
             .ignoresSafeArea()
             .immersiveMapCameraControls(camera: camera)
     }

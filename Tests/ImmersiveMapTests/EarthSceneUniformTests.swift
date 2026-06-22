@@ -20,6 +20,35 @@ final class EarthSceneUniformTests: XCTestCase {
         XCTAssertEqual(uniform.sunLimbHaloWidth, EarthSceneUniform.minimumFadeWidth, accuracy: 0.0001)
     }
 
+    func testDisabledEarthSceneSettingsDisableSunTerminatorAndNightLightsPackage() {
+        let settings = ImmersiveMapSettings.EarthSceneSettings(
+            isEnabled: false,
+            daySideMinimumBrightness: 1.0,
+            nightSideBrightness: 1.0,
+            nightLights: .init(isEnabled: true, intensity: 1.0),
+            sun: .init(
+                isEnabled: true,
+                diskIntensity: 1.0,
+                glowIntensity: 1.0,
+                edgeGlareIntensity: 1.0,
+                limbHaloIntensity: 1.0
+            )
+        )
+
+        let uniform = EarthSceneUniform(settings: settings, now: .distantPast)
+
+        XCTAssertEqual(uniform.isEnabled, 0)
+        XCTAssertEqual(uniform.nightLightsEnabled, 0)
+        XCTAssertEqual(uniform.sunVisualEnabled, 0)
+        XCTAssertEqual(uniform.daySideMinimumBrightness, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.nightSideBrightness, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.nightLightsIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunDiskIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunGlowIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunEdgeGlareIntensity, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(uniform.sunLimbHaloIntensity, 0.0, accuracy: 0.0001)
+    }
+
     func testEnabledFixedDateSettingsProduceExpectedSunDirection() throws {
         let date = try Date.utc(year: 2026, month: 6, day: 9, hour: 9, minute: 30, second: 0)
         let settings = ImmersiveMapSettings.EarthSceneSettings(

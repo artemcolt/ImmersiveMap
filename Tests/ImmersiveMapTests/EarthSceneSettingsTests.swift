@@ -25,6 +25,18 @@ final class EarthSceneSettingsTests: XCTestCase {
         XCTAssertEqual(earth.sun.limbHaloWidth, 0.10, accuracy: 0.0001)
     }
 
+    func testEarthSceneEnabledControlsFullSunTerminatorAndNightLightsPackage() {
+        let settings = ImmersiveMapSettings.EarthSceneSettings(
+            isEnabled: false,
+            nightLights: .init(isEnabled: true, intensity: 1.0),
+            sun: .init(isEnabled: true, diskIntensity: 1.0, glowIntensity: 1.0)
+        )
+
+        XCTAssertFalse(settings.isEnabled)
+        XCTAssertTrue(settings.nightLights.isEnabled)
+        XCTAssertTrue(settings.sun.isEnabled)
+    }
+
     func testFixedTimeModeStoresDate() throws {
         let date = try Date.utc(year: 2026, month: 1, day: 2, hour: 3, minute: 4, second: 5)
         let settings = ImmersiveMapSettings.EarthSceneSettings(timeMode: .fixed(date))

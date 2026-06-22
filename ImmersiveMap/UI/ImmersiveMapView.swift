@@ -135,6 +135,12 @@ public struct ImmersiveMapView: UIViewRepresentable {
         return view
     }
 
+    public func earthScene(isEnabled: Bool = true) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.earthScene(isEnabled: isEnabled)
+        return view
+    }
+
     public func styleSettings(_ style: ImmersiveMapSettings.StyleSettings) -> ImmersiveMapView {
         var view = self
         view.settings = view.settings.styleSettings(style)

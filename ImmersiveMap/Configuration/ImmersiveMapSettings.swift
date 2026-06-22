@@ -460,6 +460,8 @@ public struct ImmersiveMapSettings: Equatable {
             }
         }
 
+        /// Controls the full Earth scene lighting package: visible Sun, planet terminator shading,
+        /// night-side brightness, and night lights.
         public var isEnabled: Bool
         public var timeMode: EarthSceneTimeMode
         /// Minimum daylight brightness. Expected range: `0...1`.
@@ -473,6 +475,7 @@ public struct ImmersiveMapSettings: Equatable {
 
         /// Creates Earth scene settings.
         /// - Parameters:
+        ///   - isEnabled: Enables the full Sun, terminator shading, and night-lights package.
         ///   - daySideMinimumBrightness: Minimum daylight brightness in the expected range `0...1`.
         ///   - nightSideBrightness: Night-side base brightness in the expected range `0...1`.
         ///   - terminatorFadeWidth: Positive normalized dot-product fade width.
@@ -856,6 +859,12 @@ public extension ImmersiveMapSettings {
     func sceneSettings(_ scene: SceneSettings) -> ImmersiveMapSettings {
         var settings = self
         settings.scene = scene
+        return settings
+    }
+
+    func earthScene(isEnabled: Bool = true) -> ImmersiveMapSettings {
+        var settings = self
+        settings.scene.earth.isEnabled = isEnabled
         return settings
     }
 

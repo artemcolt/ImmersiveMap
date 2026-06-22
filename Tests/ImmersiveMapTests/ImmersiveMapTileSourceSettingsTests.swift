@@ -38,6 +38,14 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertTrue(settings.debug.enableDebugPanel)
     }
 
+    func testEarthSceneModifierControlsFullSunTerminatorAndNightLightsPackage() {
+        let settings = ImmersiveMapSettings.default.earthScene(isEnabled: false)
+
+        XCTAssertFalse(settings.scene.earth.isEnabled)
+        XCTAssertTrue(settings.scene.earth.sun.isEnabled)
+        XCTAssertTrue(settings.scene.earth.nightLights.isEnabled)
+    }
+
     func testTileCacheSettingsModifierUpdatesOnlyProvidedCacheValues() {
         var baseTiles = ImmersiveMapSettings.default.tiles
         baseTiles.network.maxConcurrentFetches = 11
@@ -76,6 +84,18 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
                        ImmersiveMapSettings.default.tiles.cache.rawDiskTimeToLive)
         XCTAssertEqual(settings?.tiles.cache.preparedDiskTimeToLive,
                        ImmersiveMapSettings.default.tiles.cache.preparedDiskTimeToLive)
+    }
+    #endif
+
+    #if canImport(UIKit)
+    func testImmersiveMapViewEarthSceneModifierControlsFullSunTerminatorAndNightLightsPackage() {
+        let view = ImmersiveMapView().earthScene(isEnabled: false)
+
+        let settings: ImmersiveMapSettings? = reflectedValue("settings", in: view)
+
+        XCTAssertFalse(settings?.scene.earth.isEnabled == true)
+        XCTAssertTrue(settings?.scene.earth.sun.isEnabled == true)
+        XCTAssertTrue(settings?.scene.earth.nightLights.isEnabled == true)
     }
     #endif
 
