@@ -1483,14 +1483,14 @@ class DefaultMapStyle: ImmersiveMapStyle {
                         key: 102, // Above water
                         color: colors["admin_level_1"]!,
                         lowZoomFadeMask: 1.0,
-                        parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 4)
+                        parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 6)
                     )
                 } else if adminLevel == 2 {
                     return FeatureStyle(
                         key: 101,
                         color: colors["admin_boundary"]!,
                         lowZoomFadeMask: 1.0,
-                        parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 4)
+                        parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 6)
                     )
                 }
             }
@@ -1498,7 +1498,7 @@ class DefaultMapStyle: ImmersiveMapStyle {
                 key: 100,
                 color: colors["admin_boundary"]!,
                 lowZoomFadeMask: 1.0,
-                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 5)
+                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 7.5)
             )
 
         case "road":
