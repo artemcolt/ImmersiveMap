@@ -17,6 +17,7 @@ Options:
   --output-dir PATH        Output resource directory. Defaults to
                            ImmersiveMap/Text/Resources.
   --msdf-atlas-gen PATH    msdf-atlas-gen executable. Defaults to PATH lookup.
+  --pxrange PIXELS         MSDF distance range. Defaults to 24.
   --width PIXELS           Fixed atlas width. Defaults to 2048.
   --height PIXELS          Fixed atlas height. Defaults to 2048.
   -h, --help               Show this help.
@@ -83,10 +84,10 @@ generate_atlas() {
   "$generator_path" \
     -font "$font_path" \
     -charset "$clean_charset" \
-    -type msdf \
+    -type mtsdf \
     -format png \
     -size 64 \
-    -pxrange 8 \
+    -pxrange "$atlas_pxrange" \
     -dimensions "$atlas_width" "$atlas_height" \
     -yorigin bottom \
     -imageout "$image_output" \
@@ -112,6 +113,7 @@ thin_font_path=""
 charset_path="$repo_root/Tools/TextAtlas/charsets/labels-basic.txt"
 output_dir="$repo_root/ImmersiveMap/Text/Resources"
 generator="msdf-atlas-gen"
+atlas_pxrange="24"
 atlas_width="2048"
 atlas_height="2048"
 
@@ -140,6 +142,11 @@ while [[ $# -gt 0 ]]; do
     --msdf-atlas-gen)
       require_value "$1" "${2:-}"
       generator="$2"
+      shift 2
+      ;;
+    --pxrange)
+      require_value "$1" "${2:-}"
+      atlas_pxrange="$2"
       shift 2
       ;;
     --width)
@@ -175,6 +182,7 @@ fi
 [[ -f "$charset_path" ]] || fail "charset file does not exist: $charset_path"
 validate_positive_integer "--width" "$atlas_width"
 validate_positive_integer "--height" "$atlas_height"
+validate_positive_integer "--pxrange" "$atlas_pxrange"
 
 generator_path="$(find_generator "$generator")"
 mkdir -p "$output_dir"

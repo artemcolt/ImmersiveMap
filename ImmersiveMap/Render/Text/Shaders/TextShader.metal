@@ -17,6 +17,12 @@ struct TextStyle {
     float strokeWidthPx;
 };
 
+struct TextDistance {
+    float msdfPxDist;
+    float sdfPxDist;
+    float screenPxRange;
+};
+
 vertex VertexOut textVertex(VertexIn in [[stage_in]],
                             constant float4x4& matrix [[buffer(1)]]
                             ) {
@@ -32,36 +38,39 @@ float median(float r, float g, float b) {
     return max(min(r, g), min(max(r, g), b));
 }
 
-static float computeScreenPxDist(VertexOut in,
-                                 texture2d<float> atlasTexture) {
+static TextDistance computeTextDistance(VertexOut in,
+                                        texture2d<float> atlasTexture) {
     constexpr sampler textureSampler(mag_filter::linear, min_filter::linear);
-    float3 msdf = atlasTexture.sample(textureSampler, in.uv).rgb;
+    float4 atlasSample = atlasTexture.sample(textureSampler, in.uv);
+    float3 msdf = atlasSample.rgb;
     float sd = median(msdf.r, msdf.g, msdf.b) - 0.5;
-    const float distanceRange = 8.0;
+    float sdf = atlasSample.a - 0.5;
+    const float distanceRange = 24.0;
     float2 texSize = float2(atlasTexture.get_width(), atlasTexture.get_height());
     float2 unitRange = float2(distanceRange) / texSize;
     float2 duv = max(fwidth(in.uv), float2(1e-6));
     float2 screenTexSize = 1.0 / duv;
     float screenPxRange = max(0.5 * dot(unitRange, screenTexSize), 1.0);
-    return sd * screenPxRange;
+    TextDistance distance;
+    distance.msdfPxDist = sd * screenPxRange;
+    distance.sdfPxDist = sdf * screenPxRange;
+    distance.screenPxRange = screenPxRange;
+    return distance;
 }
 
 fragment float4 textFragment(VertexOut in [[stage_in]],
                              texture2d<float> atlasTexture [[texture(0)]],
                              constant TextStyle& style [[buffer(0)]]
                              ) {
-    float screenPxDist = computeScreenPxDist(in, atlasTexture);
+    TextDistance distance = computeTextDistance(in, atlasTexture);
 
     const float boldBiasPx = 0.75;
-    float fill = smoothstep(-0.5, 0.5, screenPxDist + boldBiasPx);
-    float2 texSize = float2(atlasTexture.get_width(), atlasTexture.get_height());
-    float2 unitRange = float2(8.0) / texSize;
-    float2 duv = max(fwidth(in.uv), float2(1e-6));
-    float2 screenTexSize = 1.0 / duv;
-    float screenPxRange = max(0.5 * dot(unitRange, screenTexSize), 1.0);
-    float maxStrokePx = max(0.5 * screenPxRange - 0.5, 0.0);
+    float fill = smoothstep(-0.5, 0.5, distance.msdfPxDist + boldBiasPx);
+    // Base labels use the full MSDF support so wider configured outlines
+    // remain visible instead of being capped at half range.
+    float maxStrokePx = max(distance.screenPxRange - 0.75, 0.75);
     float strokeWidthPx = min(style.strokeWidthPx, maxStrokePx);
-    float outer = smoothstep(-strokeWidthPx - 0.5, -strokeWidthPx + 0.5, screenPxDist);
+    float outer = smoothstep(-strokeWidthPx - 0.5, -strokeWidthPx + 0.5, distance.sdfPxDist);
     float stroke = clamp(outer - fill, 0.0, 1.0);
 
     float coverage = clamp(fill + stroke, 0.0, 1.0);
@@ -74,23 +83,17 @@ fragment float4 roadTextFragment(VertexOut in [[stage_in]],
                                  texture2d<float> atlasTexture [[texture(0)]],
                                  constant TextStyle& style [[buffer(0)]]
                                  ) {
-    float screenPxDist = computeScreenPxDist(in, atlasTexture);
+    TextDistance distance = computeTextDistance(in, atlasTexture);
 
     const float fillBiasPx = 0.75;
-    float fill = smoothstep(-0.5, 0.5, screenPxDist + fillBiasPx);
-
-    float2 texSize = float2(atlasTexture.get_width(), atlasTexture.get_height());
-    float2 unitRange = float2(8.0) / texSize;
-    float2 duv = max(fwidth(in.uv), float2(1e-6));
-    float2 screenTexSize = 1.0 / duv;
-    float screenPxRange = max(0.5 * dot(unitRange, screenTexSize), 1.0);
+    float fill = smoothstep(-0.5, 0.5, distance.msdfPxDist + fillBiasPx);
 
     // Road labels need a less aggressive clamp than point labels: the generic
     // half-range cap can collapse the outline to zero on rotated thin glyphs.
     // Keep a small guaranteed stroke, but stay within the signed-distance support.
-    float maxStrokePx = max(screenPxRange - 0.75, 0.75);
+    float maxStrokePx = max(distance.screenPxRange - 0.75, 0.75);
     float strokeWidthPx = min(style.strokeWidthPx, maxStrokePx);
-    float outer = smoothstep(-strokeWidthPx - 0.5, -strokeWidthPx + 0.5, screenPxDist);
+    float outer = smoothstep(-strokeWidthPx - 0.5, -strokeWidthPx + 0.5, distance.sdfPxDist);
     float stroke = clamp(outer - fill, 0.0, 1.0);
 
     float coverage = clamp(fill + stroke, 0.0, 1.0);

@@ -51,31 +51,14 @@ final class RendererLabelDrawer {
         }
 
         renderEncoder.setRenderPipelineState(textRenderer.labelPipelineState)
-        for drawBatch in baseLabelsDrawBatches {
-            for run in drawBatch.labelsByStyleRuns {
-                guard let localGlyphVerticesBuffer = run.localGlyphVerticesBuffer,
-                      run.localGlyphVertexCount > 0 else {
-                    continue
-                }
-
-                let style = run.style
-                let texture = style.weight == .bold ? textRenderer.texture : textRenderer.thinTexture
-                var textStyle = TextStyleUniform(textColor: style.fillColor,
-                                                 strokeColor: style.strokeColor,
-                                                 strokeWidthPx: style.strokeWidthPx)
-
-                renderEncoder.setFragmentTexture(texture, index: 0)
-                renderEncoder.setFragmentBytes(&textStyle,
-                                               length: MemoryLayout<TextStyleUniform>.stride,
-                                               index: 0)
-                renderEncoder.setVertexBuffer(localGlyphVerticesBuffer, offset: 0, index: 0)
-                var globalTextShift = simd_int1(drawBatch.globalLabelStart)
-                renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
-                renderEncoder.drawPrimitives(type: .triangle,
-                                             vertexStart: 0,
-                                             vertexCount: run.localGlyphVertexCount)
-            }
-        }
+        drawBaseLabelTextPass(renderEncoder: renderEncoder,
+                              textRenderer: textRenderer,
+                              baseLabelsDrawBatches: baseLabelsDrawBatches,
+                              pass: .outline)
+        drawBaseLabelTextPass(renderEncoder: renderEncoder,
+                              textRenderer: textRenderer,
+                              baseLabelsDrawBatches: baseLabelsDrawBatches,
+                              pass: .fill)
     }
 
     static func drawRoadLabels(renderEncoder: MTLRenderCommandEncoder,
@@ -157,6 +140,50 @@ final class RendererLabelDrawer {
             renderEncoder.drawPrimitives(type: .triangle,
                                          vertexStart: 0,
                                          vertexCount: drawLabel.localGlyphVertexCount)
+        }
+    }
+
+    private enum BaseLabelTextPass {
+        case outline
+        case fill
+    }
+
+    private static func drawBaseLabelTextPass(renderEncoder: MTLRenderCommandEncoder,
+                                              textRenderer: TextRenderer,
+                                              baseLabelsDrawBatches: [BaseLabelDrawBatch],
+                                              pass: BaseLabelTextPass) {
+        for drawBatch in baseLabelsDrawBatches {
+            for run in drawBatch.labelsByStyleRuns {
+                guard let localGlyphVerticesBuffer = run.localGlyphVerticesBuffer,
+                      run.localGlyphVertexCount > 0 else {
+                    continue
+                }
+
+                let style = run.style
+                let texture = style.weight == .bold ? textRenderer.texture : textRenderer.thinTexture
+                var textStyle: TextStyleUniform
+                switch pass {
+                case .outline:
+                    textStyle = TextStyleUniform(textColor: style.strokeColor,
+                                                 strokeColor: style.strokeColor,
+                                                 strokeWidthPx: style.strokeWidthPx)
+                case .fill:
+                    textStyle = TextStyleUniform(textColor: style.fillColor,
+                                                 strokeColor: style.fillColor,
+                                                 strokeWidthPx: 0.0)
+                }
+
+                renderEncoder.setFragmentTexture(texture, index: 0)
+                renderEncoder.setFragmentBytes(&textStyle,
+                                               length: MemoryLayout<TextStyleUniform>.stride,
+                                               index: 0)
+                renderEncoder.setVertexBuffer(localGlyphVerticesBuffer, offset: 0, index: 0)
+                var globalTextShift = simd_int1(drawBatch.globalLabelStart)
+                renderEncoder.setVertexBytes(&globalTextShift, length: MemoryLayout<simd_int1>.stride, index: 3)
+                renderEncoder.drawPrimitives(type: .triangle,
+                                             vertexStart: 0,
+                                             vertexCount: run.localGlyphVertexCount)
+            }
         }
     }
 }

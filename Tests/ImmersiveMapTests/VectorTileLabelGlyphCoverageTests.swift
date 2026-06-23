@@ -66,6 +66,16 @@ final class VectorTileLabelGlyphCoverageTests: XCTestCase {
         XCTAssertTrue(coverage.canRender("Северный Ледовитый океан"))
     }
 
+    func testBundledAtlasesUseMtsdfTriplePrecisionDistanceRange() throws {
+        let boldAtlas = try Self.loadBundledAtlas(named: "atlas")
+        let thinAtlas = try Self.loadBundledAtlas(named: "atlas_thin")
+
+        XCTAssertEqual(boldAtlas.atlas.type, "mtsdf")
+        XCTAssertEqual(thinAtlas.atlas.type, "mtsdf")
+        XCTAssertEqual(boldAtlas.atlas.distanceRange, 24)
+        XCTAssertEqual(thinAtlas.atlas.distanceRange, 24)
+    }
+
     private static func loadBundledAtlas(named name: String) throws -> AtlasData {
         let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json"))
         let data = try Data(contentsOf: url)

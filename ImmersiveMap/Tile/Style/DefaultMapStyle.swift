@@ -16,9 +16,9 @@ class DefaultMapStyle: ImmersiveMapStyle {
     private let fallbackKey: UInt8 = 0
     private let labelKey: UInt8 = 2
     private let roadLowZoomFadeMask: Float = 2.0
-    private let standardLabelStrokeWidthPx: Float = 1.8
-    private let poiLabelStrokeWidthPx: Float = 2.4
-    private let emphasizedLabelStrokeWidthPx: Float = 2.6
+    private let standardLabelStrokeWidthPx: Float = 5.4
+    private let poiLabelStrokeWidthPx: Float = 7.2
+    private let emphasizedLabelStrokeWidthPx: Float = 7.8
     private let roadLabelStrokeWidthPx: Float = 2.6
     private let zebraCrossingMinimumZoom: Int = 15
     private let onewayArrowKey: UInt8 = 209
@@ -100,7 +100,7 @@ class DefaultMapStyle: ImmersiveMapStyle {
                 key: 3,
                 fillColor: SIMD3<Float>(0.10, 0.28, 0.72),
                 strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: 1.8,
+                strokeWidthPx: standardLabelStrokeWidthPx,
                 sizePx: oceanLabelSize(for: tileZoom),
                 weight: .bold
             )
@@ -111,7 +111,7 @@ class DefaultMapStyle: ImmersiveMapStyle {
                 key: 4,
                 fillColor: SIMD3<Float>(0.10, 0.28, 0.72),
                 strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: 1.8,
+                strokeWidthPx: standardLabelStrokeWidthPx,
                 sizePx: seaLabelSize(for: tileZoom),
                 weight: .bold
             )
@@ -178,7 +178,7 @@ class DefaultMapStyle: ImmersiveMapStyle {
                 key: 43,
                 fillColor: houseNumberFillColor(),
                 strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: 2.7,
+                strokeWidthPx: 8.1,
                 sizePx: houseNumberLabelSize(for: tileZoom),
                 weight: .thin
             )
@@ -215,7 +215,7 @@ class DefaultMapStyle: ImmersiveMapStyle {
             key: 41,
             fillColor: roadLabelFillColor,
             strokeColor: roadLabelStrokeColor,
-            strokeWidthPx: roadLabelStrokeWidthPx,
+            strokeWidthPx: emphasizedLabelStrokeWidthPx,
             sizePx: landmarkLabelSize(for: tileZoom),
             weight: .thin
         )

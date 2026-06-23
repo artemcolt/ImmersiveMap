@@ -1,0 +1,76 @@
+// Copyright (c) 2025-2026 Artem Bobkin.
+// SPDX-License-Identifier: MIT
+
+@testable import ImmersiveMap
+import XCTest
+
+final class DefaultMapStyleLabelStrokeTests: XCTestCase {
+    func testBaseLabelsUseWiderWhiteStroke() {
+        XCTAssertEqual(baseLabelStroke(layerName: "natural_label",
+                                       properties: ["class": stringValue("ocean")]),
+                       5.4,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "place_label",
+                                       properties: ["type": stringValue("city")]),
+                       5.4,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "place_label",
+                                       properties: ["capital": intValue(2)]),
+                       7.8,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "poi_label",
+                                       properties: ["type": stringValue("restaurant")]),
+                       7.2,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "airport_label"),
+                       7.8,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "housenum_label"),
+                       8.1,
+                       accuracy: 0.0001)
+    }
+
+    func testRoadLabelsKeepExistingStrokeWidth() {
+        let style = makeStyle(layerName: "road",
+                              properties: ["class": stringValue("primary")],
+                              zoom: 14)
+        guard let roadLabelTextStyle = style.roadLabelTextStyle else {
+            XCTFail("Expected road label style")
+            return
+        }
+
+        XCTAssertEqual(roadLabelTextStyle.strokeWidthPx, 2.6, accuracy: 0.0001)
+    }
+
+    private func baseLabelStroke(layerName: String,
+                                 properties: [String: VectorTile_Tile.Value] = [:]) -> Float {
+        let style = makeStyle(layerName: layerName, properties: properties, zoom: 10)
+        guard let labelTextStyle = style.labelTextStyle else {
+            XCTFail("Expected base label style for \(layerName)")
+            return -1
+        }
+        return labelTextStyle.strokeWidthPx
+    }
+
+    private func makeStyle(layerName: String,
+                           properties: [String: VectorTile_Tile.Value],
+                           zoom: Int) -> FeatureStyle {
+        DefaultMapStyle().makeStyle(
+            data: DetFeatureStyleData(layerName: layerName,
+                                      properties: properties,
+                                      tile: Tile(x: 0, y: 0, z: zoom))
+        )
+    }
+
+    private func stringValue(_ value: String) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.stringValue = value
+        return tileValue
+    }
+
+    private func intValue(_ value: Int64) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.intValue = value
+        return tileValue
+    }
+}

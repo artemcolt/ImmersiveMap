@@ -89,10 +89,10 @@ ImmersiveMap/Text/Resources
 
 The generator settings match the current renderer-compatible atlas metadata:
 
-- atlas type: `msdf`
+- atlas type: `mtsdf`
 - image format: `png`
 - glyph size: `64`
-- distance range: `8`
+- distance range: `24`
 - dimensions: `2048 x 2048`
 - Y origin: `bottom`
 
@@ -115,5 +115,6 @@ With an upstream build:
 Tools/TextAtlas/generate_text_atlas.sh \
   --msdf-atlas-gen /path/to/msdf-atlas-gen/build/bin/msdf-atlas-gen \
   --font /path/to/PrimaryLabelFont.otf \
-  --thin-font /path/to/ThinLabelFont.otf
+  --thin-font /path/to/ThinLabelFont.otf \
+  --pxrange 24
 ```
