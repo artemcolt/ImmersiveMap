@@ -82,6 +82,61 @@ extension TileTraceEvent {
         .event("tile_materialize_success", fields: ["tile": .tile(tile)])
     }
 
+    static func tileMemoryCacheGet(_ tile: Tile,
+                                   hit: Bool,
+                                   knownCost: Int?,
+                                   trackedCost: Int,
+                                   trackedCount: Int,
+                                   costLimit: Int) -> TileTraceEvent {
+        var fields: [String: TileTraceValue] = [
+            "tile": .tile(tile),
+            "hit": .bool(hit),
+            "trackedCost": .int(trackedCost),
+            "trackedCount": .int(trackedCount),
+            "costLimit": .int(costLimit)
+        ]
+        if let knownCost {
+            fields["knownCost"] = .int(knownCost)
+        }
+        return .event("tile_memory_cache_get", fields: fields)
+    }
+
+    static func tileMemoryCacheSet(_ tile: Tile,
+                                   cost: Int,
+                                   replacedCost: Int?,
+                                   trackedCost: Int,
+                                   trackedCount: Int,
+                                   costLimit: Int) -> TileTraceEvent {
+        var fields: [String: TileTraceValue] = [
+            "tile": .tile(tile),
+            "cost": .int(cost),
+            "trackedCost": .int(trackedCost),
+            "trackedCount": .int(trackedCount),
+            "costLimit": .int(costLimit)
+        ]
+        if let replacedCost {
+            fields["replacedCost"] = .int(replacedCost)
+        }
+        return .event("tile_memory_cache_set", fields: fields)
+    }
+
+    static func tileMemoryCacheEvict(_ tile: Tile,
+                                     cost: Int?,
+                                     trackedCost: Int,
+                                     trackedCount: Int,
+                                     costLimit: Int) -> TileTraceEvent {
+        var fields: [String: TileTraceValue] = [
+            "tile": .tile(tile),
+            "trackedCost": .int(trackedCost),
+            "trackedCount": .int(trackedCount),
+            "costLimit": .int(costLimit)
+        ]
+        if let cost {
+            fields["cost"] = .int(cost)
+        }
+        return .event("tile_memory_cache_evict", fields: fields)
+    }
+
     static func tileSchedulerRequest(input: Int, deduplicated: Int) -> TileTraceEvent {
         .event("tile_scheduler_request",
                fields: [

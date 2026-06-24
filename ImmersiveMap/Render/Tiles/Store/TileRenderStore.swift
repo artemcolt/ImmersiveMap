@@ -54,7 +54,8 @@ final class TileRenderStore {
                                                            roadLabelsBuilder: roadLabelsBuilder)
         self.metalTileFactory = MetalTileFactory(metalDevice: metalDevice)
         let maxCachedTilesMemory = config.tiles.cache.memoryCacheSizeInBytes
-        memoryMetalTile = MemoryMetalTileCache(maxCacheSizeInBytes: maxCachedTilesMemory)
+        memoryMetalTile = MemoryMetalTileCache(maxCacheSizeInBytes: maxCachedTilesMemory,
+                                               tileTraceRecorder: tileTraceRecorder)
         mapNeedsTile = ImmersiveMapNeedsTile(tileRenderStore: self,
                                              config: config,
                                              preparedTileCacheIdentity: preparedTileCacheIdentity,
