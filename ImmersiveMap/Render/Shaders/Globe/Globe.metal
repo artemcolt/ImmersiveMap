@@ -418,10 +418,11 @@ fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
     float v_min = float(lastPos - posV) * uvSize;
     float v_max = 1.0 - posV * uvSize;
     
-    // Relax discard bounds to avoid precision-induced gaps
-    float delta = in.halfTexel;
-    if (v > v_max + delta || v < v_min - delta ||
-        u > u_max + delta || u < u_min - delta) {
+    // Keep a small coverage overlap at tile edges; otherwise interpolation/MSAA
+    // can leave a visible gap between adjacent globe tile draw calls.
+    float coverageTolerance = in.halfTexel * 8.0;
+    if (v > v_max + coverageTolerance || v < v_min - coverageTolerance ||
+        u > u_max + coverageTolerance || u < u_min - coverageTolerance) {
         discard_fragment();
     }
     
