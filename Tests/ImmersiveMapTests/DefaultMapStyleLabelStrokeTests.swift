@@ -6,10 +6,6 @@ import XCTest
 
 final class DefaultMapStyleLabelStrokeTests: XCTestCase {
     func testBaseLabelsUseWiderWhiteStroke() {
-        XCTAssertEqual(baseLabelStroke(layerName: "natural_label",
-                                       properties: ["class": stringValue("ocean")]),
-                       5.4,
-                       accuracy: 0.0001)
         XCTAssertEqual(baseLabelStroke(layerName: "place_label",
                                        properties: ["type": stringValue("city")]),
                        5.4,
@@ -30,6 +26,29 @@ final class DefaultMapStyleLabelStrokeTests: XCTestCase {
                        accuracy: 0.0001)
     }
 
+    func testWaterLabelsScaleStrokeDownForSmallText() {
+        XCTAssertEqual(baseLabelStroke(layerName: "natural_label",
+                                       properties: ["class": stringValue("ocean")],
+                                       zoom: 10),
+                       2.52,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "natural_label",
+                                       properties: ["class": stringValue("ocean")],
+                                       zoom: 1),
+                       3.78,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "natural_label",
+                                       properties: ["class": stringValue("sea")],
+                                       zoom: 2),
+                       4.76,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "natural_label",
+                                       properties: ["class": stringValue("sea")],
+                                       zoom: 1),
+                       5.4,
+                       accuracy: 0.0001)
+    }
+
     func testRoadLabelsKeepExistingStrokeWidth() {
         let style = makeStyle(layerName: "road",
                               properties: ["class": stringValue("primary")],
@@ -43,8 +62,9 @@ final class DefaultMapStyleLabelStrokeTests: XCTestCase {
     }
 
     private func baseLabelStroke(layerName: String,
-                                 properties: [String: VectorTile_Tile.Value] = [:]) -> Float {
-        let style = makeStyle(layerName: layerName, properties: properties, zoom: 10)
+                                 properties: [String: VectorTile_Tile.Value] = [:],
+                                 zoom: Int = 10) -> Float {
+        let style = makeStyle(layerName: layerName, properties: properties, zoom: zoom)
         guard let labelTextStyle = style.labelTextStyle else {
             XCTFail("Expected base label style for \(layerName)")
             return -1

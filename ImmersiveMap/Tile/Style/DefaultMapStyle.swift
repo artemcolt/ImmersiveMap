@@ -96,23 +96,25 @@ class DefaultMapStyle: ImmersiveMapStyle {
         }
 
         if isOcean {
+            let size = oceanLabelSize(for: tileZoom)
             return LabelTextStyle(
                 key: 3,
                 fillColor: SIMD3<Float>(0.10, 0.28, 0.72),
                 strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: standardLabelStrokeWidthPx,
-                sizePx: oceanLabelSize(for: tileZoom),
+                strokeWidthPx: waterLabelStrokeWidth(for: size),
+                sizePx: size,
                 weight: .bold
             )
         }
 
         if isSea {
+            let size = seaLabelSize(for: tileZoom)
             return LabelTextStyle(
                 key: 4,
                 fillColor: SIMD3<Float>(0.10, 0.28, 0.72),
                 strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: standardLabelStrokeWidthPx,
-                sizePx: seaLabelSize(for: tileZoom),
+                strokeWidthPx: waterLabelStrokeWidth(for: size),
+                sizePx: size,
                 weight: .bold
             )
         }
@@ -1160,6 +1162,10 @@ class DefaultMapStyle: ImmersiveMapStyle {
         default:
             return 26.0
         }
+    }
+
+    private func waterLabelStrokeWidth(for sizePx: Float) -> Float {
+        min(standardLabelStrokeWidthPx, sizePx * 0.14)
     }
 
     private func capitalSize(level: Int, tileZoom: Int) -> Float {
