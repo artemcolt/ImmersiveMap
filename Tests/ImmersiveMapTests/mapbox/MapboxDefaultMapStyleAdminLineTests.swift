@@ -4,9 +4,9 @@
 @testable import ImmersiveMap
 import XCTest
 
-final class DefaultMapStyleAdminLineTests: XCTestCase {
+final class MapboxDefaultMapStyleAdminLineTests: XCTestCase {
     func testAdminBoundaryLinesUseThickerWidths() {
-        let style = DefaultMapStyle()
+        let style = MapboxDefaultMapStyle()
         let tile = Tile(x: 0, y: 0, z: 4)
 
         XCTAssertEqual(adminLineWidth(style: style, tile: tile, level: 1), 6)
@@ -14,7 +14,7 @@ final class DefaultMapStyleAdminLineTests: XCTestCase {
         XCTAssertEqual(adminLineWidth(style: style, tile: tile, level: nil), 7.5)
     }
 
-    private func adminLineWidth(style: DefaultMapStyle, tile: Tile, level: UInt64?) -> Double {
+    private func adminLineWidth(style: MapboxDefaultMapStyle, tile: Tile, level: UInt64?) -> Double {
         var properties: [String: VectorTile_Tile.Value] = [:]
         if let level {
             var value = VectorTile_Tile.Value()

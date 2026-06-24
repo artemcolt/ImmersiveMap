@@ -29,7 +29,7 @@ private struct MapScreen: View {
                 )
             )
             .tileSettings(clearDiskCachesOnLaunch: true)
-            .tileSource(.mapbox(accessToken: ProcessInfo.processInfo.environment["IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"]))
+            .provider(MapboxProvider(accessToken: ProcessInfo.processInfo.environment["IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"]))
             .debugPanel()
             .earthScene(isEnabled: true)
             .ignoresSafeArea()

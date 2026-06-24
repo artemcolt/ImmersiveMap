@@ -68,7 +68,7 @@ final class RenderPersistentContext {
         self.globeCapDepthState = metal.device.makeDepthStencilState(descriptor: Self.makeGlobeCapDepthDescriptor())!
         self.depthDisabledState = metal.device.makeDepthStencilState(descriptor: Self.makeDepthDisabledDescriptor())!
 
-        let mapStyle = DefaultMapStyle(settings: config.style)
+        let mapStyle = config.provider.makeRuntimeMapStyle(settings: config.style)
         let mapBaseColors = mapStyle.getMapBaseColors()
 
         let pipelineFactory = RenderPipelineFactory(metalContext: metal,

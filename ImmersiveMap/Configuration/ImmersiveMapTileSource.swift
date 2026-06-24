@@ -6,8 +6,6 @@ import Foundation
 public struct ImmersiveMapTileSource: Equatable {
     public typealias AuthorizationMode = ImmersiveMapSettings.TileSettings.NetworkSettings.AuthorizationMode
 
-    public static let defaultMapboxTilesetID = "mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2"
-
     public var tileBaseURL: URL
     public var accessToken: String?
     public var authorization: AuthorizationMode
@@ -22,15 +20,6 @@ public struct ImmersiveMapTileSource: Equatable {
 
     public static func url(_ tileBaseURL: URL) -> ImmersiveMapTileSource {
         ImmersiveMapTileSource(tileBaseURL: tileBaseURL)
-    }
-
-    public static func mapbox(tilesetID: String = defaultMapboxTilesetID,
-                              accessToken: String?) -> ImmersiveMapTileSource {
-        ImmersiveMapTileSource(
-            tileBaseURL: URL(string: "https://api.mapbox.com/v4/\(tilesetID)")!,
-            accessToken: accessToken,
-            authorization: .accessTokenQuery(parameterName: "access_token")
-        )
     }
 
     public func token(_ accessToken: String?) -> ImmersiveMapTileSource {

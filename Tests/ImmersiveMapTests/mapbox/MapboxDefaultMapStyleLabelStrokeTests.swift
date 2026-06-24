@@ -4,7 +4,7 @@
 @testable import ImmersiveMap
 import XCTest
 
-final class DefaultMapStyleLabelStrokeTests: XCTestCase {
+final class MapboxDefaultMapStyleLabelStrokeTests: XCTestCase {
     func testBaseLabelsUseWiderWhiteStroke() {
         XCTAssertEqual(baseLabelStroke(layerName: "place_label",
                                        properties: ["type": stringValue("city")]),
@@ -23,6 +23,21 @@ final class DefaultMapStyleLabelStrokeTests: XCTestCase {
                        accuracy: 0.0001)
         XCTAssertEqual(baseLabelStroke(layerName: "housenum_label"),
                        8.1,
+                       accuracy: 0.0001)
+    }
+
+    func testDistrictLabelsUseSubtleWhiteStroke() {
+        XCTAssertEqual(baseLabelStroke(layerName: "place_label",
+                                       properties: ["class": stringValue("settlement_subdivision")]),
+                       2.7,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "place_label",
+                                       properties: ["type": stringValue("quarter")]),
+                       2.7,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelStroke(layerName: "place_label",
+                                       properties: ["type": stringValue("neighbourhood")]),
+                       2.7,
                        accuracy: 0.0001)
     }
 
@@ -61,6 +76,21 @@ final class DefaultMapStyleLabelStrokeTests: XCTestCase {
         XCTAssertEqual(roadLabelTextStyle.strokeWidthPx, 2.6, accuracy: 0.0001)
     }
 
+    func testCustomMapStyleControlsDistrictLabelStroke() {
+        let mapStyle = MapboxDefaultMapStyleConfiguration.mapboxDefault.labels { labels in
+            labels.district.strokeWidthPx = 1.4
+            labels.district.fillColor = SIMD3<Float>(0.2, 0.3, 0.4)
+        }
+
+        let style = makeStyle(layerName: "place_label",
+                              properties: ["type": stringValue("quarter")],
+                              zoom: 10,
+                              configuration: mapStyle)
+
+        XCTAssertEqual(style.labelTextStyle?.strokeWidthPx ?? -1, 1.4, accuracy: 0.0001)
+        XCTAssertEqual(style.labelTextStyle?.fillColor, SIMD3<Float>(0.2, 0.3, 0.4))
+    }
+
     private func baseLabelStroke(layerName: String,
                                  properties: [String: VectorTile_Tile.Value] = [:],
                                  zoom: Int = 10) -> Float {
@@ -74,8 +104,11 @@ final class DefaultMapStyleLabelStrokeTests: XCTestCase {
 
     private func makeStyle(layerName: String,
                            properties: [String: VectorTile_Tile.Value],
-                           zoom: Int) -> FeatureStyle {
-        DefaultMapStyle().makeStyle(
+                           zoom: Int,
+                           configuration: MapboxDefaultMapStyleConfiguration = .mapboxDefault,
+                           styleSettings: ImmersiveMapSettings.StyleSettings = ImmersiveMapSettings.default.style) -> FeatureStyle {
+        MapboxDefaultMapStyle(configuration: configuration,
+                              settings: styleSettings).makeStyle(
             data: DetFeatureStyleData(layerName: layerName,
                                       properties: properties,
                                       tile: Tile(x: 0, y: 0, z: zoom))

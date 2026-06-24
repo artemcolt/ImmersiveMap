@@ -76,4 +76,22 @@ final class ImmersiveMapSettingsApplicationPlannerTests: XCTestCase {
         XCTAssertEqual(plan.actions, [.invalidateCaches, .rebuildPreparedData, .recreateRenderer])
         XCTAssertTrue(plan.requiresRendererRecreation)
     }
+
+    func testMapStyleTokenChangeRebuildsPreparedData() {
+        let oldSettings = ImmersiveMapSettings.default.provider(
+            MapboxProvider(accessToken: "mapbox-token", style: .mapboxDefault)
+        )
+        let newSettings = ImmersiveMapSettings.default.provider(
+            MapboxProvider(accessToken: "mapbox-token",
+                           style: .mapboxDefault.labels { labels in
+                               labels.district.strokeWidthPx = 1.1
+                           })
+        )
+
+        let plan = ImmersiveMapSettingsApplicationPlanner.makePlan(from: oldSettings, to: newSettings)
+
+        XCTAssertEqual(plan.changedDomains, [.style])
+        XCTAssertEqual(plan.actions, [.invalidateCaches, .rebuildPreparedData, .rebuildGPUResources, .recreateRenderer])
+        XCTAssertTrue(plan.requiresRendererRecreation)
+    }
 }

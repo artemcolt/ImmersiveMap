@@ -18,6 +18,7 @@ class TileMvtParser {
     private let labelLanguagePreferences    : VectorTileLabelLanguagePreferences
     private let glyphCoverage               : VectorTileLabelGlyphCoverage
     private let labelDecisionEngine         : VectorTileLabelDecisionEngine
+    private let labelProviderProfile        : any VectorTileLabelProviderProfile
     private let poiSpriteResolver           : PoiSpriteResolver = PoiSpriteResolver()
     private let crosswalkZebraBuilder       : CrosswalkZebraGeometryBuilder = CrosswalkZebraGeometryBuilder()
     private let roadDirectionArrowBuilder   : RoadDirectionArrowGeometryBuilder = RoadDirectionArrowGeometryBuilder()
@@ -35,8 +36,9 @@ class TileMvtParser {
             settingsLanguage: config.labels.language,
             fallbackPolicy: config.labels.fallbackPolicy
         )
+        self.labelProviderProfile = config.provider.makeLabelProviderProfile(settings: config)
         self.labelDecisionEngine = VectorTileLabelDecisionEngine(
-            profile: MapboxVectorTileLabelProviderProfile(settings: config),
+            profile: labelProviderProfile,
             textResolver: labelTextResolver
         )
     }

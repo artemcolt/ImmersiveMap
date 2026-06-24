@@ -4,30 +4,21 @@
 import MetalKit
 
 
-class DefaultMapStyle: ImmersiveMapStyle {
-    static let preparedTileStyleRevisionValue: UInt32 = ImmersiveMapSettings.default.style.preparedTileStyleRevision
-
-    private let buildingFillColor = SIMD4<Float>(0.94902, 0.92549, 0.890196, 1.0)
-    private let roadLabelFillColor = SIMD3<Float>(0.54, 0.54, 0.52)
-    private let roadLabelStrokeColor = SIMD3<Float>(1.0, 1.0, 1.0)
-    private let placeLabelFillColor = SIMD3<Float>(0.38, 0.37, 0.35)
-    private let emphasizedPlaceLabelFillColor = SIMD3<Float>(0.30, 0.29, 0.27)
-    private let districtLabelFillColor = SIMD3<Float>(0.44, 0.43, 0.41)
+class MapboxDefaultMapStyle: ImmersiveMapStyle {
     private let fallbackKey: UInt8 = 0
     private let labelKey: UInt8 = 2
     private let roadLowZoomFadeMask: Float = 2.0
-    private let standardLabelStrokeWidthPx: Float = 5.4
-    private let poiLabelStrokeWidthPx: Float = 7.2
-    private let emphasizedLabelStrokeWidthPx: Float = 7.8
-    private let roadLabelStrokeWidthPx: Float = 2.6
     private let zebraCrossingMinimumZoom: Int = 15
     private let onewayArrowKey: UInt8 = 209
     private let fallbackStyle: FeatureStyle
+    private let configuration: MapboxDefaultMapStyleConfiguration
     private let mapBaseColors: ImmersiveMapBaseColors
     private let styleSettings: ImmersiveMapSettings.StyleSettings
     private let poiSpriteResolver = PoiSpriteResolver()
 
-    init(settings: ImmersiveMapSettings.StyleSettings = ImmersiveMapSettings.default.style) {
+    init(configuration: MapboxDefaultMapStyleConfiguration = .mapboxDefault,
+         settings: ImmersiveMapSettings.StyleSettings = ImmersiveMapSettings.default.style) {
+        self.configuration = configuration
         self.styleSettings = settings
         self.mapBaseColors = ImmersiveMapBaseColors(settings: settings.baseColors)
         fallbackStyle = FeatureStyle(
@@ -42,7 +33,25 @@ class DefaultMapStyle: ImmersiveMapStyle {
     }
 
     var preparedTileStyleRevision: UInt32 {
-        styleSettings.preparedTileStyleRevision
+        styleSettings.preparedTileStyleRevision &+ configuration.cacheFingerprint
+    }
+
+    private var labelStyles: MapboxDefaultMapStyleConfiguration.LabelStyles { configuration.labels }
+    private var layerStyles: MapboxDefaultMapStyleConfiguration.LayerStyles { configuration.layers }
+    private var featureStyles: MapboxDefaultMapStyleConfiguration.FeatureStyles { configuration.features }
+
+    private func makeLabelTextStyle(key: Int,
+                                    appearance: MapboxDefaultMapStyleConfiguration.LabelAppearance,
+                                    strokeWidthPx: Float? = nil,
+                                    sizePx: Float) -> LabelTextStyle {
+        LabelTextStyle(
+            key: key,
+            fillColor: appearance.fillColor,
+            strokeColor: appearance.strokeColor,
+            strokeWidthPx: strokeWidthPx ?? appearance.strokeWidthPx,
+            sizePx: sizePx,
+            weight: appearance.weight
+        )
     }
 
     private func makeLabelTextStyle(layerName: String,
@@ -85,104 +94,81 @@ class DefaultMapStyle: ImmersiveMapStyle {
             || isLandmarkClass(normalizedClassValue)
 
         if isContinent {
-            return LabelTextStyle(
+            return makeLabelTextStyle(
                 key: 1,
-                fillColor: SIMD3<Float>(0.35, 0.35, 0.35),
-                strokeColor: SIMD3<Float>(0.35, 0.35, 0.35),
-                strokeWidthPx: 0.0,
-                sizePx: continentLabelSize(for: tileZoom),
-                weight: .bold
+                appearance: labelStyles.continent,
+                sizePx: continentLabelSize(for: tileZoom)
             )
         }
 
         if isOcean {
             let size = oceanLabelSize(for: tileZoom)
-            return LabelTextStyle(
+            let appearance = labelStyles.water
+            return makeLabelTextStyle(
                 key: 3,
-                fillColor: SIMD3<Float>(0.10, 0.28, 0.72),
-                strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: waterLabelStrokeWidth(for: size),
-                sizePx: size,
-                weight: .bold
+                appearance: appearance,
+                strokeWidthPx: min(appearance.strokeWidthPx, waterLabelStrokeWidth(for: size)),
+                sizePx: size
             )
         }
 
         if isSea {
             let size = seaLabelSize(for: tileZoom)
-            return LabelTextStyle(
+            let appearance = labelStyles.water
+            return makeLabelTextStyle(
                 key: 4,
-                fillColor: SIMD3<Float>(0.10, 0.28, 0.72),
-                strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: waterLabelStrokeWidth(for: size),
-                sizePx: size,
-                weight: .bold
+                appearance: appearance,
+                strokeWidthPx: min(appearance.strokeWidthPx, waterLabelStrokeWidth(for: size)),
+                sizePx: size
             )
         }
 
         if isNationalCapital {
-            return LabelTextStyle(
+            return makeLabelTextStyle(
                 key: 2,
-                fillColor: emphasizedPlaceLabelFillColor,
-                strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: emphasizedLabelStrokeWidthPx,
-                sizePx: capitalSize(level: capitalLevel, tileZoom: tileZoom),
-                weight: .bold
+                appearance: labelStyles.nationalCapital,
+                sizePx: capitalSize(level: capitalLevel, tileZoom: tileZoom)
             )
         }
 
         if capitalLevel > 0 {
             let size = capitalSize(level: capitalLevel, tileZoom: tileZoom)
-            return LabelTextStyle(
+            return makeLabelTextStyle(
                 key: 20 + min(capitalLevel, 9),
-                fillColor: emphasizedPlaceLabelFillColor,
-                strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: standardLabelStrokeWidthPx,
-                sizePx: size,
-                weight: .thin
+                appearance: labelStyles.capital,
+                sizePx: size
             )
         }
 
         if isCity {
-            return LabelTextStyle(
+            return makeLabelTextStyle(
                 key: 30,
-                fillColor: placeLabelFillColor,
-                strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: standardLabelStrokeWidthPx,
-                sizePx: cityLabelSize(for: tileZoom),
-                weight: .thin
+                appearance: labelStyles.city,
+                sizePx: cityLabelSize(for: tileZoom)
             )
         }
 
         if isSmallCity {
-            return LabelTextStyle(
+            return makeLabelTextStyle(
                 key: 31,
-                fillColor: placeLabelFillColor,
-                strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: standardLabelStrokeWidthPx,
-                sizePx: smallSettlementLabelSize(for: tileZoom),
-                weight: .thin
+                appearance: labelStyles.smallSettlement,
+                sizePx: smallSettlementLabelSize(for: tileZoom)
             )
         }
 
         if isDistrict {
-            return LabelTextStyle(
+            return makeLabelTextStyle(
                 key: 40,
-                fillColor: districtLabelFillColor,
-                strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: standardLabelStrokeWidthPx,
-                sizePx: districtLabelSize(for: tileZoom),
-                weight: .thin
+                appearance: labelStyles.district,
+                sizePx: districtLabelSize(for: tileZoom)
             )
         }
 
         if isHouseNumber {
-            return LabelTextStyle(
+            return makeLabelTextStyle(
                 key: 43,
-                fillColor: houseNumberFillColor(),
-                strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-                strokeWidthPx: 8.1,
-                sizePx: houseNumberLabelSize(for: tileZoom),
-                weight: .thin
+                appearance: labelStyles.houseNumber,
+                sizePx: houseNumberLabelSize(for: tileZoom)
             )
         }
 
@@ -202,24 +188,18 @@ class DefaultMapStyle: ImmersiveMapStyle {
     }
 
     private func makeRoadLabelTextStyle() -> LabelTextStyle {
-        return LabelTextStyle(
+        return makeLabelTextStyle(
             key: 80,
-            fillColor: roadLabelFillColor,
-            strokeColor: roadLabelStrokeColor,
-            strokeWidthPx: roadLabelStrokeWidthPx,
-            sizePx: 36.0,
-            weight: .thin
+            appearance: labelStyles.road,
+            sizePx: 36.0
         )
     }
 
     private func makeLandmarkLabelTextStyle(tileZoom: Int) -> LabelTextStyle {
-        LabelTextStyle(
+        makeLabelTextStyle(
             key: 41,
-            fillColor: roadLabelFillColor,
-            strokeColor: roadLabelStrokeColor,
-            strokeWidthPx: emphasizedLabelStrokeWidthPx,
-            sizePx: landmarkLabelSize(for: tileZoom),
-            weight: .thin
+            appearance: labelStyles.landmark,
+            sizePx: landmarkLabelSize(for: tileZoom)
         )
     }
 
@@ -229,10 +209,10 @@ class DefaultMapStyle: ImmersiveMapStyle {
         return LabelTextStyle(
             key: appearance.key,
             fillColor: appearance.fillColor,
-            strokeColor: SIMD3<Float>(1.0, 1.0, 1.0),
-            strokeWidthPx: poiLabelStrokeWidthPx,
+            strokeColor: labelStyles.poi.strokeColor,
+            strokeWidthPx: labelStyles.poi.strokeWidthPx,
             sizePx: poiLabelSize(for: tileZoom),
-            weight: .thin
+            weight: labelStyles.poi.weight
         )
     }
 
@@ -267,7 +247,7 @@ class DefaultMapStyle: ImmersiveMapStyle {
         case .viewpoint?:
             return (433, SIMD3<Float>(0.70, 0.53, 0.22))
         case nil:
-            return (42, roadLabelFillColor)
+            return (42, labelStyles.poi.fillColor)
         }
     }
 
@@ -1165,7 +1145,7 @@ class DefaultMapStyle: ImmersiveMapStyle {
     }
 
     private func waterLabelStrokeWidth(for sizePx: Float) -> Float {
-        min(standardLabelStrokeWidthPx, sizePx * 0.14)
+        sizePx * 0.14
     }
 
     private func capitalSize(level: Int, tileZoom: Int) -> Float {
@@ -1275,10 +1255,6 @@ class DefaultMapStyle: ImmersiveMapStyle {
         }
     }
 
-    private func houseNumberFillColor() -> SIMD3<Float> {
-        SIMD3<Float>(buildingFillColor.x, buildingFillColor.y, buildingFillColor.z) * 0.5
-    }
-
     private func houseNumberLabelSize(for tileZoom: Int) -> Float {
         switch tileZoom {
         case ...16:
@@ -1298,57 +1274,63 @@ class DefaultMapStyle: ImmersiveMapStyle {
         let labelClassValue = properties["class"]?.stringValue
 
         // Color palette (RGBA, normalized to 0.0-1.0)
+        let layers = layerStyles
+        let roads = layers.roads
+        let railway = layers.railway
+        let standardLayers = MapboxDefaultMapStyleConfiguration.LayerStyles.standard
+        let waterColor = layers.water == standardLayers.water ? mapBaseColors.getWaterColor() : layers.water
+        let grassColor = layers.grass == standardLayers.grass ? mapBaseColors.getLandCoverColor() : layers.grass
         let colors = [
-            "admin_boundary": SIMD4<Float>(0.65, 0.65, 0.75, 1.0), // Soft purple-gray
-            "admin_level_1": SIMD4<Float>(0.45, 0.55, 0.85, 1.0), // Deeper blue
-            "water": mapBaseColors.getWaterColor(),
-            "river": SIMD4<Float>(0.2, 0.5, 0.8, 1.0),           // Slightly darker blue
-            "landcover_forest": SIMD4<Float>(0.2, 0.6, 0.4, 0.7), // Forest green
-            "landcover_scrub": SIMD4<Float>(0.42, 0.68, 0.40, 0.64),
-            "landcover_grass": mapBaseColors.getLandCoverColor(),
-            "landcover_crop": SIMD4<Float>(0.62, 0.74, 0.42, 0.58),
-            "landcover_snow": SIMD4<Float>(0.96, 0.97, 0.98, 0.86),
-            "hillshade_shadow": SIMD4<Float>(0.30, 0.36, 0.40, 0.18),
-            "hillshade_highlight": SIMD4<Float>(1.0, 1.0, 1.0, 0.16),
-            "contour": SIMD4<Float>(0.58, 0.60, 0.52, 0.34),
-            "road_major": SIMD4<Float>(0.9, 0.9, 0.9, 1.0),       // Near-white
-            "road_minor": SIMD4<Float>(0.7, 0.7, 0.7, 1.0),       // Light gray
-            "road_pedestrian": SIMD4<Float>(0.965, 0.965, 0.955, 1.0), // Near-background warm off-white
-            "road_motorway": SIMD4<Float>(0.93, 0.54, 0.33, 1.0),
-            "road_motorway_link": SIMD4<Float>(0.95, 0.66, 0.39, 1.0),
-            "road_trunk": SIMD4<Float>(0.95, 0.68, 0.28, 1.0),
-            "road_trunk_link": SIMD4<Float>(0.96, 0.76, 0.40, 1.0),
-            "road_primary_link": SIMD4<Float>(0.90, 0.895, 0.88, 1.0),
-            "road_secondary_link": SIMD4<Float>(0.885, 0.88, 0.865, 1.0),
-            "road_tertiary_link": SIMD4<Float>(0.87, 0.865, 0.85, 1.0),
-            "road_residential": SIMD4<Float>(0.82, 0.63, 0.63, 1.0),
-            "road_living_street": SIMD4<Float>(0.73, 0.63, 0.83, 1.0),
-            "road_unclassified": SIMD4<Float>(0.60, 0.67, 0.79, 1.0),
-            "road_street_limited": SIMD4<Float>(0.47, 0.74, 0.82, 1.0),
-            "road_path": SIMD4<Float>(0.33, 0.74, 0.56, 1.0),
-            "road_cycleway": SIMD4<Float>(0.16, 0.71, 0.74, 1.0),
-            "road_track": SIMD4<Float>(0.40, 0.39, 0.31, 1.0),
-            "road_steps_base": SIMD4<Float>(0.94, 0.94, 0.925, 1.0),
-            "road_steps": SIMD4<Float>(0.58, 0.56, 0.52, 1.0),
-            "road_footway": SIMD4<Float>(0.948, 0.948, 0.936, 1.0),
-            "road_sidewalk": SIMD4<Float>(0.985, 0.98, 0.965, 1.0),
-            "road_trail": SIMD4<Float>(0.84, 0.85, 0.78, 1.0),
-            "road_crossing": SIMD4<Float>(0.94, 0.94, 0.94, 1.0),
-            "road_minor_local": SIMD4<Float>(0.54, 0.72, 0.65, 1.0),
-            "road_misc": SIMD4<Float>(0.64, 0.64, 0.64, 1.0),
+            "admin_boundary": layers.adminBoundary,
+            "admin_level_1": layers.adminLevel1,
+            "water": waterColor,
+            "river": layers.river,
+            "landcover_forest": layers.forest,
+            "landcover_scrub": layers.scrub,
+            "landcover_grass": grassColor,
+            "landcover_crop": layers.crop,
+            "landcover_snow": layers.snow,
+            "hillshade_shadow": layers.hillshadeShadow,
+            "hillshade_highlight": layers.hillshadeHighlight,
+            "contour": layers.contour,
+            "road_major": roads.major,
+            "road_minor": roads.minor,
+            "road_pedestrian": roads.pedestrian,
+            "road_motorway": roads.motorway,
+            "road_motorway_link": roads.motorwayLink,
+            "road_trunk": roads.trunk,
+            "road_trunk_link": roads.trunkLink,
+            "road_primary_link": roads.primaryLink,
+            "road_secondary_link": roads.secondaryLink,
+            "road_tertiary_link": roads.tertiaryLink,
+            "road_residential": roads.residential,
+            "road_living_street": roads.livingStreet,
+            "road_unclassified": roads.unclassified,
+            "road_street_limited": roads.streetLimited,
+            "road_path": roads.path,
+            "road_cycleway": roads.cycleway,
+            "road_track": roads.track,
+            "road_steps_base": roads.stepsBase,
+            "road_steps": roads.steps,
+            "road_footway": roads.footway,
+            "road_sidewalk": roads.sidewalk,
+            "road_trail": roads.trail,
+            "road_crossing": roads.crossing,
+            "road_minor_local": roads.minorLocal,
+            "road_misc": roads.misc,
             "fallback": SIMD4<Float>(0.5, 0.5, 0.5, 0.5),          // Neutral gray
             "background": mapBaseColors.getTileBgColor(),
             "border": SIMD4<Float>(1.0, 0.0, 0.0, 1.0),
             
-            "building": buildingFillColor,                             // Yandex-like light beige gray
-            "park": SIMD4<Float>(0.55, 0.75, 0.5, 0.7),            // Park green
-            "residential": SIMD4<Float>(0.92, 0.9, 0.85, 0.6),     // Light beige
-            "industrial": SIMD4<Float>(0.85, 0.82, 0.78, 0.7),     // Warm gray
-            "farmland": SIMD4<Float>(0.86, 0.8, 0.6, 0.6),         // Tan
-            "railway_border": SIMD4<Float>(0.73, 0.81, 0.82, 1.0),
-            "railway_fill": SIMD4<Float>(0.99, 0.99, 0.99, 1.0),
-            "railway_sleepers": SIMD4<Float>(0.65, 0.74, 0.75, 1.0),
-            "aeroway": SIMD4<Float>(0.88, 0.88, 0.9, 0.9)          // Pale concrete
+            "building": featureStyles.buildingFillColor,               // Yandex-like light beige gray
+            "park": layers.park,
+            "residential": layers.residential,
+            "industrial": layers.industrial,
+            "farmland": layers.farmland,
+            "railway_border": railway.border,
+            "railway_fill": railway.fill,
+            "railway_sleepers": railway.sleepers,
+            "aeroway": layers.aeroway
         ]
         
         let name_en = properties["name_en"]?.stringValue
@@ -1722,7 +1704,7 @@ class DefaultMapStyle: ImmersiveMapStyle {
         case "building":
             return FeatureStyle(
                 key: 210, // Topmost layer
-                color: buildingFillColor,
+                color: featureStyles.buildingFillColor,
                 parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 0), // Filled polygon
                 usesExtrusion: true,
                 extrusionHeightScale: 8.0,

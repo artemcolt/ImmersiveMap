@@ -1,9 +1,9 @@
 // Copyright (c) 2025-2026 Artem Bobkin.
 // SPDX-License-Identifier: MIT
 
-enum LabelFontWeight: UInt8 {
-    case bold
-    case thin
+public enum LabelFontWeight: UInt8 {
+    case bold = 0
+    case thin = 1
 }
 
 enum LinePlacement {

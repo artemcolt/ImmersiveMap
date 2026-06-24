@@ -28,7 +28,7 @@ private struct MapScreen: View {
                     pitch: .pi / 5
                 )
             )
-            .tileSource(.mapbox(accessToken: ProcessInfo.processInfo.environment["IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"]))
+            .provider(MapboxProvider(accessToken: ProcessInfo.processInfo.environment["IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"]))
             .ignoresSafeArea()
     }
 }

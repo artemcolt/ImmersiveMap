@@ -55,7 +55,7 @@ the map will request:
 https://example.com/api/v1/map/tiles/12/2411/1539.mvt
 ```
 
-Configure the endpoint with `ImmersiveMapTileSource.url(...)`. If your tile server requires a bearer token, add `.token(...)`. If it does not require authentication, leave the token as `nil`.
+Configure the endpoint by passing a provider to `.provider(...)`. For a generic vector tile endpoint, use `CustomVectorTileProvider` with `ImmersiveMapTileSource.url(...)`; if your tile server requires a bearer token, add `.token(...)`.
 
 ## Xcode Workspace
 
@@ -102,7 +102,13 @@ struct MapScreen: View {
                     pitch: 0
                 )
             )
-            .tileSource(.url(URL(string: "https://example.com/api/v1/map/tiles")!))
+            .provider(
+                CustomVectorTileProvider(
+                    id: "example",
+                    tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!),
+                    style: BasicVectorTileStyle()
+                )
+            )
             .ignoresSafeArea()
     }
 }
@@ -122,7 +128,13 @@ final class MapViewController: UIViewController {
         super.viewDidLoad()
 
         let settings = ImmersiveMapSettings.default
-            .tileSource(.url(URL(string: "https://example.com/api/v1/map/tiles")!))
+            .provider(
+                CustomVectorTileProvider(
+                    id: "example",
+                    tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!),
+                    style: BasicVectorTileStyle()
+                )
+            )
 
         let mapView = ImmersiveMapUIView(
             frame: view.bounds,
@@ -215,8 +227,12 @@ Pass it into SwiftUI:
 ```swift
 ImmersiveMapView()
     .selection(selection)
-    .tileSource(
-        .url(URL(string: "https://example.com/api/v1/map/tiles")!)
+    .provider(
+        CustomVectorTileProvider(
+            id: "example",
+            tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!),
+            style: BasicVectorTileStyle()
+        )
     )
 ```
 
@@ -224,13 +240,17 @@ ImmersiveMapView()
 
 ```swift
 ImmersiveMapView()
-    .tileSource(
-        .url(URL(string: "https://example.com/api/v1/map/tiles")!)
-            .token("your-token")
+    .provider(
+        CustomVectorTileProvider(
+            id: "example",
+            tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!)
+                .token("your-token"),
+            style: BasicVectorTileStyle()
+        )
     )
 
 ImmersiveMapView()
-    .tileSource(.mapbox(accessToken: "your-mapbox-public-token"))
+    .provider(MapboxProvider(accessToken: "your-mapbox-public-token"))
 ```
 
 Use fluent settings modifiers when you need to tune lower-level renderer, cache, label, or camera settings:
@@ -240,9 +260,13 @@ let labels = ImmersiveMapSettings.default.labels
 let camera = ImmersiveMapSettings.default.camera
 
 ImmersiveMapView()
-    .tileSource(
-        .url(URL(string: "https://example.com/api/v1/map/tiles")!)
-            .token("your-token")
+    .provider(
+        CustomVectorTileProvider(
+            id: "example",
+            tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!)
+                .token("your-token"),
+            style: BasicVectorTileStyle()
+        )
     )
     .labelSettings(
         .init(
@@ -289,6 +313,33 @@ ImmersiveMapView()
     .debugPanel(false)
 ```
 
+### Mapbox Default Map Style
+
+Pass a configured `MapboxProvider` to tune common rendering tokens for the built-in Mapbox-compatible renderer:
+
+```swift
+let style = MapboxDefaultMapStyleConfiguration.mapboxDefault
+    .layers { layers in
+        layers.water = SIMD4<Float>(0.35, 0.58, 0.78, 1.0)
+        layers.park = SIMD4<Float>(0.50, 0.70, 0.48, 0.75)
+        layers.roads.major = SIMD4<Float>(0.95, 0.88, 0.76, 1.0)
+        layers.roads.footway = SIMD4<Float>(0.92, 0.92, 0.88, 1.0)
+    }
+    .labels { labels in
+        labels.district.strokeWidthPx = 2.0
+        labels.poi.strokeWidthPx = 6.0
+        labels.road.fillColor = SIMD3<Float>(0.48, 0.48, 0.46)
+    }
+    .features { features in
+        features.buildingFillColor = SIMD4<Float>(0.94, 0.91, 0.86, 1.0)
+    }
+
+ImmersiveMapView()
+    .provider(MapboxProvider(accessToken: "your-mapbox-public-token", style: style))
+```
+
+Changing map style tokens invalidates prepared tile cache entries automatically.
+
 ## Build This Package
 
 ```bash
@@ -313,7 +364,7 @@ xcodebuild \
 
 - The package contains Metal shaders and runtime resources. Always add it as a Swift Package product, not by copying individual Swift files.
 - The tile parser is designed for vector tiles with layers and attributes used by the engine's style system. If your tile source uses a different schema, you may need to adjust parsing or styling code.
-- The default settings are suitable for development, but production apps should explicitly set `.tileSource(...)` and cache/network settings.
+- Production apps should explicitly set `.provider(...)` and cache/network settings.
 
 ## License
 

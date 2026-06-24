@@ -38,6 +38,33 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertTrue(settings.debug.enableDebugPanel)
     }
 
+    func testProviderSettingsModifierStoresMapboxProviderConfiguration() {
+        let style = MapboxDefaultMapStyleConfiguration.mapboxDefault.labels { labels in
+            labels.district.strokeWidthPx = 1.25
+        }
+
+        let provider = MapboxProvider(accessToken: "mapbox-token", style: style)
+        let settings = ImmersiveMapSettings.default.provider(provider)
+
+        XCTAssertEqual(settings.provider, AnyImmersiveMapProvider(provider))
+        XCTAssertNotEqual(settings, ImmersiveMapSettings.default)
+    }
+
+    #if canImport(UIKit)
+    func testProviderViewModifierStoresMapboxProviderConfiguration() throws {
+        let style = MapboxDefaultMapStyleConfiguration.mapboxDefault.labels { labels in
+            labels.poi.strokeWidthPx = 3.5
+        }
+        let provider = MapboxProvider(accessToken: "mapbox-token", style: style)
+
+        let view = ImmersiveMapView().provider(provider)
+
+        let settings: ImmersiveMapSettings? = reflectedValue("settings", in: view)
+        let unwrappedSettings = try XCTUnwrap(settings)
+        XCTAssertEqual(unwrappedSettings.provider, AnyImmersiveMapProvider(provider))
+    }
+    #endif
+
     func testEarthSceneModifierControlsFullSunTerminatorAndNightLightsPackage() {
         let settings = ImmersiveMapSettings.default.earthScene(isEnabled: false)
 
@@ -165,47 +192,58 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertEqual(settings.debug, debug)
     }
 
-    func testTileSourceValueConfiguresGenericURLAndBearerToken() {
+    func testCustomProviderConfiguresGenericURLAndBearerToken() {
         let url = URL(string: "https://tiles.example.com/vector")!
-        let source = ImmersiveMapTileSource.url(url).token("public-token")
+        let provider = CustomVectorTileProvider(
+            id: "custom",
+            tileSource: .url(url).token("public-token"),
+            style: BasicVectorTileStyle()
+        )
 
-        let settings = ImmersiveMapSettings.default.tileSource(source)
+        let settings = ImmersiveMapSettings.default.provider(provider)
 
         XCTAssertEqual(settings.tiles.network.tileBaseURL, url)
         XCTAssertEqual(settings.tiles.network.authorizationToken, "public-token")
         XCTAssertEqual(settings.tiles.network.authorizationMode, .bearerHeader)
+        XCTAssertEqual(settings.provider, AnyImmersiveMapProvider(provider))
     }
 
-    func testMapboxTileSourceUsesMapboxVectorTileURLAndAccessTokenQueryAuthorization() {
-        let source = ImmersiveMapTileSource.mapbox(accessToken: "mapbox-token")
+    func testMapboxProviderUsesMapboxVectorTileURLAndAccessTokenQueryAuthorization() {
+        let provider = MapboxProvider(accessToken: "mapbox-token")
 
-        let settings = ImmersiveMapSettings.default.tileSource(source)
+        let settings = ImmersiveMapSettings.default.provider(provider)
 
         XCTAssertEqual(settings.tiles.network.tileBaseURL.absoluteString,
                        "https://api.mapbox.com/v4/mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2")
         XCTAssertEqual(settings.tiles.network.authorizationToken, "mapbox-token")
         XCTAssertEqual(settings.tiles.network.authorizationMode, .accessTokenQuery(parameterName: "access_token"))
+        XCTAssertEqual(settings.provider, AnyImmersiveMapProvider(provider))
     }
 
-    func testTileSourceUpdatesNetworkURLTokenAndAuthorizationMode() {
+    func testCustomProviderUpdatesNetworkURLTokenAndAuthorizationMode() {
         let url = URL(string: "https://tiles.example.com/vector")!
-
-        let settings = ImmersiveMapSettings.default.tileSource(
-            url: url,
-            accessToken: "public-token",
-            authorization: .accessTokenQuery(parameterName: "access_token")
+        let provider = CustomVectorTileProvider(
+            id: "custom-query",
+            tileSource: ImmersiveMapTileSource(tileBaseURL: url,
+                                               accessToken: "public-token",
+                                               authorization: .accessTokenQuery(parameterName: "access_token")),
+            style: BasicVectorTileStyle()
         )
+
+        let settings = ImmersiveMapSettings.default.provider(provider)
 
         XCTAssertEqual(settings.tiles.network.tileBaseURL, url)
         XCTAssertEqual(settings.tiles.network.authorizationToken, "public-token")
         XCTAssertEqual(settings.tiles.network.authorizationMode, .accessTokenQuery(parameterName: "access_token"))
     }
 
-    func testMapboxTilesUsesMapboxVectorTileURLAndAccessTokenQueryAuthorization() {
-        let settings = ImmersiveMapSettings.default.mapboxTiles(accessToken: "mapbox-token")
+    func testMapboxProviderTilesetIDControlsMapboxVectorTileURL() {
+        let settings = ImmersiveMapSettings.default.provider(
+            MapboxProvider(accessToken: "mapbox-token", tilesetID: "example.tileset")
+        )
 
         XCTAssertEqual(settings.tiles.network.tileBaseURL.absoluteString,
-                       "https://api.mapbox.com/v4/mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2")
+                       "https://api.mapbox.com/v4/example.tileset")
         XCTAssertEqual(settings.tiles.network.authorizationToken, "mapbox-token")
         XCTAssertEqual(settings.tiles.network.authorizationMode, .accessTokenQuery(parameterName: "access_token"))
     }

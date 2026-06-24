@@ -57,6 +57,16 @@ public enum ImmersiveMapSettingsApplicationPlanner {
         if oldValue.presentation != newValue.presentation {
             mark(.presentation, actions: [.liveApply])
         }
+        if oldValue.provider != newValue.provider {
+            if oldValue.provider.tileSource != newValue.provider.tileSource {
+                mark(.tiles, actions: [.invalidateCaches, .recreateRenderer])
+            }
+            if oldValue.provider.configurationFingerprint != newValue.provider.configurationFingerprint
+                || oldValue.provider.id != newValue.provider.id
+                || oldValue.provider.cacheNamespace != newValue.provider.cacheNamespace {
+                mark(.style, actions: [.invalidateCaches, .rebuildPreparedData, .rebuildGPUResources, .recreateRenderer])
+            }
+        }
         if oldValue.debug != newValue.debug {
             mark(.debug, actions: [.liveApply])
         }
