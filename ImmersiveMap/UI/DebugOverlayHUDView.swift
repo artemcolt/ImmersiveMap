@@ -830,13 +830,24 @@ private final class DebugOverlayAtlasLayoutView: UIView {
     }
 }
 
+#if DEBUG
+struct DebugOverlayTilesPrimaryRowMetrics {
+    let progressBackgroundRect: CGRect
+    let textRect: CGRect
+    let fontSize: CGFloat
+}
+#endif
+
 private final class DebugOverlayTilesStatusListView: UIView {
     private enum Layout {
-        static let rowHeight: CGFloat = 24
-        static let childRowHeight: CGFloat = 20
+        static let rowHeight: CGFloat = 28
+        static let childRowHeight: CGFloat = 22
         static let rowSpacing: CGFloat = 4
-        static let textInset: CGFloat = 8
-        static let cornerRadius: CGFloat = 5
+        static let textInset: CGFloat = 10
+        static let cornerRadius: CGFloat = 6
+        static let progressVerticalInset: CGFloat = 2
+        static let primaryFontSize: CGFloat = 13.5
+        static let childFontSize: CGFloat = 12
     }
 
     private enum Row: Equatable {
@@ -964,7 +975,7 @@ private final class DebugOverlayTilesStatusListView: UIView {
     private func drawTile(_ tile: TileLoadingStatusTileSnapshot,
                           rowRect: CGRect) {
         let color = statusColor(tile.status)
-        let backgroundRect = rowRect.insetBy(dx: 0, dy: 3)
+        let backgroundRect = Self.progressBackgroundRect(for: rowRect)
         UIColor.black.withAlphaComponent(0.16).setFill()
         UIBezierPath(roundedRect: backgroundRect, cornerRadius: Layout.cornerRadius).fill()
 
@@ -977,14 +988,14 @@ private final class DebugOverlayTilesStatusListView: UIView {
         color.withAlphaComponent(0.82).setFill()
         UIBezierPath(roundedRect: progressRect, cornerRadius: Layout.cornerRadius).fill()
 
+        let font = UIFont.monospacedSystemFont(ofSize: Layout.primaryFontSize, weight: .heavy)
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.monospacedSystemFont(ofSize: 11, weight: .heavy),
+            .font: font,
             .foregroundColor: UIColor.white.withAlphaComponent(0.98)
         ]
-        let textRect = CGRect(x: Layout.textInset,
-                              y: rowRect.minY,
-                              width: max(0, rowRect.width - Layout.textInset * 2),
-                              height: rowRect.height)
+        let textRect = Self.centeredTextRect(rowRect: rowRect,
+                                             backgroundRect: backgroundRect,
+                                             font: font)
         let isExpanded = expandedTiles.contains(tile.tile)
         Row.tile(tile, isExpanded: isExpanded, canExpand: tile.preparationStages.isEmpty == false)
             .text
@@ -992,12 +1003,13 @@ private final class DebugOverlayTilesStatusListView: UIView {
     }
 
     private func drawChildText(_ text: String, rowRect: CGRect) {
+        let font = UIFont.monospacedSystemFont(ofSize: Layout.childFontSize, weight: .bold)
         let textRect = CGRect(x: Layout.textInset,
-                              y: rowRect.minY,
+                              y: rowRect.midY - font.lineHeight * 0.5,
                               width: max(0, rowRect.width - Layout.textInset * 2),
-                              height: rowRect.height)
+                              height: font.lineHeight)
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.monospacedSystemFont(ofSize: 10.5, weight: .bold),
+            .font: font,
             .foregroundColor: UIColor.white.withAlphaComponent(0.94)
         ]
         text.draw(in: textRect, withAttributes: attributes)
@@ -1088,9 +1100,43 @@ private final class DebugOverlayTilesStatusListView: UIView {
         "\(Int((duration * 1000).rounded()))ms"
     }
 
+    private static func progressBackgroundRect(for rowRect: CGRect) -> CGRect {
+        rowRect.insetBy(dx: 0, dy: Layout.progressVerticalInset)
+    }
+
+    private static func centeredTextRect(rowRect: CGRect,
+                                         backgroundRect: CGRect,
+                                         font: UIFont) -> CGRect {
+        CGRect(x: rowRect.minX + Layout.textInset,
+               y: backgroundRect.midY - font.lineHeight * 0.5,
+               width: max(0, rowRect.width - Layout.textInset * 2),
+               height: font.lineHeight)
+    }
+
     #if DEBUG
     var visibleRowTextsForTesting: [String] {
         visibleRows().map(\.text)
+    }
+
+    var primaryRowMetricsForTesting: DebugOverlayTilesPrimaryRowMetrics? {
+        guard visibleRows().contains(where: {
+            if case .tile = $0 {
+                return true
+            }
+            return false
+        }) else {
+            return nil
+        }
+
+        let rowRect = CGRect(x: 0, y: 0, width: bounds.width, height: Layout.rowHeight)
+        let backgroundRect = Self.progressBackgroundRect(for: rowRect)
+        let font = UIFont.monospacedSystemFont(ofSize: Layout.primaryFontSize, weight: .heavy)
+        return DebugOverlayTilesPrimaryRowMetrics(
+            progressBackgroundRect: backgroundRect,
+            textRect: Self.centeredTextRect(rowRect: rowRect,
+                                            backgroundRect: backgroundRect,
+                                            font: font),
+            fontSize: Layout.primaryFontSize)
     }
 
     func simulateTileRowTapForTesting(at index: Int) {
@@ -1180,6 +1226,10 @@ extension DebugOverlayHUDView {
 
     var tilesStatusVisibleRowTextsForTesting: [String] {
         tilesStatusListView.visibleRowTextsForTesting
+    }
+
+    var tilesStatusPrimaryRowMetricsForTesting: DebugOverlayTilesPrimaryRowMetrics? {
+        tilesStatusListView.primaryRowMetricsForTesting
     }
 
     func simulateTilesStatusRowTapForTesting(at index: Int) {

@@ -219,6 +219,42 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         ])
     }
 
+    func testTilesTabCentersPrimaryTileTextInsideProgressBarAndUsesLargerFont() throws {
+        let view = DebugOverlayHUDView()
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: true,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: DebugOverlayHUDSnapshot(
+            coordinateLines: DebugOverlayCoordinateLines(zoom: "z: 1.00", latLon: "lat: 0.000 lon: 0.000"),
+            diagnosticsLines: [],
+            atlasPages: [],
+            tileLoadingStatusLines: [],
+            tileLoadingStatusTiles: [
+                TileLoadingStatusTileSnapshot(tile: Tile(x: 0, y: 0, z: 0),
+                                              status: .ready,
+                                              progress: 1,
+                                              detail: "displayed")
+            ],
+            coordinateScale: settings.coordinateScale,
+            diagnosticsScale: settings.diagnosticsScale,
+            leftPadding: settings.leftPadding,
+            topPadding: settings.topPadding,
+            sectionSpacing: settings.sectionSpacing,
+            textColor: settings.textColor
+        ))
+
+        view.simulateTilesTabSelectionForTesting()
+        view.layoutIfNeeded()
+
+        let metrics = try XCTUnwrap(view.tilesStatusPrimaryRowMetricsForTesting)
+        XCTAssertEqual(metrics.textRect.midY, metrics.progressBackgroundRect.midY, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(metrics.fontSize, 13)
+    }
+
     func testTilesTabDisplaysIdleMessageWhenStatusIsEmpty() {
         let view = DebugOverlayHUDView()
         var settings = ImmersiveMapSettings.default.debug
