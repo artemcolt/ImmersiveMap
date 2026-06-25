@@ -21,18 +21,21 @@ class ImmersiveMapNeedsTile {
     private let loadPipeline: TileLoadPipeline
     private let retryController: TileRetryController
     private let tileTraceRecorder: TileTraceRecorder
+    private let tileLoadingStatusReporter: TileLoadingStatusReporter?
     private let stateQueue = DispatchQueue(label: "ImmersiveMap.ImmersiveMapNeedsTile.state")
     
     // Production-конструктор: собирает стандартный pipeline (диск + сеть + парс в TileRenderStore).
     convenience init(tileRenderStore: TileRenderStore,
                      config: ImmersiveMapSettings,
                      preparedTileCacheIdentity: PreparedTileCacheIdentity,
-                     tileTraceRecorder: TileTraceRecorder) {
+                     tileTraceRecorder: TileTraceRecorder,
+                     tileLoadingStatusReporter: TileLoadingStatusReporter?) {
         self.init(config: config,
                   loadPipeline: DefaultTileLoadPipeline(tileRenderStore: tileRenderStore,
                                                         config: config,
                                                         preparedTileCacheIdentity: preparedTileCacheIdentity),
-                  tileTraceRecorder: tileTraceRecorder)
+                  tileTraceRecorder: tileTraceRecorder,
+                  tileLoadingStatusReporter: tileLoadingStatusReporter)
     }
 
     // Базовый конструктор с явной инъекцией pipeline/политики (используется и в тестах).
@@ -40,12 +43,14 @@ class ImmersiveMapNeedsTile {
          loadPipeline: TileLoadPipeline,
          retryPolicy: RetryPolicy = .default,
          now: @escaping () -> Date = Date.init,
-         tileTraceRecorder: TileTraceRecorder = TileTraceRecorder()) {
+         tileTraceRecorder: TileTraceRecorder = TileTraceRecorder(),
+         tileLoadingStatusReporter: TileLoadingStatusReporter? = nil) {
         self.maxConcurrentFetches = config.tiles.network.maxConcurrentFetches
         self.pendingTilesQueue = DeduplicatedTilesFIFO(capacity: config.tiles.network.pendingRequestQueueCapacity)
         self.loadPipeline = loadPipeline
         self.retryController = TileRetryController(policy: retryPolicy, now: now)
         self.tileTraceRecorder = tileTraceRecorder
+        self.tileLoadingStatusReporter = tileLoadingStatusReporter
     }
     
     // Обновляет актуальный набор тайлов для кадра: очищает pending-очередь
@@ -65,6 +70,9 @@ class ImmersiveMapNeedsTile {
             }
         }
         let wanted = Set(deduplicatedTiles)
+        tileLoadingStatusReporter?.recordDemand(input: tiles.count,
+                                                deduplicated: deduplicatedTiles.count,
+                                                tiles: deduplicatedTiles)
         tileTraceRecorder.record(.tileSchedulerRequest(input: tiles.count,
                                                        deduplicated: deduplicatedTiles.count))
 
@@ -110,6 +118,7 @@ class ImmersiveMapNeedsTile {
     // Должна вызываться только изнутри `stateQueue`.
     private func createLoadTileTaskLocked(tile: Tile) {
         dispatchPrecondition(condition: .onQueue(stateQueue))
+        tileLoadingStatusReporter?.recordLoadScheduled(tile: tile)
         let task = Task {
             await loadTile(tile: tile)
         }
@@ -123,6 +132,7 @@ class ImmersiveMapNeedsTile {
         if Task.isCancelled {
             return
         }
+        tileLoadingStatusReporter?.recordLoadStarted(tile: tile)
         tileTraceRecorder.record(.tileLoadStart(tile))
         defer {
             Task { @MainActor in
@@ -139,6 +149,7 @@ class ImmersiveMapNeedsTile {
             }
             if materializedPreparedTile {
                 markLoadSucceeded(tile: tile)
+                tileLoadingStatusReporter?.recordLoadCompleted(tile: tile)
                 tileTraceRecorder.record(.tileLoadSuccess(tile, source: "prepared_disk"))
                 return
             }
@@ -167,6 +178,7 @@ class ImmersiveMapNeedsTile {
             if materializedFromDisk {
                 loadPipeline.savePreparedOnDisk(tile: tile, preparedTile: preparedFromDisk)
                 markLoadSucceeded(tile: tile)
+                tileLoadingStatusReporter?.recordLoadCompleted(tile: tile)
                 tileTraceRecorder.record(.tileLoadSuccess(tile, source: "raw_disk"))
                 return
             }
@@ -182,6 +194,7 @@ class ImmersiveMapNeedsTile {
             return
         }
 
+        tileLoadingStatusReporter?.recordNetworkStarted(tile: tile)
         let downloadResult = await loadPipeline.download(tile: tile)
         if Task.isCancelled {
             return
@@ -189,6 +202,8 @@ class ImmersiveMapNeedsTile {
 
         switch downloadResult {
         case let .success(data):
+            tileLoadingStatusReporter?.recordNetworkSucceeded(tile: tile,
+                                                              bytes: data.count)
             tileTraceRecorder.record(.tileDownloadSuccess(tile, bytes: data.count))
             guard let preparedFromNetwork = await prepareTile(data: data, tile: tile) else {
                 loadPipeline.removePreparedFromDisk(tile: tile)
@@ -206,14 +221,18 @@ class ImmersiveMapNeedsTile {
                 loadPipeline.saveOnDisk(tile: tile, data: data)
                 loadPipeline.savePreparedOnDisk(tile: tile, preparedTile: preparedFromNetwork)
                 markLoadSucceeded(tile: tile)
+                tileLoadingStatusReporter?.recordLoadCompleted(tile: tile)
                 tileTraceRecorder.record(.tileLoadSuccess(tile, source: "network"))
             } else {
                 loadPipeline.removePreparedFromDisk(tile: tile)
                 markLoadFailed(tile: tile, reason: .parseFailed)
             }
         case let .failure(downloadFailure):
+            let failureDescription = Self.downloadFailureDescription(downloadFailure)
+            tileLoadingStatusReporter?.recordNetworkFailed(tile: tile,
+                                                           reason: failureDescription)
             tileTraceRecorder.record(.tileDownloadFailed(tile,
-                                                         reason: Self.downloadFailureDescription(downloadFailure)))
+                                                         reason: failureDescription))
             markLoadFailed(tile: tile, reason: .download(downloadFailure))
         }
     }
@@ -222,7 +241,15 @@ class ImmersiveMapNeedsTile {
         if Task.isCancelled {
             return nil
         }
-        return await loadPipeline.prepare(tile: tile, data: data)
+        tileLoadingStatusReporter?.recordParsingStarted(tile: tile)
+        let preparedTile = await loadPipeline.prepare(tile: tile, data: data)
+        if preparedTile == nil {
+            tileLoadingStatusReporter?.recordParsingFailed(tile: tile,
+                                                           reason: "parse_failed")
+        } else {
+            tileLoadingStatusReporter?.recordParsingSucceeded(tile: tile)
+        }
+        return preparedTile
     }
 
     private func materializePreparedTile(_ preparedTile: PreparedTileCPU, expectedTile: Tile) async -> Bool {
@@ -275,9 +302,17 @@ class ImmersiveMapNeedsTile {
         stateQueue.sync {
             retryController.registerFailure(for: tile, reason: reason)
         }
+        tileLoadingStatusReporter?.recordLoadFailed(tile: tile,
+                                                    reason: Self.retryFailureDescription(reason))
         tileTraceRecorder.record(.tileLoadFailed(tile,
                                                  reason: Self.retryFailureDescription(reason)))
     }
+
+    #if DEBUG
+    var tileLoadingStatusSnapshotForTesting: TileLoadingStatusSnapshot? {
+        tileLoadingStatusReporter?.snapshot()
+    }
+    #endif
 
     private static func retryFailureDescription(_ reason: TileRetryFailureReason) -> String {
         switch reason {

@@ -70,7 +70,9 @@ public enum ImmersiveMapSettingsApplicationPlanner {
         if oldValue.mapStyle != newValue.mapStyle {
             mark(.style, actions: [.invalidateCaches, .rebuildPreparedData, .rebuildGPUResources, .recreateRenderer])
         }
-        if oldValue.debug != newValue.debug {
+        if oldValue.debug.enableDebugPanel != newValue.debug.enableDebugPanel {
+            mark(.debug, actions: [.recreateRenderer])
+        } else if oldValue.debug != newValue.debug {
             mark(.debug, actions: [.liveApply])
         }
 

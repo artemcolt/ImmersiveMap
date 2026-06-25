@@ -119,6 +119,7 @@ final class RenderFrameEngine {
         RenderFrameStageMeasurer.measure(.updateScene, diagnostics: frameContext.diagnostics) {
             renderGraph.update(frameContext: frameContext)
         }
+        publishDisplayedTilesForDebug(frameContext: frameContext)
         RenderFrameStageMeasurer.measure(.prepareGPU, diagnostics: frameContext.diagnostics) {
             prepareGPU(frameContext: frameContext)
         }
@@ -220,8 +221,17 @@ final class RenderFrameEngine {
         eventSink.updateDebugOverlayHUDSnapshot(
             DebugOverlayHUDSnapshot.make(settings: settings.debug,
                                          frameContext: frameContext,
-                                         diagnostics: diagnosticsOverlay)
+                                         diagnostics: diagnosticsOverlay,
+                                         tileLoadingStatus: persistentContext.tileLoadingStatusReporter?.snapshot())
         )
+    }
+
+    private func publishDisplayedTilesForDebug(frameContext: FrameContext) {
+        guard let tileLoadingStatusReporter = persistentContext.tileLoadingStatusReporter else {
+            return
+        }
+        let displayedTiles = frameContext.sharedState.placeTileTrackingState.placeTiles.map(\.metalTile.tile)
+        tileLoadingStatusReporter.recordDisplayedTiles(displayedTiles)
     }
 
     private func presentFrame(frameContext: FrameContext,

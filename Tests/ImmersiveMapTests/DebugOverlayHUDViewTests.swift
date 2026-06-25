@@ -64,6 +64,8 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                                                                   isFallback: false)
                                     ])
             ],
+            tileLoadingStatusLines: [],
+            tileLoadingStatusTiles: [],
             coordinateScale: settings.coordinateScale,
             diagnosticsScale: settings.diagnosticsScale,
             leftPadding: settings.leftPadding,
@@ -96,6 +98,110 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertTrue(view.areDebugControlsVisibleForTesting)
         XCTAssertFalse(view.isStatsContentVisibleForTesting)
         XCTAssertFalse(view.isAtlasContentVisibleForTesting)
+    }
+
+    func testTilesTabDisplaysTileLoadingStatusWithoutStatsOrAtlasContent() {
+        let view = DebugOverlayHUDView()
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: true,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: DebugOverlayHUDSnapshot(
+            coordinateLines: DebugOverlayCoordinateLines(zoom: "z: 1.00", latLon: "lat: 0.000 lon: 0.000"),
+            diagnosticsLines: [],
+            atlasPages: [],
+            tileLoadingStatusLines: [
+                "network in:1 done:2 fail:0 bytes:1024",
+                "parse in:1 done:1 fail:0",
+                "current net:z4/1/1 parse:z4/2/1"
+            ],
+            tileLoadingStatusTiles: [
+                TileLoadingStatusTileSnapshot(tile: Tile(x: 1, y: 1, z: 4),
+                                              status: .loading,
+                                              progress: 0.35,
+                                              detail: "network"),
+                TileLoadingStatusTileSnapshot(tile: Tile(x: 2, y: 1, z: 4),
+                                              status: .ready,
+                                              progress: 1,
+                                              detail: "ready")
+            ],
+            coordinateScale: settings.coordinateScale,
+            diagnosticsScale: settings.diagnosticsScale,
+            leftPadding: settings.leftPadding,
+            topPadding: settings.topPadding,
+            sectionSpacing: settings.sectionSpacing,
+            textColor: settings.textColor
+        ))
+
+        view.simulateTilesTabSelectionForTesting()
+        view.layoutIfNeeded()
+
+        XCTAssertTrue(view.isTilesTabSelectedForTesting)
+        XCTAssertTrue(view.isTilesContentVisibleForTesting)
+        XCTAssertEqual(view.tilesStatusRowCountForTesting, 2)
+        XCTAssertEqual(view.tilesStatusTextForTesting,
+                       "network in:1 done:2 fail:0 bytes:1024\nparse in:1 done:1 fail:0\ncurrent net:z4/1/1 parse:z4/2/1")
+        XCTAssertFalse(view.isStatsContentVisibleForTesting)
+        XCTAssertFalse(view.isAtlasContentVisibleForTesting)
+    }
+
+    func testTilesTabDisplaysIdleMessageWhenStatusIsEmpty() {
+        let view = DebugOverlayHUDView()
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: true,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: makeSnapshot(settings: settings, atlasPages: []))
+
+        view.simulateTilesTabSelectionForTesting()
+        view.layoutIfNeeded()
+
+        XCTAssertEqual(view.tilesStatusTextForTesting, "tiles: idle")
+    }
+
+    func testTilesTabScrollsWhenManyTileRowsAreVisible() {
+        let view = DebugOverlayHUDView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: true,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: DebugOverlayHUDSnapshot(
+            coordinateLines: DebugOverlayCoordinateLines(zoom: "z: 1.00", latLon: "lat: 0.000 lon: 0.000"),
+            diagnosticsLines: [],
+            atlasPages: [],
+            tileLoadingStatusLines: [
+                "network in:0 done:80 fail:0 bytes:1024",
+                "parse in:0 done:80 fail:0"
+            ],
+            tileLoadingStatusTiles: (0..<80).map { index in
+                TileLoadingStatusTileSnapshot(tile: Tile(x: index % 8, y: index / 8, z: 4),
+                                              status: .ready,
+                                              progress: 1,
+                                              detail: "ready")
+            },
+            coordinateScale: settings.coordinateScale,
+            diagnosticsScale: settings.diagnosticsScale,
+            leftPadding: settings.leftPadding,
+            topPadding: settings.topPadding,
+            sectionSpacing: settings.sectionSpacing,
+            textColor: settings.textColor
+        ))
+
+        view.simulateTilesTabSelectionForTesting()
+        view.layoutIfNeeded()
+
+        XCTAssertLessThanOrEqual(view.debugPanelFrameForTesting.maxY, view.bounds.maxY)
+        XCTAssertTrue(view.isTilesScrollEnabledForTesting)
+        XCTAssertEqual(view.tilesStatusRowCountForTesting, 80)
     }
 
     func testEarthSceneControlReflectsSettingsAndInvokesCallback() {
@@ -182,6 +288,8 @@ final class DebugOverlayHUDViewTests: XCTestCase {
             coordinateLines: DebugOverlayCoordinateLines(zoom: "z: 1.00", latLon: "lat: 0.000 lon: 0.000"),
             diagnosticsLines: [],
             atlasPages: atlasPages,
+            tileLoadingStatusLines: [],
+            tileLoadingStatusTiles: [],
             coordinateScale: settings.coordinateScale,
             diagnosticsScale: settings.diagnosticsScale,
             leftPadding: settings.leftPadding,

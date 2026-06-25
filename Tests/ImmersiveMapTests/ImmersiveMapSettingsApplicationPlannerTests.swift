@@ -65,6 +65,17 @@ final class ImmersiveMapSettingsApplicationPlannerTests: XCTestCase {
         XCTAssertFalse(plan.requiresRendererRecreation)
     }
 
+    func testDebugPanelEnabledChangeRecreatesRendererForTileStatusInstrumentation() {
+        let oldSettings = ImmersiveMapSettings.default
+        let newSettings = oldSettings.debugPanel()
+
+        let plan = ImmersiveMapSettingsApplicationPlanner.makePlan(from: oldSettings, to: newSettings)
+
+        XCTAssertEqual(plan.changedDomains, [.debug])
+        XCTAssertEqual(plan.actions, [.recreateRenderer])
+        XCTAssertTrue(plan.requiresRendererRecreation)
+    }
+
     func testLabelFallbackPolicyChangeRebuildsPreparedData() {
         let oldSettings = ImmersiveMapSettings.default
         var newSettings = oldSettings

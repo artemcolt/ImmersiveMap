@@ -51,6 +51,7 @@ final class RenderPersistentContext {
     let avatarsRenderer: AvatarsRenderer
     let debugOverlayRenderer: DebugOverlayRenderer
     let tileTraceRecorder: TileTraceRecorder
+    let tileLoadingStatusReporter: TileLoadingStatusReporter?
 
     // MARK: - Initialization
 
@@ -63,6 +64,7 @@ final class RenderPersistentContext {
         let metal = RendererSetup.buildMetal(layer: layer)
         self.metalContext = metal
         self.tileTraceRecorder = tileTraceRecorder
+        self.tileLoadingStatusReporter = config.debug.enableDebugPanel ? TileLoadingStatusReporter() : nil
 
         self.extrudedDepthState = metal.device.makeDepthStencilState(descriptor: Self.makeSceneDepthDescriptor())!
         self.extrudedColorPassDepthState = metal.device.makeDepthStencilState(descriptor: Self.makeTransparentExtrudedDepthDescriptor())!
@@ -109,7 +111,8 @@ final class RenderPersistentContext {
                                                metalDevice: metal.device,
                                                textRenderer: textRenderer,
                                                config: config,
-                                               tileTraceRecorder: tileTraceRecorder)
+                                               tileTraceRecorder: tileTraceRecorder,
+                                               tileLoadingStatusReporter: tileLoadingStatusReporter)
         self.tileRenderStore.eventSink = eventSink
         self.baseLabelCache = BaseLabelCache(metalDevice: metal.device)
         self.roadLabelCache = RoadLabelCache(metalDevice: metal.device,

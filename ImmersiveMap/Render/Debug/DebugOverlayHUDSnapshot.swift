@@ -13,6 +13,8 @@ struct DebugOverlayHUDSnapshot: Equatable {
     let coordinateLines: DebugOverlayCoordinateLines
     let diagnosticsLines: [String]
     let atlasPages: [GlobeAtlasDebugPage]
+    let tileLoadingStatusLines: [String]
+    let tileLoadingStatusTiles: [TileLoadingStatusTileSnapshot]
     let coordinateScale: Float
     let diagnosticsScale: Float
     let leftPadding: Float
@@ -26,7 +28,8 @@ struct DebugOverlayHUDSnapshot: Equatable {
                      longitude: Double,
                      cameraDebugLines: [String],
                      diagnostics: FrameDiagnostics?,
-                     atlasDebugSummary: GlobeAtlasDebugSummary? = nil) -> DebugOverlayHUDSnapshot? {
+                     atlasDebugSummary: GlobeAtlasDebugSummary? = nil,
+                     tileLoadingStatus: TileLoadingStatusSnapshot? = nil) -> DebugOverlayHUDSnapshot? {
         guard settings.enableDebugPanel else {
             return nil
         }
@@ -40,6 +43,8 @@ struct DebugOverlayHUDSnapshot: Equatable {
             diagnosticsLines: DebugOverlayRenderer.makeOverlayDiagnosticsTextLines(cameraDebugLines: cameraDebugLines,
                                                                                   diagnostics: diagnostics),
             atlasPages: atlasDebugSummary?.pages ?? [],
+            tileLoadingStatusLines: tileLoadingStatus?.lines ?? [],
+            tileLoadingStatusTiles: tileLoadingStatus?.tiles ?? [],
             coordinateScale: settings.coordinateScale,
             diagnosticsScale: settings.diagnosticsScale,
             leftPadding: settings.leftPadding,
@@ -51,7 +56,8 @@ struct DebugOverlayHUDSnapshot: Equatable {
 
     static func make(settings: ImmersiveMapSettings.DebugSettings,
                      frameContext: FrameContext,
-                     diagnostics: FrameDiagnostics?) -> DebugOverlayHUDSnapshot? {
+                     diagnostics: FrameDiagnostics?,
+                     tileLoadingStatus: TileLoadingStatusSnapshot? = nil) -> DebugOverlayHUDSnapshot? {
         let cameraPosition = frameContext.mapCameraState.cameraPosition()
         return make(settings: settings,
                     zoom: frameContext.mapCameraState.zoom,
@@ -59,7 +65,8 @@ struct DebugOverlayHUDSnapshot: Equatable {
                     longitude: cameraPosition.longitudeDegrees,
                     cameraDebugLines: makeCameraDebugLines(frameContext: frameContext),
                     diagnostics: diagnostics,
-                    atlasDebugSummary: frameContext.sharedState.globeAtlasDebugSummary)
+                    atlasDebugSummary: frameContext.sharedState.globeAtlasDebugSummary,
+                    tileLoadingStatus: tileLoadingStatus)
     }
 
     private static func makeCameraDebugLines(frameContext: FrameContext) -> [String] {

@@ -24,7 +24,8 @@ final class TileRenderStore {
         metalDevice: MTLDevice,
         textRenderer: TextRenderer,
         config: ImmersiveMapSettings,
-        tileTraceRecorder: TileTraceRecorder
+        tileTraceRecorder: TileTraceRecorder,
+        tileLoadingStatusReporter: TileLoadingStatusReporter?
     ) {
         self.tileTraceRecorder = tileTraceRecorder
         let mapStyle = providerRuntime.mapStyle
@@ -61,7 +62,8 @@ final class TileRenderStore {
         mapNeedsTile = ImmersiveMapNeedsTile(tileRenderStore: self,
                                              config: config,
                                              preparedTileCacheIdentity: preparedTileCacheIdentity,
-                                             tileTraceRecorder: tileTraceRecorder)
+                                             tileTraceRecorder: tileTraceRecorder,
+                                             tileLoadingStatusReporter: tileLoadingStatusReporter)
     }
     
     func getMetalTile(tile: Tile) -> MetalTile? {
