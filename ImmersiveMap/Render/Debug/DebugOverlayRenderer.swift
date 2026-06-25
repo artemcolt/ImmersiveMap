@@ -10,18 +10,6 @@ struct TileOverlayLineSegment {
     let end: SIMD2<Float>
 }
 
-private enum TileTextCornerAlignment {
-    case topLeft
-    case topRight
-    case bottomLeft
-    case bottomRight
-}
-
-private struct TileTextCornerAnchor {
-    let position: SIMD2<Float>
-    let alignment: TileTextCornerAlignment
-}
-
 final class DebugOverlayRenderer {
     private var settings: ImmersiveMapSettings.DebugSettings
     private let axesVertexBuffer: MTLBuffer
@@ -32,12 +20,18 @@ final class DebugOverlayRenderer {
     private var textVerticesScratch: [TextVertex] = []
     private var lineVerticesScratch: [PolygonsPipeline.Vertex] = []
     private var tileTextEntriesScratch: [TextEntry] = []
+    private var tileProjectedTextVerticesScratch: [TextVertex] = []
+    private var tileWatermarkProjectionInputsScratch: [TilePointInput] = []
     private let tileOutlineThicknessPx: Float = 3.5
     private let tileLabelInsetPx = SIMD2<Float>(8.0, 8.0)
+    private let tileWatermarkMaxWidthUV: Float = 0.22
+    private let tileWatermarkMaxHeightUV: Float = 0.04
+    private let tileWatermarkPaddingPx = SIMD2<Float>(8.0, 4.0)
     private let tileLabelTextColor = SIMD3<Float>(1.0, 0.95, 0.2)
     private let tileLabelStrokeColor = SIMD3<Float>(0.0, 0.0, 0.0)
     private let tileLabelStrokeWidthPx: Float = 5.0
     private let tileOutlineColor = SIMD4<Float>(1.0, 0.95, 0.2, 0.95)
+    private static let tileWatermarkUVs = makeTileWatermarkUVs()
 
     init(metalDevice: MTLDevice,
          settings: ImmersiveMapSettings.DebugSettings) {
@@ -103,8 +97,12 @@ final class DebugOverlayRenderer {
         guard placeTiles.isEmpty == false else { return }
 
         tileTextEntriesScratch.removeAll(keepingCapacity: true)
+        tileProjectedTextVerticesScratch.removeAll(keepingCapacity: true)
+        tileWatermarkProjectionInputsScratch.removeAll(keepingCapacity: true)
         lineVerticesScratch.removeAll(keepingCapacity: true)
-        tileTextEntriesScratch.reserveCapacity(placeTiles.count * 2)
+        tileTextEntriesScratch.reserveCapacity(placeTiles.count * 10)
+        tileProjectedTextVerticesScratch.reserveCapacity(placeTiles.count * 9 * 96)
+        tileWatermarkProjectionInputsScratch.reserveCapacity(Self.tileWatermarkUVs.count * 3)
         lineVerticesScratch.reserveCapacity(placeTiles.count * 64)
 
         let labelScale = max(settings.diagnosticsScale * 0.5, 28.0)
@@ -118,6 +116,7 @@ final class DebugOverlayRenderer {
                                       frameContext: frameContext,
                                       color: tileOutlineColor)
             appendTileTextEntries(into: &tileTextEntriesScratch,
+                                  projectedVertices: &tileProjectedTextVerticesScratch,
                                   placeTile: placeTile,
                                   frameContext: frameContext,
                                   scale: labelScale,
@@ -142,6 +141,15 @@ final class DebugOverlayRenderer {
                                                     strokeColor: tileLabelStrokeColor,
                                                     strokeWidthPx: tileLabelStrokeWidthPx))
         }
+        if tileProjectedTextVerticesScratch.isEmpty == false {
+            drawTextEntries(renderEncoder: renderEncoder,
+                            textRenderer: textRenderer,
+                            screenMatrix: frameContext.cameraMatrices.screen,
+                            frameSlotIndex: frameContext.frameSlotIndex,
+                            entries: [],
+                            projectedVertices: tileProjectedTextVerticesScratch,
+                            style: Self.makeTileWatermarkTextStyle())
+        }
     }
 
     private func drawTextEntries(renderEncoder: MTLRenderCommandEncoder,
@@ -149,9 +157,11 @@ final class DebugOverlayRenderer {
                                  screenMatrix: matrix_float4x4,
                                  frameSlotIndex: Int,
                                  entries: [TextEntry],
+                                 projectedVertices: [TextVertex] = [],
                                  style: TextStyleUniform? = nil) {
-        guard entries.isEmpty == false else { return }
+        guard entries.isEmpty == false || projectedVertices.isEmpty == false else { return }
         textRenderer.collectMultiTextVertices(into: &textVerticesScratch, for: entries)
+        textVerticesScratch.append(contentsOf: projectedVertices)
         guard textVerticesScratch.isEmpty == false else { return }
 
         var textStyle = style ?? TextStyleUniform(textColor: settings.textColor)
@@ -262,11 +272,28 @@ final class DebugOverlayRenderer {
     }
 
     static func formatTileCoordinateString(_ tile: Tile) -> String {
-        "\(tile.z)/\(tile.x)/\(tile.y)"
+        "tile = \(tile.x)/\(tile.y)/\(tile.z)"
     }
 
-    static func makeDistributedTileCoordinateLines(_ tile: Tile) -> [String] {
-        ["z:\(tile.z)", "x:\(tile.x)", "y:\(tile.y)"]
+    static func makeTileWatermarkTextStyle() -> TextStyleUniform {
+        TextStyleUniform(textColor: SIMD3<Float>(1.0, 0.95, 0.2),
+                         strokeColor: SIMD3<Float>(0.0, 0.0, 0.0),
+                         strokeWidthPx: 2.0)
+    }
+
+    static func makeTileWatermarkUVs(gridSize: Int = 3) -> [SIMD2<Float>] {
+        let clampedGridSize = max(1, gridSize)
+        let step = 1.0 / Float(clampedGridSize + 1)
+        var uvs: [SIMD2<Float>] = []
+        uvs.reserveCapacity(clampedGridSize * clampedGridSize)
+
+        for row in 1...clampedGridSize {
+            for column in 1...clampedGridSize {
+                uvs.append(SIMD2<Float>(Float(column) * step,
+                                        Float(row) * step))
+            }
+        }
+        return uvs
     }
 
     static func makeTileTextEntries(anchor: SIMD2<Float>,
@@ -288,70 +315,51 @@ final class DebugOverlayRenderer {
         return entries
     }
 
-    static func makeDistributedTileTextEntries(anchorPoints: [SIMD2<Float>],
-                                               lines: [String],
-                                               scale: Float) -> [TextEntry] {
-        guard anchorPoints.isEmpty == false, lines.isEmpty == false else {
-            return []
-        }
-
-        var entries: [TextEntry] = []
-        entries.reserveCapacity(lines.count)
-        for (index, line) in lines.enumerated() {
-            let anchorPoint = anchorPoints[min(index, anchorPoints.count - 1)]
-            entries.append(TextEntry(text: line,
-                                     position: anchorPoint,
-                                     scale: scale))
-        }
-        return entries
+    static func makeTileWatermarkProjectionPointInputs(anchorUV: SIMD2<Float>,
+                                                       metrics: TextMetrics,
+                                                       tile: Tile,
+                                                       maxWidthUV: Float,
+                                                       maxHeightUV: Float,
+                                                       paddingPx: SIMD2<Float> = .zero) -> [TilePointInput] {
+        var inputs: [TilePointInput] = []
+        inputs.reserveCapacity(3)
+        appendTileWatermarkProjectionPointInputs(anchorUV: anchorUV,
+                                                 metrics: metrics,
+                                                 tile: tile,
+                                                 maxWidthUV: maxWidthUV,
+                                                 maxHeightUV: maxHeightUV,
+                                                 paddingPx: paddingPx,
+                                                 into: &inputs)
+        return inputs
     }
 
-    private func makeCornerTileTextEntries(anchors: [TileTextCornerAnchor],
-                                           lines: [String],
-                                           scale: Float,
-                                           lineAdvance: Float,
-                                           textRenderer: TextRenderer) -> [TextEntry] {
-        guard anchors.isEmpty == false, lines.isEmpty == false else {
-            return []
+    private static func appendTileWatermarkProjectionPointInputs(anchorUV: SIMD2<Float>,
+                                                                 metrics: TextMetrics,
+                                                                 tile: Tile,
+                                                                 maxWidthUV: Float,
+                                                                 maxHeightUV: Float,
+                                                                 paddingPx: SIMD2<Float>,
+                                                                 into inputs: inout [TilePointInput]) {
+        guard metrics.vertices.isEmpty == false,
+              metrics.size.width > 0,
+              metrics.size.height > 0 else {
+            return
         }
 
-        let blockWidth = lines.reduce(Float.zero) { currentMax, line in
-            max(currentMax,
-                textRenderer.collectLabelVertices(for: line,
-                                                  labelIndex: 0,
-                                                  scale: scale).size.width)
-        }
-        let blockHeight = max(0.0, Float(lines.count - 1) * lineAdvance)
-
-        var entries: [TextEntry] = []
-        entries.reserveCapacity(anchors.count * lines.count)
-
-        for anchor in anchors {
-            let originX: Float
-            switch anchor.alignment {
-            case .topLeft, .bottomLeft:
-                originX = anchor.position.x + tileLabelInsetPx.x
-            case .topRight, .bottomRight:
-                originX = anchor.position.x - tileLabelInsetPx.x - blockWidth
-            }
-
-            let topLineY: Float
-            switch anchor.alignment {
-            case .topLeft, .topRight:
-                topLineY = anchor.position.y - tileLabelInsetPx.y
-            case .bottomLeft, .bottomRight:
-                topLineY = anchor.position.y + tileLabelInsetPx.y + blockHeight
-            }
-
-            for (index, line) in lines.enumerated() {
-                entries.append(TextEntry(text: line,
-                                         position: SIMD2<Float>(originX,
-                                                                topLineY - (Float(index) * lineAdvance)),
-                                         scale: scale))
-            }
-        }
-
-        return entries
+        let paddedWidth = Float(metrics.size.width) + paddingPx.x * 2.0
+        let paddedHeight = Float(metrics.size.height) + paddingPx.y * 2.0
+        let uvScale = min(maxWidthUV / paddedWidth,
+                          maxHeightUV / paddedHeight)
+        let tileVector = SIMD3<Int32>(Int32(tile.x), Int32(tile.y), Int32(tile.z))
+        inputs.append(TilePointInput(uv: anchorUV,
+                                     tile: tileVector,
+                                     tileSlotIndex: 0))
+        inputs.append(TilePointInput(uv: SIMD2<Float>(anchorUV.x + uvScale, anchorUV.y),
+                                     tile: tileVector,
+                                     tileSlotIndex: 0))
+        inputs.append(TilePointInput(uv: SIMD2<Float>(anchorUV.x, anchorUV.y - uvScale),
+                                     tile: tileVector,
+                                     tileSlotIndex: 0))
     }
 
     static func makeTileOverlaySegments(segmentCountPerEdge: Int) -> [TileOverlayLineSegment] {
@@ -456,22 +464,20 @@ final class DebugOverlayRenderer {
     }
 
     private func appendTileTextEntries(into entries: inout [TextEntry],
+                                       projectedVertices: inout [TextVertex],
                                        placeTile: PlaceTile,
                                        frameContext: FrameContext,
                                        scale: Float,
                                        lineAdvance: Float,
                                        textRenderer: TextRenderer) {
-        let primaryLines = Self.makeDistributedTileCoordinateLines(placeTile.placeIn.tile)
-        let primaryAnchors = makeTileLabelCornerAnchors(placeTile: placeTile,
-                                                        frameContext: frameContext)
-        guard primaryAnchors.isEmpty == false else {
-            return
-        }
-        entries.append(contentsOf: makeCornerTileTextEntries(anchors: primaryAnchors,
-                                                             lines: primaryLines,
-                                                             scale: scale,
-                                                             lineAdvance: lineAdvance,
-                                                             textRenderer: textRenderer))
+        let primaryText = Self.formatTileCoordinateString(placeTile.placeIn.tile)
+        let primaryMetrics = textRenderer.collectLabelVertices(for: primaryText,
+                                                               labelIndex: 0,
+                                                               scale: scale)
+        appendTileWatermarkVertices(into: &projectedVertices,
+                                    metrics: primaryMetrics,
+                                    placeTile: placeTile,
+                                    frameContext: frameContext)
 
         let sourceTile = placeTile.metalTile.tile
         if placeTile.lodKind != .exact || sourceTile != placeTile.placeIn.tile {
@@ -504,37 +510,59 @@ final class DebugOverlayRenderer {
                                    size: originAndSize.z)]
     }
 
-    private func makeTileLabelCornerAnchors(placeTile: PlaceTile,
-                                            frameContext: FrameContext) -> [TileTextCornerAnchor] {
-        let candidates: [(uv: SIMD2<Float>, alignment: TileTextCornerAlignment)] = [
-            (SIMD2<Float>(0.14, 0.14), .topLeft),
-            (SIMD2<Float>(0.86, 0.14), .topRight),
-            (SIMD2<Float>(0.14, 0.86), .bottomLeft),
-            (SIMD2<Float>(0.86, 0.86), .bottomRight)
-        ]
-        let pointInputs = candidates.map {
-            TilePointInput(uv: $0.uv,
-                           tile: SIMD3<Int32>(Int32(placeTile.placeIn.x),
-                                              Int32(placeTile.placeIn.y),
-                                              Int32(placeTile.placeIn.z)),
-                           tileSlotIndex: 0)
+    private func appendTileWatermarkVertices(into vertices: inout [TextVertex],
+                                             metrics: TextMetrics,
+                                             placeTile: PlaceTile,
+                                             frameContext: FrameContext) {
+        guard metrics.vertices.isEmpty == false else { return }
+
+        tileWatermarkProjectionInputsScratch.removeAll(keepingCapacity: true)
+        for anchorUV in Self.tileWatermarkUVs {
+            Self.appendTileWatermarkProjectionPointInputs(anchorUV: anchorUV,
+                                                          metrics: metrics,
+                                                          tile: placeTile.placeIn.tile,
+                                                          maxWidthUV: tileWatermarkMaxWidthUV,
+                                                          maxHeightUV: tileWatermarkMaxHeightUV,
+                                                          paddingPx: tileWatermarkPaddingPx,
+                                                          into: &tileWatermarkProjectionInputsScratch)
         }
-        let snapshot = TilePointToScreenPointSnapshot(pointInputs: pointInputs,
+        let snapshot = TilePointToScreenPointSnapshot(pointInputs: tileWatermarkProjectionInputsScratch,
                                                       tileSlotVisibleTileIndices: [0])
         let points = tilePointScreenProjector.project(snapshot: snapshot,
                                                       frameContext: frameContext,
                                                       tileOriginData: makeTileOriginData(for: placeTile,
                                                                                          frameContext: frameContext))
-        var anchors: [TileTextCornerAnchor] = []
-        anchors.reserveCapacity(candidates.count)
+        guard points.count == tileWatermarkProjectionInputsScratch.count else { return }
 
-        for (index, candidate) in candidates.enumerated() where index < points.count {
-            let point = points[index]
-            guard point.visible != 0 else { continue }
-            anchors.append(TileTextCornerAnchor(position: point.position,
-                                                alignment: candidate.alignment))
+        let projectedPointCountPerAnchor = 3
+        let textCenter = SIMD2<Float>(Float(metrics.size.width) * 0.5,
+                                      Float(metrics.size.height) * 0.5)
+        for anchorIndex in Self.tileWatermarkUVs.indices {
+            let anchorOffset = anchorIndex * projectedPointCountPerAnchor
+            let centerPoint = points[anchorOffset]
+            let xUnitPoint = points[anchorOffset + 1]
+            let yUnitPoint = points[anchorOffset + 2]
+            guard centerPoint.visible != 0,
+                  xUnitPoint.visible != 0,
+                  yUnitPoint.visible != 0 else {
+                continue
+            }
+
+            let xAxis = xUnitPoint.position - centerPoint.position
+            let yAxis = yUnitPoint.position - centerPoint.position
+            var vertexIndex = 0
+            while vertexIndex < metrics.vertices.count {
+                let vertex = metrics.vertices[vertexIndex]
+                let centered = vertex.position - textCenter
+                let position = centerPoint.position + xAxis * centered.x + yAxis * centered.y
+                vertices.append(TextVertex(position: SIMD4<Float>(position.x,
+                                                                  position.y,
+                                                                  0.0,
+                                                                  1.0),
+                                           uv: vertex.uv))
+                vertexIndex += 1
+            }
         }
-        return anchors
     }
 
     private func makeTileSourceLabelAnchorPoint(placeTile: PlaceTile,

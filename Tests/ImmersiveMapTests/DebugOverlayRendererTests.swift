@@ -122,6 +122,85 @@ final class DebugOverlayRendererTests: XCTestCase {
         XCTAssertEqual(allocation.atlasPreviewLabel, "z2/2/1")
     }
 
+    func testTileCoordinateDebugLabelUsesXYZOrder() {
+        let tile = Tile(x: 154, y: 79, z: 8)
+
+        XCTAssertEqual(DebugOverlayRenderer.formatTileCoordinateString(tile), "tile = 154/79/8")
+    }
+
+    func testTileCoordinateWatermarkAnchorsAreDistributedInsideTile() {
+        XCTAssertEqual(DebugOverlayRenderer.makeTileWatermarkUVs(gridSize: 3), [
+            SIMD2<Float>(0.25, 0.25),
+            SIMD2<Float>(0.50, 0.25),
+            SIMD2<Float>(0.75, 0.25),
+            SIMD2<Float>(0.25, 0.50),
+            SIMD2<Float>(0.50, 0.50),
+            SIMD2<Float>(0.75, 0.50),
+            SIMD2<Float>(0.25, 0.75),
+            SIMD2<Float>(0.50, 0.75),
+            SIMD2<Float>(0.75, 0.75)
+        ])
+    }
+
+    func testTileCoordinateWatermarkProjectionInputsUseOnlyLocalBasisPoints() {
+        let metrics = TextMetrics(
+            size: TextSize(width: 100, height: 20),
+            vertices: [
+                LabelVertex(position: SIMD2<Float>(0, 0), uv: .zero, labelIndex: 0),
+                LabelVertex(position: SIMD2<Float>(100, 20), uv: .zero, labelIndex: 0)
+            ]
+        )
+        let tile = Tile(x: 154, y: 79, z: 8)
+
+        let inputs = DebugOverlayRenderer.makeTileWatermarkProjectionPointInputs(
+            anchorUV: SIMD2<Float>(0.5, 0.5),
+            metrics: metrics,
+            tile: tile,
+            maxWidthUV: 0.2,
+            maxHeightUV: 0.1
+        )
+
+        XCTAssertEqual(inputs.map(\.uv), [
+            SIMD2<Float>(0.5, 0.5),
+            SIMD2<Float>(0.502, 0.5),
+            SIMD2<Float>(0.5, 0.498)
+        ])
+        XCTAssertEqual(inputs.map(\.tile), [
+            SIMD3<Int32>(154, 79, 8),
+            SIMD3<Int32>(154, 79, 8),
+            SIMD3<Int32>(154, 79, 8)
+        ])
+    }
+
+    func testTileCoordinateWatermarkProjectionInputsAccountForPadding() {
+        let metrics = TextMetrics(
+            size: TextSize(width: 100, height: 20),
+            vertices: [
+                LabelVertex(position: SIMD2<Float>(0, 0), uv: .zero, labelIndex: 0)
+            ]
+        )
+        let tile = Tile(x: 154, y: 79, z: 8)
+
+        let inputs = DebugOverlayRenderer.makeTileWatermarkProjectionPointInputs(
+            anchorUV: SIMD2<Float>(0.5, 0.5),
+            metrics: metrics,
+            tile: tile,
+            maxWidthUV: 0.2,
+            maxHeightUV: 0.1,
+            paddingPx: SIMD2<Float>(8, 4)
+        )
+
+        XCTAssertEqual(inputs.map(\.uv), [
+            SIMD2<Float>(0.5, 0.5),
+            SIMD2<Float>(0.5017241, 0.5),
+            SIMD2<Float>(0.5, 0.49827588)
+        ])
+    }
+
+    func testTileCoordinateWatermarkUsesSmallTextStrokeWidth() {
+        XCTAssertEqual(DebugOverlayRenderer.makeTileWatermarkTextStyle().strokeWidthPx, 2.0)
+    }
+
     func testOverlayDiagnosticsIncludeCameraLinesWithoutFrameDiagnostics() {
         let lines = DebugOverlayRenderer.makeOverlayDiagnosticsTextLines(
             cameraDebugLines: ["camera z:5.41 pitch:36.00 bearing:18.00"],
