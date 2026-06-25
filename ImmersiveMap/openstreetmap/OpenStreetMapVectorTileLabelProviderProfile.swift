@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 struct OpenStreetMapVectorTileLabelProviderProfile: VectorTileLabelProviderProfile {
+    private let lowZoomOverviewMaximumTileZoom = 3
+    private let lowZoomMajorCityMinimumPopulation = 1_000_000
+
     let providerID = "openstreetmap"
     let languagePreferences: VectorTileLabelLanguagePreferences
 
@@ -41,9 +44,16 @@ struct OpenStreetMapVectorTileLabelProviderProfile: VectorTileLabelProviderProfi
                                 properties: [String: VectorTile_Tile.Value],
                                 tileZoom: Int,
                                 sortKey: Int) -> Bool {
+        guard hasName(properties) else {
+            return false
+        }
         switch layerName.lowercased() {
-        case "place_labels", "boundary_labels", "water_polygons_labels", "water_lines_labels", "pois", "public_transport":
-            return hasName(properties)
+        case "boundary_labels":
+            return includesBoundaryLabel(properties: properties, tileZoom: tileZoom)
+        case "place_labels":
+            return includesPlaceLabel(properties: properties, tileZoom: tileZoom)
+        case "water_polygons_labels", "water_lines_labels", "pois", "public_transport":
+            return tileZoom > lowZoomOverviewMaximumTileZoom
         default:
             return false
         }
@@ -81,6 +91,25 @@ struct OpenStreetMapVectorTileLabelProviderProfile: VectorTileLabelProviderProfi
         properties["name"]?.stringValue.isEmpty == false
             || properties["name_en"]?.stringValue.isEmpty == false
             || properties["name_de"]?.stringValue.isEmpty == false
+    }
+
+    private func includesBoundaryLabel(properties: [String: VectorTile_Tile.Value], tileZoom: Int) -> Bool {
+        guard tileZoom <= lowZoomOverviewMaximumTileZoom else {
+            return true
+        }
+        return parseIntValue(properties["admin_level"]) == 2
+    }
+
+    private func includesPlaceLabel(properties: [String: VectorTile_Tile.Value], tileZoom: Int) -> Bool {
+        guard tileZoom <= lowZoomOverviewMaximumTileZoom else {
+            return true
+        }
+        guard let kind = properties["kind"]?.stringValue.lowercased(),
+              ["capital", "state_capital", "city"].contains(kind),
+              let population = parseIntValue(properties["population"]) else {
+            return false
+        }
+        return population >= lowZoomMajorCityMinimumPopulation
     }
 
     private func parseIntValue(_ value: VectorTile_Tile.Value?) -> Int? {

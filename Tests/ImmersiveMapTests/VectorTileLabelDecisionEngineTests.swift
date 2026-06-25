@@ -489,6 +489,60 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
                                                       sortKey: 1))
     }
 
+    func testOpenStreetMapProfileKeepsOnlyCountriesAndMajorCitiesAtZoomThree() {
+        let profile = OpenStreetMapVectorTileLabelProviderProfile(settings: .default)
+
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "boundary_labels",
+                                                     properties: [
+                                                        "name": stringValue("Russia"),
+                                                        "admin_level": intValue(2)
+                                                     ],
+                                                     tileZoom: 3,
+                                                     sortKey: 1))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "boundary_labels",
+                                                      properties: [
+                                                        "name": stringValue("Moscow Oblast"),
+                                                        "admin_level": intValue(4)
+                                                      ],
+                                                      tileZoom: 3,
+                                                      sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "boundary_labels",
+                                                     properties: [
+                                                        "name": stringValue("Moscow Oblast"),
+                                                        "admin_level": intValue(4)
+                                                     ],
+                                                     tileZoom: 4,
+                                                     sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_labels",
+                                                     properties: [
+                                                        "name": stringValue("Moscow"),
+                                                        "kind": stringValue("city"),
+                                                        "population": intValue(13_000_000)
+                                                     ],
+                                                     tileZoom: 3,
+                                                     sortKey: 1))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_labels",
+                                                      properties: [
+                                                        "name": stringValue("Regional City"),
+                                                        "kind": stringValue("city"),
+                                                        "population": intValue(600_000)
+                                                      ],
+                                                      tileZoom: 3,
+                                                      sortKey: 1))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_labels",
+                                                      properties: [
+                                                        "name": stringValue("Large Town"),
+                                                        "kind": stringValue("town"),
+                                                        "population": intValue(2_000_000)
+                                                      ],
+                                                      tileZoom: 3,
+                                                      sortKey: 1))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "water_polygons_labels",
+                                                      properties: ["name": stringValue("Local Lake")],
+                                                      tileZoom: 3,
+                                                      sortKey: 1))
+    }
+
     func testDecisionEngineBuildsTextLabelCompatibleDecision() {
         let style = LabelTextStyle(key: 30,
                                    fillColor: SIMD3<Float>(0.1, 0.2, 0.3),

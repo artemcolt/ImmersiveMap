@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
+    private static let implementationRevision: UInt32 = 2
+
     private let fallbackKey: UInt8 = 0
     private let configuration: OpenStreetMapDefaultMapStyleConfiguration
     private let settings: ImmersiveMapSettings.StyleSettings
@@ -21,7 +23,7 @@ final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
     }
 
     var preparedTileStyleRevision: UInt32 {
-        settings.preparedTileStyleRevision &+ configuration.cacheFingerprint
+        settings.preparedTileStyleRevision &+ configuration.cacheFingerprint &+ Self.implementationRevision
     }
 
     func getMapBaseColors() -> ImmersiveMapBaseColors {
@@ -66,7 +68,7 @@ final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
         case "pois", "public_transport":
             return pointLabel(key: 71, appearance: configuration.labels.poi)
         case "boundary_labels":
-            return pointLabel(key: 72, appearance: configuration.labels.boundary)
+            return pointLabel(key: 72, appearance: boundaryAppearance(tileZoom: data.tile.z))
         case "water_polygons_labels", "water_lines_labels":
             return pointLabel(key: 73, appearance: configuration.labels.water)
         default:
@@ -192,6 +194,16 @@ final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
         default:
             break
         }
+        return appearance
+    }
+
+    private func boundaryAppearance(tileZoom: Int) -> OpenStreetMapDefaultMapStyleConfiguration.LabelAppearance {
+        var appearance = configuration.labels.boundary
+        guard tileZoom <= 2 else {
+            return appearance
+        }
+        appearance.sizePx *= 2
+        appearance.strokeWidthPx *= 2
         return appearance
     }
 

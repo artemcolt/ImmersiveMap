@@ -70,6 +70,18 @@ final class OpenStreetMapDefaultMapStyleTests: XCTestCase {
         XCTAssertEqual(labels.boundary.strokeWidthPx, 2.6, accuracy: 0.0001)
     }
 
+    func testCountryLabelsAreDoubledAtLowZoomOnly() throws {
+        let style = OpenStreetMapDefaultMapStyle(configuration: .osmDefault,
+                                                settings: ImmersiveMapSettings.default.style)
+        let lowZoom = try XCTUnwrap(makeStyle(style, layerName: "boundary_labels", zoom: 2).labelTextStyle)
+        let nextZoom = try XCTUnwrap(makeStyle(style, layerName: "boundary_labels", zoom: 3).labelTextStyle)
+
+        XCTAssertEqual(lowZoom.sizePx, 28, accuracy: 0.0001)
+        XCTAssertEqual(lowZoom.strokeWidthPx, 5.2, accuracy: 0.0001)
+        XCTAssertEqual(nextZoom.sizePx, 14, accuracy: 0.0001)
+        XCTAssertEqual(nextZoom.strokeWidthPx, 2.6, accuracy: 0.0001)
+    }
+
     private func makeStyle(_ style: OpenStreetMapDefaultMapStyle,
                            layerName: String,
                            properties: [String: VectorTile_Tile.Value] = [:],
