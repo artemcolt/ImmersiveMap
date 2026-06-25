@@ -83,8 +83,9 @@ final class DebugOverlayRendererTests: XCTestCase {
 
         XCTAssertEqual(snapshot?.coordinateLines.zoom, "z: 5.41")
         XCTAssertEqual(snapshot?.coordinateLines.latLon, "lat: 55.756 lon: 37.617")
-        XCTAssertEqual(snapshot?.diagnosticsLines.first, "camera z:5.41 pitch:36.00 bearing:18.00")
-        XCTAssertTrue(snapshot?.diagnosticsLines.contains { $0.hasPrefix("frame: 42") } == true)
+        XCTAssertTrue(snapshot?.diagnosticsLines.contains("[Camera]") == true)
+        XCTAssertTrue(snapshot?.diagnosticsLines.contains("camera z:5.41 pitch:36.00 bearing:18.00") == true)
+        XCTAssertTrue(snapshot?.diagnosticsLines.contains { $0.hasPrefix("frame:42") } == true)
     }
 
     func testHudSnapshotIncludesAtlasPagesWhenSummaryExists() throws {
@@ -138,8 +139,9 @@ final class DebugOverlayRendererTests: XCTestCase {
             diagnostics: diagnostics
         )
 
-        XCTAssertEqual(lines.first, "camera z:5.41 pitch:36.00 bearing:18.00")
-        XCTAssertTrue(lines.contains { $0.hasPrefix("frame: 42") })
+        XCTAssertEqual(Array(lines.prefix(2)), ["[Camera]", "camera z:5.41 pitch:36.00 bearing:18.00"])
+        XCTAssertTrue(lines.contains("[Frame]"))
+        XCTAssertTrue(lines.contains { $0.hasPrefix("frame:42") })
     }
 
     func testOverlayDiagnosticsIncludeRamUsageWhenAvailable() {
@@ -152,6 +154,62 @@ final class DebugOverlayRendererTests: XCTestCase {
         )
 
         XCTAssertTrue(lines.contains("memory ram:128.0MB"))
+    }
+
+    func testOverlayDiagnosticsGroupsStatsAndAddsFPS() {
+        let diagnostics = FrameDiagnostics(frameIndex: 909, frameTime: 67.44)
+        diagnostics.setCounter(.visibleTiles, value: 16)
+        diagnostics.setCounter(.readyTiles, value: 25)
+        diagnostics.setCounter(.requestedTiles, value: 0)
+        diagnostics.setCounter(.renderedTiles, value: 16)
+        diagnostics.setCounter(.baseLabelCount, value: 181)
+        diagnostics.setCounter(.roadLabelGlyphCount, value: 0)
+        diagnostics.setCounter(.roadLabelInstanceCount, value: 0)
+        diagnostics.setCounter(.resourceBufferCount, value: 1)
+        diagnostics.setCounter(.resourceTextureCount, value: 3)
+        diagnostics.setCounter(.resourcePipelineCount, value: 5)
+        diagnostics.setCounter(.globeCullingVisitedNodes, value: 85)
+        diagnostics.setCounter(.globeCullingFrustumRejects, value: 15)
+        diagnostics.setCounter(.globeCullingHorizonRejects, value: 33)
+        diagnostics.setCounter(.globeCullingAcceptedLeafTiles, value: 16)
+        diagnostics.setCounter(.globeCullingAcceptedWholeSubtrees, value: 0)
+        diagnostics.setMeasurement(.globeCullingDurationMs, value: 0.07)
+        diagnostics.recordSkipReason(.debugOverlayDisabled)
+        diagnostics.recordSkipReason(.noAvatarContent)
+
+        let lines = DebugOverlayRenderer.makeOverlayDiagnosticsTextLines(
+            cameraDebugLines: [
+                "camera z:3.93 pitch:0.00 bearing:15.00",
+                "surface:globe transition:0.00 viewport:3298x1996"
+            ],
+            diagnostics: diagnostics,
+            memorySnapshot: ProcessMemorySnapshot(physicalFootprintBytes: 128 * 1024 * 1024)
+        )
+
+        XCTAssertEqual(lines, [
+            "[Camera]",
+            "camera z:3.93 pitch:0.00 bearing:15.00",
+            "surface:globe transition:0.00 viewport:3298x1996",
+            "",
+            "[Frame]",
+            "frame:909 dt:67.44ms fps:14.8",
+            "memory ram:128.0MB",
+            "",
+            "[Tiles]",
+            "vis:16 ready:25 req:0 draw:16",
+            "",
+            "[Labels]",
+            "base:181 roadG:0 roadI:0",
+            "",
+            "[Resources]",
+            "buffers:1 textures:3 pipelines:5",
+            "",
+            "[Globe culling]",
+            "ms:0.07 nodes:85 frustum:15 horizon:33 leaf:16 subtree:0",
+            "",
+            "[Skip]",
+            "debugOverlayDisabled,noAvatarContent"
+        ])
     }
 
     private func makeSingleAllocationAtlasPlan() throws -> GlobeAtlasPlan {

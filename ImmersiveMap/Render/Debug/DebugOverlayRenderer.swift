@@ -189,42 +189,71 @@ final class DebugOverlayRenderer {
         guard let diagnostics else {
             return cameraDebugLines
         }
-        return cameraDebugLines + makeDiagnosticsTextLines(from: diagnostics,
-                                                           memorySnapshot: memorySnapshot)
+        var lines: [String] = []
+        appendSection(title: "Camera", body: cameraDebugLines, into: &lines)
+        appendDiagnosticsSections(from: diagnostics,
+                                  memorySnapshot: memorySnapshot,
+                                  into: &lines)
+        return lines
     }
 
-    private static func makeDiagnosticsTextLines(from diagnostics: FrameDiagnostics,
-                                                memorySnapshot: ProcessMemorySnapshot?) -> [String] {
-        let frameLine = "frame: \(diagnostics.frameIndex)  dt: " +
-            diagnostics.frameTime.formatted(.number.precision(.fractionLength(2)))
+    private static func appendDiagnosticsSections(from diagnostics: FrameDiagnostics,
+                                                  memorySnapshot: ProcessMemorySnapshot?,
+                                                  into lines: inout [String]) {
+        let frameTimeText = String(format: "%.2f", diagnostics.frameTime)
+        let fpsText = diagnostics.frameTime > 0
+            ? String(format: "%.1f", 1000.0 / diagnostics.frameTime)
+            : "--"
+        let frameLine = "frame:\(diagnostics.frameIndex) dt:\(frameTimeText)ms fps:\(fpsText)"
         let memoryLine = memorySnapshot.map { snapshot in
             "memory ram:\(String(format: "%.1f", snapshot.physicalFootprintMegabytes))MB"
         }
-        let tileLine = "tiles vis:\(diagnostics.counterValue(.visibleTiles)) " +
+        appendSection(title: "Frame",
+                      body: [frameLine, memoryLine].compactMap(\.self),
+                      into: &lines)
+
+        let tileLine = "vis:\(diagnostics.counterValue(.visibleTiles)) " +
             "ready:\(diagnostics.counterValue(.readyTiles)) " +
             "req:\(diagnostics.counterValue(.requestedTiles)) " +
             "draw:\(diagnostics.counterValue(.renderedTiles))"
-        let labelLine = "labels base:\(diagnostics.counterValue(.baseLabelCount)) " +
+        appendSection(title: "Tiles", body: [tileLine], into: &lines)
+
+        let labelLine = "base:\(diagnostics.counterValue(.baseLabelCount)) " +
             "roadG:\(diagnostics.counterValue(.roadLabelGlyphCount)) " +
             "roadI:\(diagnostics.counterValue(.roadLabelInstanceCount))"
-        let resourcesLine = "resources b:\(diagnostics.counterValue(.resourceBufferCount)) " +
-            "t:\(diagnostics.counterValue(.resourceTextureCount)) " +
-            "p:\(diagnostics.counterValue(.resourcePipelineCount))"
-        let globeCullingLine = "globeCull ms:\(diagnostics.measurementValue(.globeCullingDurationMs).formatted(.number.precision(.fractionLength(2)))) " +
-            "n:\(diagnostics.counterValue(.globeCullingVisitedNodes)) " +
-            "f:\(diagnostics.counterValue(.globeCullingFrustumRejects)) " +
-            "h:\(diagnostics.counterValue(.globeCullingHorizonRejects)) " +
+        appendSection(title: "Labels", body: [labelLine], into: &lines)
+
+        let resourcesLine = "buffers:\(diagnostics.counterValue(.resourceBufferCount)) " +
+            "textures:\(diagnostics.counterValue(.resourceTextureCount)) " +
+            "pipelines:\(diagnostics.counterValue(.resourcePipelineCount))"
+        appendSection(title: "Resources", body: [resourcesLine], into: &lines)
+
+        let globeCullingMs = String(format: "%.2f", diagnostics.measurementValue(.globeCullingDurationMs))
+        let globeCullingLine = "ms:\(globeCullingMs) " +
+            "nodes:\(diagnostics.counterValue(.globeCullingVisitedNodes)) " +
+            "frustum:\(diagnostics.counterValue(.globeCullingFrustumRejects)) " +
+            "horizon:\(diagnostics.counterValue(.globeCullingHorizonRejects)) " +
             "leaf:\(diagnostics.counterValue(.globeCullingAcceptedLeafTiles)) " +
-            "acc:\(diagnostics.counterValue(.globeCullingAcceptedWholeSubtrees))"
-        let skipLine: String
+            "subtree:\(diagnostics.counterValue(.globeCullingAcceptedWholeSubtrees))"
+        appendSection(title: "Globe culling", body: [globeCullingLine], into: &lines)
+
+        let skipBody: String
         if diagnostics.skipReasons.isEmpty {
-            skipLine = "skip: none"
+            skipBody = "none"
         } else {
             let reasons = diagnostics.skipReasons.map(\.rawValue).sorted().joined(separator: ",")
-            skipLine = "skip: \(reasons)"
+            skipBody = reasons
         }
-        return [frameLine, memoryLine, tileLine, labelLine, resourcesLine, globeCullingLine, skipLine]
-            .compactMap(\.self)
+        appendSection(title: "Skip", body: [skipBody], into: &lines)
+    }
+
+    private static func appendSection(title: String, body: [String], into lines: inout [String]) {
+        guard body.isEmpty == false else { return }
+        if lines.isEmpty == false {
+            lines.append("")
+        }
+        lines.append("[\(title)]")
+        lines.append(contentsOf: body)
     }
 
     private func makeLineAdvance(textRenderer: TextRenderer, scale: Float) -> Float {
