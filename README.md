@@ -40,5 +40,3 @@ struct ContentView: View {
     }
 }
 ```
-
-Use your own Mapbox public access token. Do not commit real tokens to source control.
