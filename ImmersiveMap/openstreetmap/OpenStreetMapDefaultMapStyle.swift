@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
-    private static let implementationRevision: UInt32 = 2
+    private static let implementationRevision: UInt32 = 3
 
     private let fallbackKey: UInt8 = 0
+    private let maximumOverviewWaterLabelZoom = 6
     private let configuration: OpenStreetMapDefaultMapStyleConfiguration
     private let settings: ImmersiveMapSettings.StyleSettings
     private let mapBaseColors: ImmersiveMapBaseColors
@@ -70,7 +71,7 @@ final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
         case "boundary_labels":
             return pointLabel(key: 72, appearance: boundaryAppearance(tileZoom: data.tile.z))
         case "water_polygons_labels", "water_lines_labels":
-            return pointLabel(key: 73, appearance: configuration.labels.water)
+            return waterLabelStyle(tileZoom: data.tile.z)
         default:
             if route == "ferry" {
                 return line(key: 51, color: configuration.layers.water, width: 2.0, dashLength: 6, dashGap: 6)
@@ -156,6 +157,17 @@ final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
         )
     }
 
+    private func waterLabelStyle(tileZoom: Int) -> FeatureStyle {
+        guard tileZoom > maximumOverviewWaterLabelZoom else {
+            return FeatureStyle(
+                key: 73,
+                color: SIMD4<Float>(0, 0, 0, 0),
+                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 0)
+            )
+        }
+        return pointLabel(key: 73, appearance: configuration.labels.water)
+    }
+
     private func polygon(key: UInt8, color: SIMD4<Float>) -> FeatureStyle {
         FeatureStyle(
             key: key,
@@ -199,7 +211,7 @@ final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
 
     private func boundaryAppearance(tileZoom: Int) -> OpenStreetMapDefaultMapStyleConfiguration.LabelAppearance {
         var appearance = configuration.labels.boundary
-        guard tileZoom <= 2 else {
+        guard tileZoom <= 3 else {
             return appearance
         }
         appearance.sizePx *= 2

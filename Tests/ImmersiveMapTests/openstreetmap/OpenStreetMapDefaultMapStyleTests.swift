@@ -70,16 +70,29 @@ final class OpenStreetMapDefaultMapStyleTests: XCTestCase {
         XCTAssertEqual(labels.boundary.strokeWidthPx, 2.6, accuracy: 0.0001)
     }
 
-    func testCountryLabelsAreDoubledAtLowZoomOnly() throws {
+    func testCountryLabelsStayReadableThroughZoomThree() throws {
         let style = OpenStreetMapDefaultMapStyle(configuration: .osmDefault,
                                                 settings: ImmersiveMapSettings.default.style)
         let lowZoom = try XCTUnwrap(makeStyle(style, layerName: "boundary_labels", zoom: 2).labelTextStyle)
-        let nextZoom = try XCTUnwrap(makeStyle(style, layerName: "boundary_labels", zoom: 3).labelTextStyle)
+        let zoomThree = try XCTUnwrap(makeStyle(style, layerName: "boundary_labels", zoom: 3).labelTextStyle)
+        let nextZoom = try XCTUnwrap(makeStyle(style, layerName: "boundary_labels", zoom: 4).labelTextStyle)
 
         XCTAssertEqual(lowZoom.sizePx, 28, accuracy: 0.0001)
         XCTAssertEqual(lowZoom.strokeWidthPx, 5.2, accuracy: 0.0001)
+        XCTAssertEqual(zoomThree.sizePx, 28, accuracy: 0.0001)
+        XCTAssertEqual(zoomThree.strokeWidthPx, 5.2, accuracy: 0.0001)
         XCTAssertEqual(nextZoom.sizePx, 14, accuracy: 0.0001)
         XCTAssertEqual(nextZoom.strokeWidthPx, 2.6, accuracy: 0.0001)
+    }
+
+    func testWaterLabelsAreHiddenOnOverviewZooms() {
+        let style = OpenStreetMapDefaultMapStyle(configuration: .osmDefault,
+                                                settings: ImmersiveMapSettings.default.style)
+
+        XCTAssertNil(makeStyle(style, layerName: "water_polygons_labels", zoom: 5).labelTextStyle)
+        XCTAssertNil(makeStyle(style, layerName: "water_lines_labels", zoom: 6).labelTextStyle)
+        XCTAssertNotNil(makeStyle(style, layerName: "water_polygons_labels", zoom: 7).labelTextStyle)
+        XCTAssertNotNil(makeStyle(style, layerName: "water_lines_labels", zoom: 7).labelTextStyle)
     }
 
     private func makeStyle(_ style: OpenStreetMapDefaultMapStyle,
