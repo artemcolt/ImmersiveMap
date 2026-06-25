@@ -209,12 +209,7 @@ final class DebugOverlayHUDView: UIView {
         let traceBlockHeight = selectedTab == .atlas
             ? Layout.controlRowHeight + Layout.controlSpacing + Layout.traceStatusHeight + sectionSpacing
             : 0
-        let textContentWidth = min(max(zoomSize.width,
-                                       latLonSize.width,
-                                       diagnosticsSize.width,
-                                       tilesStatusSize.width,
-                                       atlasDetailsSize.width), maxContentWidth)
-        let contentWidth = max(Layout.expandedMinimumWidth, textContentWidth)
+        let contentWidth = max(Layout.expandedMinimumWidth, maxContentWidth)
         let controlsBodyHeight = Layout.controlRowHeight * 5 + Layout.controlSpacing * 4
         let statsBodyHeight = zoomSize.height
             + latLonSize.height

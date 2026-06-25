@@ -165,6 +165,32 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertEqual(view.tilesStatusTextForTesting, "tiles: idle")
     }
 
+    func testTilesTabKeepsPanelWidthStableWhenStatusTextChanges() {
+        let view = DebugOverlayHUDView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: true,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
+
+        view.apply(snapshot: makeTileStatusSnapshot(settings: settings,
+                                                    lines: ["network in:0 done:1 fail:0"]))
+        view.simulateTilesTabSelectionForTesting()
+        view.layoutIfNeeded()
+        let shortStatusWidth = view.debugPanelFrameForTesting.width
+
+        view.apply(snapshot: makeTileStatusSnapshot(settings: settings,
+                                                    lines: [
+                                                        "tiles req:2 dedup:2 active:2 scheduled:236",
+                                                        "parse layers z7/74/36: water_polygons 30513ms, ocean 79ms, streets 24ms"
+                                                    ]))
+        view.layoutIfNeeded()
+
+        XCTAssertEqual(view.debugPanelFrameForTesting.width, shortStatusWidth)
+    }
+
     func testTilesTabScrollsWhenManyTileRowsAreVisible() {
         let view = DebugOverlayHUDView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         var settings = ImmersiveMapSettings.default.debug
@@ -289,6 +315,23 @@ final class DebugOverlayHUDViewTests: XCTestCase {
             diagnosticsLines: [],
             atlasPages: atlasPages,
             tileLoadingStatusLines: [],
+            tileLoadingStatusTiles: [],
+            coordinateScale: settings.coordinateScale,
+            diagnosticsScale: settings.diagnosticsScale,
+            leftPadding: settings.leftPadding,
+            topPadding: settings.topPadding,
+            sectionSpacing: settings.sectionSpacing,
+            textColor: settings.textColor
+        )
+    }
+
+    private func makeTileStatusSnapshot(settings: ImmersiveMapSettings.DebugSettings,
+                                        lines: [String]) -> DebugOverlayHUDSnapshot {
+        DebugOverlayHUDSnapshot(
+            coordinateLines: DebugOverlayCoordinateLines(zoom: "z: 1.00", latLon: "lat: 0.000 lon: 0.000"),
+            diagnosticsLines: [],
+            atlasPages: [],
+            tileLoadingStatusLines: lines,
             tileLoadingStatusTiles: [],
             coordinateScale: settings.coordinateScale,
             diagnosticsScale: settings.diagnosticsScale,
