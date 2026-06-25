@@ -72,21 +72,40 @@ final class GenericVectorTileStyle: ImmersiveMapStyle {
                 extrusionAnchorZoom: anchorZoom,
                 extrusionFallbackHeight: fallbackHeight
             )
+        case .pointLabel(let textStyle):
+            return FeatureStyle(
+                key: key,
+                color: SIMD4<Float>(0, 0, 0, 0),
+                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 0),
+                labelTextStyle: makeLabelTextStyle(key: Int(key), style: textStyle)
+            )
+        case .roadLabel(let color, let width, let textStyle):
+            return FeatureStyle(
+                key: key,
+                color: color,
+                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: Double(max(Float(0), width))),
+                includeRoadLabelPath: true,
+                roadLabelTextStyle: makeLabelTextStyle(key: Int(key), style: textStyle)
+            )
         }
+    }
+
+    private func makeLabelTextStyle(key: Int, style: ImmersiveMapLabelTextStyle) -> LabelTextStyle {
+        LabelTextStyle(
+            key: key,
+            fillColor: style.fillColor,
+            strokeColor: style.strokeColor,
+            strokeWidthPx: style.strokeWidthPx,
+            sizePx: style.sizePx,
+            weight: style.weight
+        )
     }
 
     private func styleKey(layerName: String, style: ImmersiveMapFeatureStyle) -> UInt8 {
-        var hash: UInt64 = 1469598103934665603
-        mix(providerID, into: &hash)
-        mix(layerName, into: &hash)
-        mix(String(describing: style), into: &hash)
-        return UInt8(3 + (hash % 205))
-    }
-
-    private func mix(_ string: String, into hash: inout UInt64) {
-        for byte in string.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1099511628211
-        }
+        var hasher = StableFNV1aHasher()
+        hasher.combine(providerID)
+        hasher.combine(layerName)
+        hasher.combine(String(describing: style))
+        return UInt8(3 + (hasher.finalize() % 205))
     }
 }

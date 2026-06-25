@@ -9,9 +9,22 @@ struct VectorTileLabelTextResolver {
     }
 
     func resolveText(properties: [String: VectorTile_Tile.Value],
-                     preferences: VectorTileLabelLanguagePreferences) -> String? {
+                     preferences: VectorTileLabelLanguagePreferences,
+                     additionalKeys: [String] = []) -> String? {
+        var resolvedKeys = Set<String>()
         for candidate in preferences.fallbackChain {
+            resolvedKeys.insert(candidate.fieldName)
             guard let text = properties[candidate.fieldName]?.stringValue,
+                  text.isEmpty == false,
+                  glyphCoverage.canRender(text) else {
+                continue
+            }
+
+            return text
+        }
+
+        for key in additionalKeys where resolvedKeys.insert(key).inserted {
+            guard let text = properties[key]?.stringValue,
                   text.isEmpty == false,
                   glyphCoverage.canRender(text) else {
                 continue
@@ -23,12 +36,16 @@ struct VectorTileLabelTextResolver {
         return nil
     }
 
-    func resolveHouseNumber(properties: [String: VectorTile_Tile.Value]) -> String? {
-        guard let text = properties["house_num"]?.stringValue,
-              text.isEmpty == false,
-              glyphCoverage.canRender(text) else {
-            return nil
+    func resolveHouseNumber(properties: [String: VectorTile_Tile.Value],
+                            additionalKeys: [String] = []) -> String? {
+        for key in ["house_num"] + additionalKeys {
+            guard let text = properties[key]?.stringValue,
+                  text.isEmpty == false,
+                  glyphCoverage.canRender(text) else {
+                continue
+            }
+            return text
         }
-        return text
+        return nil
     }
 }

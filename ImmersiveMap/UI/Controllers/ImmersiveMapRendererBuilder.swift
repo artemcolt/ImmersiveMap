@@ -40,8 +40,10 @@ final class ImmersiveMapRendererBuilder {
         let eventSink = ImmersiveMapRenderEventSink(renderRuntime: renderRuntime,
                                                     selectionHandler: selectionHandler,
                                                     debugOverlayRuntime: debugOverlayRuntime)
+        let providerRuntime = ImmersiveMapProviderRuntimeContext(settings: settings)
         return RenderFrameEngine(layer: layer,
                                  avatarSource: avatarRuntime,
+                                 providerRuntime: providerRuntime,
                                  settings: settings,
                                  debugOverlayControls: debugOverlayControls,
                                  renderCamera: renderCamera,

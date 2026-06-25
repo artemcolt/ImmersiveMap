@@ -103,13 +103,23 @@ public struct ImmersiveMapView: UIViewRepresentable {
         return view
     }
 
-    public func provider<P: ImmersiveMapProvider>(_ provider: P) -> ImmersiveMapView {
-        self.provider(AnyImmersiveMapProvider(provider))
+    public func tileProvider<P: ImmersiveMapTileProvider>(_ tileProvider: P) -> ImmersiveMapView {
+        self.tileProvider(AnyImmersiveMapTileProvider(tileProvider))
     }
 
-    public func provider(_ provider: AnyImmersiveMapProvider) -> ImmersiveMapView {
+    public func tileProvider(_ tileProvider: AnyImmersiveMapTileProvider) -> ImmersiveMapView {
         var view = self
-        view.settings = view.settings.provider(provider)
+        view.settings = view.settings.tileProvider(tileProvider)
+        return view
+    }
+
+    public func mapStyle<S: ImmersiveMapMapStyle>(_ mapStyle: S) -> ImmersiveMapView {
+        self.mapStyle(AnyImmersiveMapMapStyle(mapStyle))
+    }
+
+    public func mapStyle(_ mapStyle: AnyImmersiveMapMapStyle) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.mapStyle(mapStyle)
         return view
     }
 

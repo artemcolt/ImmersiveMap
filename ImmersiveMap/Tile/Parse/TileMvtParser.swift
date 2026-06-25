@@ -27,6 +27,7 @@ class TileMvtParser {
 
     
     init(determineFeatureStyle: DetermineFeatureStyle,
+         labelProviderProfile: any VectorTileLabelProviderProfile,
          config: ImmersiveMapSettings,
          glyphCoverage: VectorTileLabelGlyphCoverage) {
         self.determineFeatureStyle = determineFeatureStyle
@@ -37,7 +38,7 @@ class TileMvtParser {
             settingsLanguage: config.labels.language,
             fallbackPolicy: config.labels.fallbackPolicy
         )
-        self.labelProviderProfile = config.provider.makeLabelProviderProfile(settings: config)
+        self.labelProviderProfile = labelProviderProfile
         self.labelDecisionEngine = VectorTileLabelDecisionEngine(
             profile: labelProviderProfile,
             textResolver: labelTextResolver
@@ -755,7 +756,8 @@ class TileMvtParser {
                     }
 
                     let labelText = labelTextResolver.resolveText(properties: attributes,
-                                                                  preferences: labelLanguagePreferences)
+                                                                  preferences: labelLanguagePreferences,
+                                                                  additionalKeys: labelProviderProfile.labelTextKeys)
                     let roadLabelPass = lineRenderPasses.first { $0.includeRoadLabelPath }
                     let roadLabelStyle = style.roadLabelTextStyle
                     let roadStructure = roadStructureKind(attributes: attributes)

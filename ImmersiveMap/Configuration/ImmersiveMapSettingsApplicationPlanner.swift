@@ -57,15 +57,18 @@ public enum ImmersiveMapSettingsApplicationPlanner {
         if oldValue.presentation != newValue.presentation {
             mark(.presentation, actions: [.liveApply])
         }
-        if oldValue.provider != newValue.provider {
-            if oldValue.provider.tileSource != newValue.provider.tileSource {
+        if oldValue.tileProvider != newValue.tileProvider {
+            if oldValue.tileProvider.tileSource != newValue.tileProvider.tileSource {
                 mark(.tiles, actions: [.invalidateCaches, .recreateRenderer])
+            } else if oldValue.tileProvider.configurationFingerprint != newValue.tileProvider.configurationFingerprint
+                || oldValue.tileProvider.id != newValue.tileProvider.id
+                || oldValue.tileProvider.cacheNamespace != newValue.tileProvider.cacheNamespace
+                || oldValue.tileProvider.maximumTileZoomLevel != newValue.tileProvider.maximumTileZoomLevel {
+                mark(.tiles, actions: [.invalidateCaches, .rebuildPreparedData, .recreateRenderer])
             }
-            if oldValue.provider.configurationFingerprint != newValue.provider.configurationFingerprint
-                || oldValue.provider.id != newValue.provider.id
-                || oldValue.provider.cacheNamespace != newValue.provider.cacheNamespace {
-                mark(.style, actions: [.invalidateCaches, .rebuildPreparedData, .rebuildGPUResources, .recreateRenderer])
-            }
+        }
+        if oldValue.mapStyle != newValue.mapStyle {
+            mark(.style, actions: [.invalidateCaches, .rebuildPreparedData, .rebuildGPUResources, .recreateRenderer])
         }
         if oldValue.debug != newValue.debug {
             mark(.debug, actions: [.liveApply])

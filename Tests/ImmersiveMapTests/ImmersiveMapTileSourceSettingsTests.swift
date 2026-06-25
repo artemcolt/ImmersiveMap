@@ -38,30 +38,38 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertTrue(settings.debug.enableDebugPanel)
     }
 
-    func testProviderSettingsModifierStoresMapboxProviderConfiguration() {
+    func testTileProviderAndMapStyleSettingsModifiersStoreMapboxConfiguration() {
         let style = MapboxDefaultMapStyleConfiguration.mapboxDefault.labels { labels in
             labels.district.strokeWidthPx = 1.25
         }
 
-        let provider = MapboxProvider(accessToken: "mapbox-token", style: style)
-        let settings = ImmersiveMapSettings.default.provider(provider)
+        let tileProvider = MapboxTileProvider(accessToken: "mapbox-token")
+        let mapStyle = MapboxMapStyle(configuration: style)
+        let settings = ImmersiveMapSettings.default
+            .tileProvider(tileProvider)
+            .mapStyle(mapStyle)
 
-        XCTAssertEqual(settings.provider, AnyImmersiveMapProvider(provider))
+        XCTAssertEqual(settings.tileProvider, AnyImmersiveMapTileProvider(tileProvider))
+        XCTAssertEqual(settings.mapStyle, AnyImmersiveMapMapStyle(mapStyle))
         XCTAssertNotEqual(settings, ImmersiveMapSettings.default)
     }
 
     #if canImport(UIKit)
-    func testProviderViewModifierStoresMapboxProviderConfiguration() throws {
+    func testTileProviderAndMapStyleViewModifiersStoreMapboxConfiguration() throws {
         let style = MapboxDefaultMapStyleConfiguration.mapboxDefault.labels { labels in
             labels.poi.strokeWidthPx = 3.5
         }
-        let provider = MapboxProvider(accessToken: "mapbox-token", style: style)
+        let tileProvider = MapboxTileProvider(accessToken: "mapbox-token")
+        let mapStyle = MapboxMapStyle(configuration: style)
 
-        let view = ImmersiveMapView().provider(provider)
+        let view = ImmersiveMapView()
+            .tileProvider(tileProvider)
+            .mapStyle(mapStyle)
 
         let settings: ImmersiveMapSettings? = reflectedValue("settings", in: view)
         let unwrappedSettings = try XCTUnwrap(settings)
-        XCTAssertEqual(unwrappedSettings.provider, AnyImmersiveMapProvider(provider))
+        XCTAssertEqual(unwrappedSettings.tileProvider, AnyImmersiveMapTileProvider(tileProvider))
+        XCTAssertEqual(unwrappedSettings.mapStyle, AnyImmersiveMapMapStyle(mapStyle))
     }
     #endif
 
@@ -192,54 +200,54 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertEqual(settings.debug, debug)
     }
 
-    func testCustomProviderConfiguresGenericURLAndBearerToken() {
+    func testVectorTileProviderConfiguresGenericURLAndBearerToken() {
         let url = URL(string: "https://tiles.example.com/vector")!
-        let provider = CustomVectorTileProvider(
+        let provider = VectorTileProvider(
             id: "custom",
             tileSource: .url(url).token("public-token"),
-            style: BasicVectorTileStyle()
+            maximumTileZoomLevel: 12
         )
 
-        let settings = ImmersiveMapSettings.default.provider(provider)
+        let settings = ImmersiveMapSettings.default.tileProvider(provider)
 
         XCTAssertEqual(settings.tiles.network.tileBaseURL, url)
         XCTAssertEqual(settings.tiles.network.authorizationToken, "public-token")
         XCTAssertEqual(settings.tiles.network.authorizationMode, .bearerHeader)
-        XCTAssertEqual(settings.provider, AnyImmersiveMapProvider(provider))
+        XCTAssertEqual(settings.tileProvider, AnyImmersiveMapTileProvider(provider))
+        XCTAssertEqual(settings.tiles.coverage.maximumZoomLevel, 12)
     }
 
-    func testMapboxProviderUsesMapboxVectorTileURLAndAccessTokenQueryAuthorization() {
-        let provider = MapboxProvider(accessToken: "mapbox-token")
+    func testMapboxTileProviderUsesMapboxVectorTileURLAndAccessTokenQueryAuthorization() {
+        let provider = MapboxTileProvider(accessToken: "mapbox-token")
 
-        let settings = ImmersiveMapSettings.default.provider(provider)
+        let settings = ImmersiveMapSettings.default.tileProvider(provider)
 
         XCTAssertEqual(settings.tiles.network.tileBaseURL.absoluteString,
                        "https://api.mapbox.com/v4/mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2")
         XCTAssertEqual(settings.tiles.network.authorizationToken, "mapbox-token")
         XCTAssertEqual(settings.tiles.network.authorizationMode, .accessTokenQuery(parameterName: "access_token"))
-        XCTAssertEqual(settings.provider, AnyImmersiveMapProvider(provider))
+        XCTAssertEqual(settings.tileProvider, AnyImmersiveMapTileProvider(provider))
     }
 
-    func testCustomProviderUpdatesNetworkURLTokenAndAuthorizationMode() {
+    func testVectorTileProviderUpdatesNetworkURLTokenAndAuthorizationMode() {
         let url = URL(string: "https://tiles.example.com/vector")!
-        let provider = CustomVectorTileProvider(
+        let provider = VectorTileProvider(
             id: "custom-query",
             tileSource: ImmersiveMapTileSource(tileBaseURL: url,
                                                accessToken: "public-token",
-                                               authorization: .accessTokenQuery(parameterName: "access_token")),
-            style: BasicVectorTileStyle()
+                                               authorization: .accessTokenQuery(parameterName: "access_token"))
         )
 
-        let settings = ImmersiveMapSettings.default.provider(provider)
+        let settings = ImmersiveMapSettings.default.tileProvider(provider)
 
         XCTAssertEqual(settings.tiles.network.tileBaseURL, url)
         XCTAssertEqual(settings.tiles.network.authorizationToken, "public-token")
         XCTAssertEqual(settings.tiles.network.authorizationMode, .accessTokenQuery(parameterName: "access_token"))
     }
 
-    func testMapboxProviderTilesetIDControlsMapboxVectorTileURL() {
-        let settings = ImmersiveMapSettings.default.provider(
-            MapboxProvider(accessToken: "mapbox-token", tilesetID: "example.tileset")
+    func testMapboxTileProviderTilesetIDControlsMapboxVectorTileURL() {
+        let settings = ImmersiveMapSettings.default.tileProvider(
+            MapboxTileProvider(accessToken: "mapbox-token", tilesetID: "example.tileset")
         )
 
         XCTAssertEqual(settings.tiles.network.tileBaseURL.absoluteString,

@@ -10,6 +10,7 @@ final class TileMvtParserRoadLabelTests: XCTestCase {
         config.labels.language = .french
 
         let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: RoadLabelStyle()),
+                                   labelProviderProfile: ImmersiveMapProviderRuntimeContext(settings: config).labelProviderProfile,
                                    config: config,
                                    glyphCoverage: .legacyAtlasForTests)
         let parsedTile = try parser.parse(tile: Tile(x: 0, y: 0, z: 14),

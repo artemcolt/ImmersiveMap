@@ -56,6 +56,7 @@ final class RenderPersistentContext {
 
     init(layer: CAMetalLayer,
          avatarSource: AvatarRenderSource,
+         providerRuntime: ImmersiveMapProviderRuntimeContext,
          config: ImmersiveMapSettings,
          eventSink: RenderFrameEventSink,
          tileTraceRecorder: TileTraceRecorder) {
@@ -68,8 +69,7 @@ final class RenderPersistentContext {
         self.globeCapDepthState = metal.device.makeDepthStencilState(descriptor: Self.makeGlobeCapDepthDescriptor())!
         self.depthDisabledState = metal.device.makeDepthStencilState(descriptor: Self.makeDepthDisabledDescriptor())!
 
-        let mapStyle = config.provider.makeRuntimeMapStyle(settings: config.style)
-        let mapBaseColors = mapStyle.getMapBaseColors()
+        let mapBaseColors = providerRuntime.mapBaseColors
 
         let pipelineFactory = RenderPipelineFactory(metalContext: metal,
                                                     layer: layer,
@@ -105,7 +105,7 @@ final class RenderPersistentContext {
         self.poiSpriteAtlas = PoiSpriteAtlas(device: metal.device)
         self.tilesTexture = GlobeTilesTexture(metalDevice: metal.device,
                                               tilePipeline: globeTileTexturePipeline)
-        self.tileRenderStore = TileRenderStore(mapStyle: mapStyle,
+        self.tileRenderStore = TileRenderStore(providerRuntime: providerRuntime,
                                                metalDevice: metal.device,
                                                textRenderer: textRenderer,
                                                config: config,

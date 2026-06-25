@@ -16,10 +16,12 @@ struct VectorTileLabelDecisionEngine {
                                 poiIcon: PoiSpriteIcon?) -> VectorTileLabelDecision? {
         let text: String?
         if profile.isHouseNumberLayer(feature.layerName) {
-            text = textResolver.resolveHouseNumber(properties: feature.properties)
+            text = textResolver.resolveHouseNumber(properties: feature.properties,
+                                                   additionalKeys: profile.houseNumberTextKeys)
         } else {
             text = textResolver.resolveText(properties: feature.properties,
-                                            preferences: profile.languagePreferences)
+                                            preferences: profile.languagePreferences,
+                                            additionalKeys: profile.labelTextKeys)
         }
 
         guard let resolvedText = text else {

@@ -24,22 +24,15 @@ struct PreparedTileCacheIdentity {
     }
 
     static func tileSourceRevision(for network: ImmersiveMapSettings.TileSettings.NetworkSettings) -> UInt64 {
-        var hash: UInt64 = 1469598103934665603
-        mix(network.tileBaseURL.absoluteString, into: &hash)
+        var hasher = StableFNV1aHasher()
+        hasher.combine(network.tileBaseURL.absoluteString)
         switch network.authorizationMode {
         case .bearerHeader:
-            mix("bearerHeader", into: &hash)
+            hasher.combine("bearerHeader")
         case .accessTokenQuery(let parameterName):
-            mix("accessTokenQuery:\(parameterName)", into: &hash)
+            hasher.combine("accessTokenQuery:\(parameterName)")
         }
-        return hash
-    }
-
-    private static func mix(_ string: String, into hash: inout UInt64) {
-        for byte in string.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1099511628211
-        }
+        return hasher.finalize()
     }
 }
 

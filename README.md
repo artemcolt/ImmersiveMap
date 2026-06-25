@@ -55,7 +55,7 @@ the map will request:
 https://example.com/api/v1/map/tiles/12/2411/1539.mvt
 ```
 
-Configure the endpoint by passing a provider to `.provider(...)`. For a generic vector tile endpoint, use `CustomVectorTileProvider` with `ImmersiveMapTileSource.url(...)`; if your tile server requires a bearer token, add `.token(...)`.
+Configure the endpoint with `.tileProvider(...)` and the visual rendering with `.mapStyle(...)`. For a generic vector tile endpoint, use `VectorTileProvider` with `ImmersiveMapTileSource.url(...)`; if your tile server requires a bearer token, add `.token(...)`.
 
 ## Xcode Workspace
 
@@ -102,13 +102,13 @@ struct MapScreen: View {
                     pitch: 0
                 )
             )
-            .provider(
-                CustomVectorTileProvider(
+            .tileProvider(
+                VectorTileProvider(
                     id: "example",
-                    tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!),
-                    style: BasicVectorTileStyle()
+                    tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!)
                 )
             )
+            .mapStyle(VectorTileMapStyle(style: BasicVectorTileStyle()))
             .ignoresSafeArea()
     }
 }
@@ -128,13 +128,13 @@ final class MapViewController: UIViewController {
         super.viewDidLoad()
 
         let settings = ImmersiveMapSettings.default
-            .provider(
-                CustomVectorTileProvider(
+            .tileProvider(
+                VectorTileProvider(
                     id: "example",
-                    tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!),
-                    style: BasicVectorTileStyle()
+                    tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!)
                 )
             )
+            .mapStyle(VectorTileMapStyle(style: BasicVectorTileStyle()))
 
         let mapView = ImmersiveMapUIView(
             frame: view.bounds,
@@ -227,33 +227,35 @@ Pass it into SwiftUI:
 ```swift
 ImmersiveMapView()
     .selection(selection)
-    .provider(
-        CustomVectorTileProvider(
+    .tileProvider(
+        VectorTileProvider(
             id: "example",
-            tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!),
-            style: BasicVectorTileStyle()
+            tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!)
         )
     )
+    .mapStyle(VectorTileMapStyle(style: BasicVectorTileStyle()))
 ```
 
 ## Common Configuration
 
 ```swift
 ImmersiveMapView()
-    .provider(
-        CustomVectorTileProvider(
+    .tileProvider(
+        VectorTileProvider(
             id: "example",
             tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!)
-                .token("your-token"),
-            style: BasicVectorTileStyle()
+                .token("your-token")
         )
     )
+    .mapStyle(VectorTileMapStyle(style: BasicVectorTileStyle()))
 
 ImmersiveMapView()
-    .provider(MapboxProvider(accessToken: "your-mapbox-public-token"))
+    .tileProvider(MapboxTileProvider(accessToken: "your-mapbox-public-token"))
+    .mapStyle(MapboxMapStyle())
 
 ImmersiveMapView()
-    .provider(OpenStreetMapProvider())
+    .tileProvider(OpenStreetMapTileProvider())
+    .mapStyle(OpenStreetMapMapStyle())
 ```
 
 Use fluent settings modifiers when you need to tune lower-level renderer, cache, label, or camera settings:
@@ -263,14 +265,14 @@ let labels = ImmersiveMapSettings.default.labels
 let camera = ImmersiveMapSettings.default.camera
 
 ImmersiveMapView()
-    .provider(
-        CustomVectorTileProvider(
+    .tileProvider(
+        VectorTileProvider(
             id: "example",
             tileSource: .url(URL(string: "https://example.com/api/v1/map/tiles")!)
-                .token("your-token"),
-            style: BasicVectorTileStyle()
+                .token("your-token")
         )
     )
+    .mapStyle(VectorTileMapStyle(style: BasicVectorTileStyle()))
     .labelSettings(
         .init(
             language: .french,
@@ -318,7 +320,7 @@ ImmersiveMapView()
 
 ### Mapbox Default Map Style
 
-Pass a configured `MapboxProvider` to tune common rendering tokens for the built-in Mapbox-compatible renderer:
+Use `MapboxTileProvider` for the tile source and `MapboxMapStyle` to tune common rendering tokens for the built-in Mapbox-compatible renderer:
 
 ```swift
 let style = MapboxDefaultMapStyleConfiguration.mapboxDefault
@@ -338,18 +340,20 @@ let style = MapboxDefaultMapStyleConfiguration.mapboxDefault
     }
 
 ImmersiveMapView()
-    .provider(MapboxProvider(accessToken: "your-mapbox-public-token", style: style))
+    .tileProvider(MapboxTileProvider(accessToken: "your-mapbox-public-token"))
+    .mapStyle(MapboxMapStyle(configuration: style))
 ```
 
 Changing map style tokens invalidates prepared tile cache entries automatically.
 
 ### OpenStreetMap Default Map Style
 
-`OpenStreetMapProvider` uses the OSMF Shortbread vector tile endpoint by default:
+`OpenStreetMapTileProvider` uses the OSMF Shortbread vector tile endpoint by default:
 
 ```swift
 ImmersiveMapView()
-    .provider(OpenStreetMapProvider())
+    .tileProvider(OpenStreetMapTileProvider())
+    .mapStyle(OpenStreetMapMapStyle())
 ```
 
 Tune the built-in Shortbread-compatible renderer with `OpenStreetMapDefaultMapStyleConfiguration.osmDefault`:
@@ -371,10 +375,11 @@ let style = OpenStreetMapDefaultMapStyleConfiguration.osmDefault
     }
 
 ImmersiveMapView()
-    .provider(OpenStreetMapProvider(style: style))
+    .tileProvider(OpenStreetMapTileProvider())
+    .mapStyle(OpenStreetMapMapStyle(configuration: style))
 ```
 
-The default URL is `https://vector.openstreetmap.org/shortbread_v1/{z}/{x}/{y}.mvt`. `OpenStreetMapProvider` also limits tile coverage to Shortbread's max zoom 14. Follow the [OSMF Vector Tile Usage Policy](https://operations.osmfoundation.org/policies/vector/) for attribution, User-Agent, caching, and traffic limits.
+The default URL is `https://vector.openstreetmap.org/shortbread_v1/{z}/{x}/{y}.mvt`. `OpenStreetMapTileProvider` also limits tile coverage to Shortbread's max zoom 14. Follow the [OSMF Vector Tile Usage Policy](https://operations.osmfoundation.org/policies/vector/) for attribution, User-Agent, caching, and traffic limits.
 
 ## Build This Package
 
@@ -400,7 +405,7 @@ xcodebuild \
 
 - The package contains Metal shaders and runtime resources. Always add it as a Swift Package product, not by copying individual Swift files.
 - The tile parser is designed for vector tiles with layers and attributes used by the engine's style system. If your tile source uses a different schema, you may need to adjust parsing or styling code.
-- Production apps should explicitly set `.provider(...)` and cache/network settings.
+- Production apps should explicitly set `.tileProvider(...)`, `.mapStyle(...)`, and cache/network settings.
 
 ## License
 

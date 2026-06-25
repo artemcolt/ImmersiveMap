@@ -1,13 +1,12 @@
 // Copyright (c) 2025-2026 Artem Bobkin.
 // SPDX-License-Identifier: MIT
 
-public struct MapboxProvider: ImmersiveMapProvider {
+public struct MapboxTileProvider: ImmersiveMapTileProvider {
     public static let defaultTilesetID = "mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2"
     public static let defaultMaximumTileZoomLevel = 20
 
     public let accessToken: String?
     public let tilesetID: String
-    public let style: MapboxDefaultMapStyleConfiguration
 
     public var id: String {
         "mapbox"
@@ -18,50 +17,55 @@ public struct MapboxProvider: ImmersiveMapProvider {
     }
 
     public var configurationFingerprint: UInt64 {
-        var hash: UInt64 = 1469598103934665603
-        mix(id, into: &hash)
-        mix(tilesetID, into: &hash)
-        mix(String(style.cacheFingerprint), into: &hash)
-        return hash
+        var hasher = StableFNV1aHasher()
+        hasher.combine(id)
+        hasher.combine(cacheNamespace)
+        hasher.combine(tilesetID)
+        hasher.combine(String(Self.defaultMaximumTileZoomLevel))
+        return hasher.finalize()
     }
 
     public var tileSource: ImmersiveMapTileSource {
         .mapbox(tilesetID: tilesetID, accessToken: accessToken)
     }
 
-    public var vectorTileStyle: any ImmersiveMapVectorTileStyle {
-        MapboxProviderVectorTileStyle(configuration: style)
-    }
-
-    public init(accessToken: String?,
-                tilesetID: String = MapboxProvider.defaultTilesetID,
-                style: MapboxDefaultMapStyleConfiguration = .mapboxDefault) {
-        self.accessToken = accessToken
-        self.tilesetID = tilesetID
-        self.style = style
-    }
-
-    private func mix(_ string: String, into hash: inout UInt64) {
-        for byte in string.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1099511628211
-        }
-    }
-}
-
-extension MapboxProvider: ImmersiveMapProviderTileCoverageConfiguring {
     public var maximumTileZoomLevel: Int? {
         Self.defaultMaximumTileZoomLevel
     }
+
+    public init(accessToken: String?,
+                tilesetID: String = MapboxTileProvider.defaultTilesetID) {
+        self.accessToken = accessToken
+        self.tilesetID = tilesetID
+    }
 }
 
-extension MapboxProvider: ImmersiveMapProviderRuntime {
-    func makeRuntimeMapStyle(settings: ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle {
-        MapboxDefaultMapStyle(configuration: style, settings: settings)
-    }
-
+extension MapboxTileProvider: ImmersiveMapTileProviderRuntime {
     func makeLabelProviderProfile(settings: ImmersiveMapSettings) -> any VectorTileLabelProviderProfile {
         MapboxVectorTileLabelProviderProfile(settings: settings)
+    }
+}
+
+public struct MapboxMapStyle: ImmersiveMapMapStyle {
+    public let configuration: MapboxDefaultMapStyleConfiguration
+
+    public var configurationFingerprint: UInt64 {
+        UInt64(configuration.cacheFingerprint)
+    }
+
+    public var vectorTileStyle: any ImmersiveMapVectorTileStyle {
+        MapboxProviderVectorTileStyle(configuration: configuration)
+    }
+
+    public init(configuration: MapboxDefaultMapStyleConfiguration = .mapboxDefault) {
+        self.configuration = configuration
+    }
+}
+
+extension MapboxMapStyle: ImmersiveMapMapStyleRuntime {
+    func makeRuntimeMapStyle(providerID: String,
+                             settings: ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle {
+        MapboxDefaultMapStyle(configuration: configuration, settings: settings)
     }
 }
 

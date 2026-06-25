@@ -4,7 +4,7 @@
 import Foundation
 
 extension ImmersiveMapTileSource {
-    static func mapbox(tilesetID: String = MapboxProvider.defaultTilesetID,
+    static func mapbox(tilesetID: String = MapboxTileProvider.defaultTilesetID,
                        accessToken: String?) -> ImmersiveMapTileSource {
         ImmersiveMapTileSource(
             tileBaseURL: URL(string: "https://api.mapbox.com/v4/\(tilesetID)")!,

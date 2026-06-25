@@ -78,15 +78,14 @@ final class ImmersiveMapSettingsApplicationPlannerTests: XCTestCase {
     }
 
     func testMapStyleTokenChangeRebuildsPreparedData() {
-        let oldSettings = ImmersiveMapSettings.default.provider(
-            MapboxProvider(accessToken: "mapbox-token", style: .mapboxDefault)
-        )
-        let newSettings = ImmersiveMapSettings.default.provider(
-            MapboxProvider(accessToken: "mapbox-token",
-                           style: .mapboxDefault.labels { labels in
-                               labels.district.strokeWidthPx = 1.1
-                           })
-        )
+        let oldSettings = ImmersiveMapSettings.default
+            .tileProvider(MapboxTileProvider(accessToken: "mapbox-token"))
+            .mapStyle(MapboxMapStyle(configuration: .mapboxDefault))
+        let newSettings = ImmersiveMapSettings.default
+            .tileProvider(MapboxTileProvider(accessToken: "mapbox-token"))
+            .mapStyle(MapboxMapStyle(configuration: .mapboxDefault.labels { labels in
+                labels.district.strokeWidthPx = 1.1
+            }))
 
         let plan = ImmersiveMapSettingsApplicationPlanner.makePlan(from: oldSettings, to: newSettings)
 

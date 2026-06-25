@@ -20,13 +20,14 @@ final class TileRenderStore {
     weak var eventSink: RenderFrameEventSink?
 
     init(
-        mapStyle: ImmersiveMapStyle,
+        providerRuntime: ImmersiveMapProviderRuntimeContext,
         metalDevice: MTLDevice,
         textRenderer: TextRenderer,
         config: ImmersiveMapSettings,
         tileTraceRecorder: TileTraceRecorder
     ) {
         self.tileTraceRecorder = tileTraceRecorder
+        let mapStyle = providerRuntime.mapStyle
         let preparedTileCacheIdentity = PreparedTileCacheIdentity(
             preparedFormatVersion: PreparedTileDiskCaching.preparedFormatVersion,
             styleRevision: mapStyle.preparedTileStyleRevision,
@@ -45,6 +46,7 @@ final class TileRenderStore {
         )
         let determineFeatureStyle = DetermineFeatureStyle(mapStyle: mapStyle)
         let tileParser = TileMvtParser(determineFeatureStyle: determineFeatureStyle,
+                                       labelProviderProfile: providerRuntime.labelProviderProfile,
                                        config: config,
                                        glyphCoverage: textRenderer.glyphCoverage)
         let textLabelsBuilder = TileTextLabelsBuilder(textRenderer: textRenderer)

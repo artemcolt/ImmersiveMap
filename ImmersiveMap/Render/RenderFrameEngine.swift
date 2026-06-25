@@ -35,6 +35,7 @@ final class RenderFrameEngine {
 
     init(layer: CAMetalLayer,
          avatarSource: AvatarRenderSource,
+         providerRuntime: ImmersiveMapProviderRuntimeContext,
          settings: ImmersiveMapSettings = .default,
          debugOverlayControls: DebugOverlayControlState = DebugOverlayControlState(),
          renderCamera: FrameCameraStateResolver,
@@ -43,6 +44,7 @@ final class RenderFrameEngine {
          tileTraceRecorder: TileTraceRecorder) {
         let persistentContext = RenderPersistentContext(layer: layer,
                                                         avatarSource: avatarSource,
+                                                        providerRuntime: providerRuntime,
                                                         config: settings,
                                                         eventSink: eventSink,
                                                         tileTraceRecorder: tileTraceRecorder)

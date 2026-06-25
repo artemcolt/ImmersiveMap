@@ -103,9 +103,10 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
 
     func testPointLabelsUseConfiguredProviderIDInRuntimeProfile() throws {
         var config = ImmersiveMapSettings.default
-        config = config.provider(ParserProviderIDTestProvider(id: "parser-provider"))
+        config = config.tileProvider(ParserProviderIDTestTileProvider(id: "parser-provider"))
 
         let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: FallbackWaterLabelStyle()),
+                                   labelProviderProfile: ImmersiveMapProviderRuntimeContext(settings: config).labelProviderProfile,
                                    config: config,
                                    glyphCoverage: .legacyAtlasForTests)
         let parsedTile = try parser.parse(tile: Tile(x: 0, y: 0, z: 0),
@@ -122,8 +123,10 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
     }
 
     func testParserNormalizesLayerExtentToInternalTileExtent() throws {
+        let config = ImmersiveMapSettings.default
         let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: ParserSolidPolygonStyle()),
-                                   config: .default,
+                                   labelProviderProfile: ImmersiveMapProviderRuntimeContext(settings: config).labelProviderProfile,
+                                   config: config,
                                    glyphCoverage: .legacyAtlasForTests)
         let parsedTile = try parser.parse(tile: Tile(x: 0, y: 0, z: 0),
                                           mvtData: try makeFullTilePolygonTile(extent: 2048).serializedData())
@@ -138,8 +141,10 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
     }
 
     func testParserSplitsComplexOceanHolesIntoBackgroundPolygons() throws {
+        let config = ImmersiveMapSettings.default
         let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: ParserSolidPolygonStyle()),
-                                   config: .default,
+                                   labelProviderProfile: ImmersiveMapProviderRuntimeContext(settings: config).labelProviderProfile,
+                                   config: config,
                                    glyphCoverage: .legacyAtlasForTests)
         let parsedTile = try parser.parse(tile: Tile(x: 0, y: 0, z: 0),
                                           mvtData: try makeComplexOceanTile().serializedData())
@@ -257,6 +262,7 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         config.labels.fallbackPolicy = fallbackPolicy
 
         let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: FallbackWaterLabelStyle()),
+                                   labelProviderProfile: ImmersiveMapProviderRuntimeContext(settings: config).labelProviderProfile,
                                    config: config,
                                    glyphCoverage: glyphCoverage)
         let parsedTile = try parser.parse(tile: tile,
@@ -380,7 +386,7 @@ private final class ParserSolidPolygonStyle: ImmersiveMapStyle {
     }
 }
 
-private struct ParserProviderIDTestProvider: ImmersiveMapProvider {
+private struct ParserProviderIDTestTileProvider: ImmersiveMapTileProvider {
     let id: String
 
     var cacheNamespace: String {
@@ -395,16 +401,12 @@ private struct ParserProviderIDTestProvider: ImmersiveMapProvider {
         .url(URL(string: "https://example.com/api/v1/map/tiles")!)
     }
 
-    var vectorTileStyle: any ImmersiveMapVectorTileStyle {
-        BasicVectorTileStyle()
+    var maximumTileZoomLevel: Int? {
+        nil
     }
 }
 
-extension ParserProviderIDTestProvider: ImmersiveMapProviderRuntime {
-    func makeRuntimeMapStyle(settings: ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle {
-        FallbackWaterLabelStyle()
-    }
-
+extension ParserProviderIDTestTileProvider: ImmersiveMapTileProviderRuntime {
     func makeLabelProviderProfile(settings: ImmersiveMapSettings) -> any VectorTileLabelProviderProfile {
         ParserProviderIDTestLabelProviderProfile(providerID: id)
     }

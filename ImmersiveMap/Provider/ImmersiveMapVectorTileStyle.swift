@@ -96,6 +96,26 @@ public struct ImmersiveMapFeatureStyleContext {
     public let properties: ImmersiveMapFeatureProperties
 }
 
+public struct ImmersiveMapLabelTextStyle: Equatable {
+    public var fillColor: SIMD3<Float>
+    public var strokeColor: SIMD3<Float>
+    public var strokeWidthPx: Float
+    public var sizePx: Float
+    public var weight: LabelFontWeight
+
+    public init(fillColor: SIMD3<Float>,
+                strokeColor: SIMD3<Float>,
+                strokeWidthPx: Float,
+                sizePx: Float,
+                weight: LabelFontWeight) {
+        self.fillColor = fillColor
+        self.strokeColor = strokeColor
+        self.strokeWidthPx = strokeWidthPx
+        self.sizePx = sizePx
+        self.weight = weight
+    }
+}
+
 public enum ImmersiveMapFeatureStyle: Equatable {
     case hidden
     case polygon(color: SIMD4<Float>)
@@ -104,6 +124,10 @@ public enum ImmersiveMapFeatureStyle: Equatable {
                          heightScale: Float = 1.0,
                          anchorZoom: Int = 16,
                          fallbackHeight: Float = 0)
+    case pointLabel(ImmersiveMapLabelTextStyle)
+    case roadLabel(color: SIMD4<Float>,
+                   width: Float,
+                   textStyle: ImmersiveMapLabelTextStyle)
 }
 
 public protocol ImmersiveMapVectorTileStyle {

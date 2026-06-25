@@ -76,22 +76,15 @@ class TileDiskCaching {
     }
 
     private static func cacheNamespace(for network: ImmersiveMapSettings.TileSettings.NetworkSettings) -> String {
-        var hash: UInt64 = 1469598103934665603
-        mix(network.tileBaseURL.absoluteString, into: &hash)
+        var hasher = StableFNV1aHasher()
+        hasher.combine(network.tileBaseURL.absoluteString)
         switch network.authorizationMode {
         case .bearerHeader:
-            mix("bearerHeader", into: &hash)
+            hasher.combine("bearerHeader")
         case .accessTokenQuery(let parameterName):
-            mix("accessTokenQuery:\(parameterName)", into: &hash)
+            hasher.combine("accessTokenQuery:\(parameterName)")
         }
-        return "v2-\(String(hash, radix: 16))"
-    }
-
-    private static func mix(_ string: String, into hash: inout UInt64) {
-        for byte in string.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1099511628211
-        }
+        return "v2-\(String(hasher.finalize(), radix: 16))"
     }
     
     private func cachePathFor(zoom: Int, x: Int, y: Int) -> URL {

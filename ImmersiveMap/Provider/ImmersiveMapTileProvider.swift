@@ -3,59 +3,46 @@
 
 import Foundation
 
-public protocol ImmersiveMapProvider {
+public protocol ImmersiveMapTileProvider {
     var id: String { get }
     var cacheNamespace: String { get }
     var configurationFingerprint: UInt64 { get }
     var tileSource: ImmersiveMapTileSource { get }
-    var vectorTileStyle: any ImmersiveMapVectorTileStyle { get }
-}
-
-public protocol ImmersiveMapProviderTileCoverageConfiguring {
     var maximumTileZoomLevel: Int? { get }
 }
 
-protocol ImmersiveMapProviderRuntime {
-    func makeRuntimeMapStyle(settings: ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle
+protocol ImmersiveMapTileProviderRuntime {
     func makeLabelProviderProfile(settings: ImmersiveMapSettings) -> any VectorTileLabelProviderProfile
 }
 
-public struct AnyImmersiveMapProvider: Equatable {
+public struct AnyImmersiveMapTileProvider: Equatable {
     public let id: String
     public let cacheNamespace: String
     public let configurationFingerprint: UInt64
     public let tileSource: ImmersiveMapTileSource
     public let maximumTileZoomLevel: Int?
 
-    let vectorTileStyle: any ImmersiveMapVectorTileStyle
-    private let runtimeMapStyleFactory: (ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle
     private let labelProviderProfileFactory: (ImmersiveMapSettings) -> any VectorTileLabelProviderProfile
 
-    public init<P: ImmersiveMapProvider>(_ provider: P) {
+    public init<P: ImmersiveMapTileProvider>(_ provider: P) {
         self.id = provider.id
         self.cacheNamespace = provider.cacheNamespace
         self.configurationFingerprint = provider.configurationFingerprint
         self.tileSource = provider.tileSource
-        self.vectorTileStyle = provider.vectorTileStyle
-        self.maximumTileZoomLevel = (provider as? ImmersiveMapProviderTileCoverageConfiguring)?.maximumTileZoomLevel
+        self.maximumTileZoomLevel = provider.maximumTileZoomLevel
 
-        if let runtimeProvider = provider as? ImmersiveMapProviderRuntime {
-            self.runtimeMapStyleFactory = runtimeProvider.makeRuntimeMapStyle
+        if let runtimeProvider = provider as? ImmersiveMapTileProviderRuntime {
             self.labelProviderProfileFactory = runtimeProvider.makeLabelProviderProfile
         } else {
-            self.runtimeMapStyleFactory = { settings in
-                GenericVectorTileStyle(providerID: provider.id,
-                                       style: provider.vectorTileStyle,
-                                       settings: settings)
-            }
             self.labelProviderProfileFactory = { settings in
                 GenericVectorTileLabelProviderProfile(providerID: provider.id,
-                                                      settings: settings)
+                                                      settings: settings,
+                                                      profile: .generic)
             }
         }
     }
 
-    public static func == (lhs: AnyImmersiveMapProvider, rhs: AnyImmersiveMapProvider) -> Bool {
+    public static func == (lhs: AnyImmersiveMapTileProvider, rhs: AnyImmersiveMapTileProvider) -> Bool {
         lhs.id == rhs.id
             && lhs.cacheNamespace == rhs.cacheNamespace
             && lhs.configurationFingerprint == rhs.configurationFingerprint
@@ -63,64 +50,59 @@ public struct AnyImmersiveMapProvider: Equatable {
             && lhs.maximumTileZoomLevel == rhs.maximumTileZoomLevel
     }
 
-    func makeRuntimeMapStyle(settings: ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle {
-        runtimeMapStyleFactory(settings)
-    }
-
     func makeLabelProviderProfile(settings: ImmersiveMapSettings) -> any VectorTileLabelProviderProfile {
         labelProviderProfileFactory(settings)
     }
 }
 
-public struct CustomVectorTileProvider: ImmersiveMapProvider {
+public struct VectorTileProvider: ImmersiveMapTileProvider {
     public let id: String
     public let cacheNamespace: String
     public let configurationFingerprint: UInt64
     public let tileSource: ImmersiveMapTileSource
-    public let vectorTileStyle: any ImmersiveMapVectorTileStyle
+    public let labelProfile: ImmersiveMapVectorTileLabelProfile
     public let maximumTileZoomLevel: Int?
 
     public init(id: String,
                 cacheNamespace: String? = nil,
                 tileSource: ImmersiveMapTileSource,
-                style: any ImmersiveMapVectorTileStyle,
+                labelProfile: ImmersiveMapVectorTileLabelProfile = .generic,
                 maximumTileZoomLevel: Int? = nil,
                 configurationFingerprint: UInt64? = nil) {
         self.id = id
         self.cacheNamespace = cacheNamespace ?? id
         self.tileSource = tileSource
-        self.vectorTileStyle = style
+        self.labelProfile = labelProfile
         self.maximumTileZoomLevel = maximumTileZoomLevel
         self.configurationFingerprint = configurationFingerprint
             ?? Self.makeFingerprint(id: id,
                                     cacheNamespace: cacheNamespace ?? id,
                                     tileSource: tileSource,
-                                    styleFingerprint: style.cacheFingerprint,
+                                    labelProfileFingerprint: labelProfile.cacheFingerprint,
                                     maximumTileZoomLevel: maximumTileZoomLevel)
     }
 
     private static func makeFingerprint(id: String,
                                         cacheNamespace: String,
                                         tileSource: ImmersiveMapTileSource,
-                                        styleFingerprint: UInt32,
+                                        labelProfileFingerprint: UInt64,
                                         maximumTileZoomLevel: Int?) -> UInt64 {
-        var hash: UInt64 = 1469598103934665603
-        mix(id, into: &hash)
-        mix(cacheNamespace, into: &hash)
-        mix(tileSource.tileBaseURL.absoluteString, into: &hash)
-        mix(String(styleFingerprint), into: &hash)
+        var hasher = StableFNV1aHasher()
+        hasher.combine(id)
+        hasher.combine(cacheNamespace)
+        hasher.combine(tileSource.tileBaseURL.absoluteString)
+        hasher.combine(String(labelProfileFingerprint))
         if let maximumTileZoomLevel {
-            mix(String(maximumTileZoomLevel), into: &hash)
+            hasher.combine(String(maximumTileZoomLevel))
         }
-        return hash
-    }
-
-    private static func mix(_ string: String, into hash: inout UInt64) {
-        for byte in string.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1099511628211
-        }
+        return hasher.finalize()
     }
 }
 
-extension CustomVectorTileProvider: ImmersiveMapProviderTileCoverageConfiguring {}
+extension VectorTileProvider: ImmersiveMapTileProviderRuntime {
+    func makeLabelProviderProfile(settings: ImmersiveMapSettings) -> any VectorTileLabelProviderProfile {
+        GenericVectorTileLabelProviderProfile(providerID: id,
+                                              settings: settings,
+                                              profile: labelProfile)
+    }
+}

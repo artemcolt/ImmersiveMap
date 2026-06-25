@@ -15,6 +15,8 @@ struct ImmersiveMapMacApp: App {
 
 private struct MapScreen: View {
     @State private var camera = ImmersiveMapCameraController()
+    private let tileProvider = ExampleMapProvider.makeTileProvider()
+    private let mapStyle = ExampleMapProvider.makeMapStyle()
 
     var body: some View {
         ImmersiveMapView()
@@ -29,8 +31,8 @@ private struct MapScreen: View {
                 )
             )
             .tileSettings(clearDiskCachesOnLaunch: true)
-            .provider(OpenStreetMapProvider())
-            //.provider(MapboxProvider(accessToken: ProcessInfo.processInfo.environment["IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"]))
+            .tileProvider(tileProvider)
+            .mapStyle(mapStyle)
             .debugPanel()
             .earthScene(isEnabled: true)
             .ignoresSafeArea()

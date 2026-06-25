@@ -668,7 +668,8 @@ public struct ImmersiveMapSettings: Equatable {
     public var renderLoop: RenderLoopSettings
     public var camera: CameraSettings
     public var presentation: PresentationSettings
-    public var provider: AnyImmersiveMapProvider
+    public var tileProvider: AnyImmersiveMapTileProvider
+    public var mapStyle: AnyImmersiveMapMapStyle
     public var tiles: TileSettings
     public var labels: LabelSettings
     public var scene: SceneSettings
@@ -681,7 +682,8 @@ public struct ImmersiveMapSettings: Equatable {
     public init(renderLoop: RenderLoopSettings,
                 camera: CameraSettings,
                 presentation: PresentationSettings,
-                provider: AnyImmersiveMapProvider = AnyImmersiveMapProvider(MapboxProvider(accessToken: nil)),
+                tileProvider: AnyImmersiveMapTileProvider = AnyImmersiveMapTileProvider(MapboxTileProvider(accessToken: nil)),
+                mapStyle: AnyImmersiveMapMapStyle = AnyImmersiveMapMapStyle(MapboxMapStyle()),
                 tiles: TileSettings,
                 labels: LabelSettings,
                 scene: SceneSettings,
@@ -693,7 +695,8 @@ public struct ImmersiveMapSettings: Equatable {
         self.renderLoop = renderLoop
         self.camera = camera
         self.presentation = presentation
-        self.provider = provider
+        self.tileProvider = tileProvider
+        self.mapStyle = mapStyle
         self.tiles = tiles
         self.labels = labels
         self.scene = scene
@@ -738,11 +741,12 @@ public struct ImmersiveMapSettings: Equatable {
         presentation: PresentationSettings(automaticTransitionStartZoom: 6.0,
                                            automaticTransitionSpan: 1.0,
                                            globeRadiusScale: 0.14),
-        provider: AnyImmersiveMapProvider(MapboxProvider(accessToken: nil)),
+        tileProvider: AnyImmersiveMapTileProvider(MapboxTileProvider(accessToken: nil)),
+        mapStyle: AnyImmersiveMapMapStyle(MapboxMapStyle()),
         tiles: TileSettings(coverage: TileSettings.CoverageSettings(maximumZoomLevel: 20),
                             network: TileSettings.NetworkSettings(maxConcurrentFetches: 5,
                                                                   pendingRequestQueueCapacity: 50,
-                                                                  tileBaseURL: MapboxProvider(accessToken: nil).tileSource.tileBaseURL,
+                                                                  tileBaseURL: MapboxTileProvider(accessToken: nil).tileSource.tileBaseURL,
                                                                   authorizationMode: .accessTokenQuery(parameterName: "access_token")),
                             cache: TileSettings.CacheSettings(clearDiskCachesOnLaunch: false,
                                                               rawDiskTimeToLive: 7 * 24 * 60 * 60,
@@ -830,19 +834,29 @@ public extension ImmersiveMapSettings {
         return settings
     }
 
-    func provider<P: ImmersiveMapProvider>(_ provider: P) -> ImmersiveMapSettings {
-        self.provider(AnyImmersiveMapProvider(provider))
+    func tileProvider<P: ImmersiveMapTileProvider>(_ tileProvider: P) -> ImmersiveMapSettings {
+        self.tileProvider(AnyImmersiveMapTileProvider(tileProvider))
     }
 
-    func provider(_ provider: AnyImmersiveMapProvider) -> ImmersiveMapSettings {
+    func tileProvider(_ tileProvider: AnyImmersiveMapTileProvider) -> ImmersiveMapSettings {
         var settings = self
-        settings.provider = provider
-        settings.tiles.network.tileBaseURL = provider.tileSource.tileBaseURL
-        settings.tiles.network.authorizationToken = provider.tileSource.accessToken
-        settings.tiles.network.authorizationMode = provider.tileSource.authorization
-        if let maximumTileZoomLevel = provider.maximumTileZoomLevel {
+        settings.tileProvider = tileProvider
+        settings.tiles.network.tileBaseURL = tileProvider.tileSource.tileBaseURL
+        settings.tiles.network.authorizationToken = tileProvider.tileSource.accessToken
+        settings.tiles.network.authorizationMode = tileProvider.tileSource.authorization
+        if let maximumTileZoomLevel = tileProvider.maximumTileZoomLevel {
             settings.tiles.coverage.maximumZoomLevel = maximumTileZoomLevel
         }
+        return settings
+    }
+
+    func mapStyle<S: ImmersiveMapMapStyle>(_ mapStyle: S) -> ImmersiveMapSettings {
+        self.mapStyle(AnyImmersiveMapMapStyle(mapStyle))
+    }
+
+    func mapStyle(_ mapStyle: AnyImmersiveMapMapStyle) -> ImmersiveMapSettings {
+        var settings = self
+        settings.mapStyle = mapStyle
         return settings
     }
 
