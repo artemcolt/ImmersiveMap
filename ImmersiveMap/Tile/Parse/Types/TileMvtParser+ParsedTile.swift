@@ -22,6 +22,7 @@ extension TileMvtParser {
         let tile: Tile
         let textLabels: [TextLabel]
         let roadTextLabels: [RoadTextLabel]
+        let parseLayerTimings: [TileParseLayerTiming]
         
         init(
             drawingPolygon: DrawingPolygonBytes,
@@ -34,7 +35,8 @@ extension TileMvtParser {
             bridgeOverviewStyleMasks: [Float],
             tile: Tile,
             textLabels: [TextLabel],
-            roadTextLabels: [RoadTextLabel]
+            roadTextLabels: [RoadTextLabel],
+            parseLayerTimings: [TileParseLayerTiming]
         ) {
             self.drawingPolygon = drawingPolygon
             self.drawingRoadPhases = drawingRoadPhases
@@ -47,6 +49,7 @@ extension TileMvtParser {
             self.tile = tile
             self.textLabels = textLabels
             self.roadTextLabels = roadTextLabels
+            self.parseLayerTimings = parseLayerTimings
         }
     }
 }

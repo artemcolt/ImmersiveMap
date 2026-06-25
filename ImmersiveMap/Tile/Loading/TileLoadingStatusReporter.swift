@@ -37,6 +37,8 @@ struct TileLoadingStatusSnapshot: Equatable {
     let latestNetworkTile: Tile?
     let latestParsingTile: Tile?
     let latestFailure: String?
+    let latestParseLayerTimingTile: Tile?
+    let latestParseLayerTimings: [TileParseLayerTiming]
     let tiles: [TileLoadingStatusTileSnapshot]
 
     var lines: [String] {
@@ -60,11 +62,40 @@ struct TileLoadingStatusSnapshot: Equatable {
         if let latestFailure {
             output.append("last failure: \(latestFailure)")
         }
+        if let timingLine = Self.parseLayerTimingLine(tile: latestParseLayerTimingTile,
+                                                      timings: latestParseLayerTimings) {
+            output.append(timingLine)
+        }
         return output
     }
 
     private static func tileDescription(_ tile: Tile) -> String {
         "z\(tile.z)/\(tile.x)/\(tile.y)"
+    }
+
+    private static func parseLayerTimingLine(tile: Tile?, timings: [TileParseLayerTiming]) -> String? {
+        guard let tile, timings.isEmpty == false else {
+            return nil
+        }
+        let items = timings
+            .filter { $0.duration > 0 }
+            .sorted { lhs, rhs in
+                if lhs.duration != rhs.duration {
+                    return lhs.duration > rhs.duration
+                }
+                return lhs.layerName < rhs.layerName
+            }
+            .prefix(3)
+            .map { "\($0.layerName) \(Self.millisecondsDescription($0.duration))" }
+        guard items.isEmpty == false else {
+            return nil
+        }
+        return "parse layers \(tileDescription(tile)): \(items.joined(separator: ", "))"
+    }
+
+    private static func millisecondsDescription(_ duration: TimeInterval) -> String {
+        let milliseconds = Int((duration * 1000).rounded())
+        return "\(milliseconds)ms"
     }
 }
 
@@ -103,6 +134,8 @@ final class TileLoadingStatusReporter {
     private var latestNetworkTile: Tile?
     private var latestParsingTile: Tile?
     private var latestFailure: String?
+    private var latestParseLayerTimingTile: Tile?
+    private var latestParseLayerTimings: [TileParseLayerTiming] = []
     private var currentDemand: Set<Tile> = []
     private var displayedTiles: Set<Tile> = []
     private var tileRecords: [Tile: TileRecord] = [:]
@@ -230,11 +263,13 @@ final class TileLoadingStatusReporter {
         }
     }
 
-    func recordParsingSucceeded(tile: Tile) {
+    func recordParsingSucceeded(tile: Tile, layerTimings: [TileParseLayerTiming] = []) {
         queue.sync {
             parsing.inFlight = max(0, parsing.inFlight - 1)
             parsing.completed += 1
             activeParsingTiles.remove(tile)
+            latestParseLayerTimingTile = tile
+            latestParseLayerTimings = layerTimings
             updateTile(tile,
                        status: .parsing,
                        progress: 0.85,
@@ -286,6 +321,8 @@ final class TileLoadingStatusReporter {
                                              latestNetworkTile: latestNetworkTile,
                                              latestParsingTile: latestParsingTile,
                                              latestFailure: latestFailure,
+                                             latestParseLayerTimingTile: latestParseLayerTimingTile,
+                                             latestParseLayerTimings: latestParseLayerTimings,
                                              tiles: Array(tiles))
         }
     }

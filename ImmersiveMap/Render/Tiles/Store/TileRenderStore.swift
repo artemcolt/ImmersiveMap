@@ -103,12 +103,12 @@ final class TileRenderStore {
                                  requestedTilesCount: request.count)
     }
 
-    func prepareTile(tile: Tile, data: Data) async -> PreparedTileCPU? {
+    func prepareTile(tile: Tile, data: Data) async -> PreparedTileLoadResult? {
         tileTraceRecorder.record(.tilePrepareStart(tile))
         do {
-            let preparedTile = try preparedDataBuilder.build(tile: tile, data: data)
+            let result = try preparedDataBuilder.build(tile: tile, data: data)
             tileTraceRecorder.record(.tilePrepareSuccess(tile))
-            return preparedTile
+            return result
         } catch {
             #if DEBUG
             print("[WARN] Failed to parse tile \(tile): \(error)")
@@ -134,10 +134,10 @@ final class TileRenderStore {
     }
 
     func parseTile(tile: Tile, data: Data) async -> Bool {
-        guard let preparedTile = await prepareTile(tile: tile, data: data) else {
+        guard let result = await prepareTile(tile: tile, data: data) else {
             return false
         }
-        return await materializePreparedTile(preparedTile)
+        return await materializePreparedTile(result.preparedTile)
     }
 
     func handleMemoryWarning() {

@@ -171,12 +171,12 @@ class ImmersiveMapNeedsTile {
                 return
             }
 
-            let materializedFromDisk = await materializePreparedTile(preparedFromDisk, expectedTile: tile)
+            let materializedFromDisk = await materializePreparedTile(preparedFromDisk.preparedTile, expectedTile: tile)
             if Task.isCancelled {
                 return
             }
             if materializedFromDisk {
-                loadPipeline.savePreparedOnDisk(tile: tile, preparedTile: preparedFromDisk)
+                loadPipeline.savePreparedOnDisk(tile: tile, preparedTile: preparedFromDisk.preparedTile)
                 markLoadSucceeded(tile: tile)
                 tileLoadingStatusReporter?.recordLoadCompleted(tile: tile)
                 tileTraceRecorder.record(.tileLoadSuccess(tile, source: "raw_disk"))
@@ -213,13 +213,13 @@ class ImmersiveMapNeedsTile {
             if Task.isCancelled {
                 return
             }
-            let materializedFromNetwork = await materializePreparedTile(preparedFromNetwork, expectedTile: tile)
+            let materializedFromNetwork = await materializePreparedTile(preparedFromNetwork.preparedTile, expectedTile: tile)
             if Task.isCancelled {
                 return
             }
             if materializedFromNetwork {
                 loadPipeline.saveOnDisk(tile: tile, data: data)
-                loadPipeline.savePreparedOnDisk(tile: tile, preparedTile: preparedFromNetwork)
+                loadPipeline.savePreparedOnDisk(tile: tile, preparedTile: preparedFromNetwork.preparedTile)
                 markLoadSucceeded(tile: tile)
                 tileLoadingStatusReporter?.recordLoadCompleted(tile: tile)
                 tileTraceRecorder.record(.tileLoadSuccess(tile, source: "network"))
@@ -237,19 +237,20 @@ class ImmersiveMapNeedsTile {
         }
     }
 
-    private func prepareTile(data: Data, tile: Tile) async -> PreparedTileCPU? {
+    private func prepareTile(data: Data, tile: Tile) async -> PreparedTileLoadResult? {
         if Task.isCancelled {
             return nil
         }
         tileLoadingStatusReporter?.recordParsingStarted(tile: tile)
-        let preparedTile = await loadPipeline.prepare(tile: tile, data: data)
-        if preparedTile == nil {
+        let result = await loadPipeline.prepare(tile: tile, data: data)
+        if result == nil {
             tileLoadingStatusReporter?.recordParsingFailed(tile: tile,
                                                            reason: "parse_failed")
         } else {
-            tileLoadingStatusReporter?.recordParsingSucceeded(tile: tile)
+            tileLoadingStatusReporter?.recordParsingSucceeded(tile: tile,
+                                                              layerTimings: result?.parseLayerTimings ?? [])
         }
-        return preparedTile
+        return result
     }
 
     private func materializePreparedTile(_ preparedTile: PreparedTileCPU, expectedTile: Tile) async -> Bool {

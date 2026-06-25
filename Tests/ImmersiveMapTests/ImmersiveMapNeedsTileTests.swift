@@ -85,6 +85,38 @@ final class ImmersiveMapNeedsTileTests: XCTestCase {
         XCTAssertEqual(readyTile.progress, 1, accuracy: 0.001)
     }
 
+    func testTileLoadingSnapshotReportsLatestParseLayerTimings() async {
+        var settings = ImmersiveMapSettings.default
+        settings.tiles.network.maxConcurrentFetches = 1
+        let pipeline = ControlledTileLoadPipeline()
+        let reporter = TileLoadingStatusReporter()
+        let loader = ImmersiveMapNeedsTile(config: settings,
+                                           loadPipeline: pipeline,
+                                           tileLoadingStatusReporter: reporter)
+        let tile = Tile(x: 78, y: 39, z: 7)
+
+        loader.request(tiles: [tile])
+        let didStart = await pipeline.waitUntilStarted(tile)
+        XCTAssertTrue(didStart)
+        pipeline.completeDownload(tile, result: .success(Data([1, 2, 3])))
+        let didPrepare = await pipeline.waitUntilPrepared(tile)
+        XCTAssertTrue(didPrepare)
+        pipeline.completePrepare(tile, timings: [
+            TileParseLayerTiming(layerName: "streets", duration: 0.003),
+            TileParseLayerTiming(layerName: "land", duration: 0.127),
+            TileParseLayerTiming(layerName: "water_polygons", duration: 0.041)
+        ])
+        let didMaterialize = await pipeline.waitUntilMaterialized(tile)
+        XCTAssertTrue(didMaterialize)
+        pipeline.completeMaterialize(tile, result: true)
+
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertTrue(reporter.snapshot().lines.contains(
+            "parse layers z7/78/39: land 127ms, water_polygons 41ms, streets 3ms"
+        ))
+    }
+
     func testTileLoadingSnapshotKeepsOnlyCurrentDemandAndActiveWork() async {
         var settings = ImmersiveMapSettings.default
         settings.tiles.network.maxConcurrentFetches = 2
@@ -179,7 +211,7 @@ private final class ControlledTileLoadPipeline: TileLoadPipeline {
     private var preparedTiles: Set<Tile> = []
     private var materializedTiles: Set<Tile> = []
     private var downloadContinuations: [Tile: CheckedContinuation<TileDownloader.DownloadResult, Never>] = [:]
-    private var prepareContinuations: [Tile: CheckedContinuation<PreparedTileCPU?, Never>] = [:]
+    private var prepareContinuations: [Tile: CheckedContinuation<PreparedTileLoadResult?, Never>] = [:]
     private var materializeContinuations: [Tile: CheckedContinuation<Bool, Never>] = [:]
 
     func requestPreparedDiskCached(tile _: Tile) async -> PreparedTileCPU? {
@@ -208,7 +240,7 @@ private final class ControlledTileLoadPipeline: TileLoadPipeline {
 
     func removeFromDisk(tile _: Tile) {}
 
-    func prepare(tile: Tile, data _: Data) async -> PreparedTileCPU? {
+    func prepare(tile: Tile, data _: Data) async -> PreparedTileLoadResult? {
         await withCheckedContinuation { continuation in
             recordPrepareStarted(tile: tile, continuation: continuation)
         }
@@ -256,12 +288,13 @@ private final class ControlledTileLoadPipeline: TileLoadPipeline {
         continuation?.resume(returning: result)
     }
 
-    func completePrepare(_ tile: Tile) {
-        let continuation: CheckedContinuation<PreparedTileCPU?, Never>?
+    func completePrepare(_ tile: Tile, timings: [TileParseLayerTiming] = []) {
+        let continuation: CheckedContinuation<PreparedTileLoadResult?, Never>?
         lock.lock()
         continuation = prepareContinuations.removeValue(forKey: tile)
         lock.unlock()
-        continuation?.resume(returning: Self.makePreparedTile(tile: tile))
+        continuation?.resume(returning: PreparedTileLoadResult(preparedTile: Self.makePreparedTile(tile: tile),
+                                                               parseLayerTimings: timings))
     }
 
     func completeMaterialize(_ tile: Tile, result: Bool) {
@@ -314,7 +347,7 @@ private final class ControlledTileLoadPipeline: TileLoadPipeline {
 
     private func recordPrepareStarted(
         tile: Tile,
-        continuation: CheckedContinuation<PreparedTileCPU?, Never>
+        continuation: CheckedContinuation<PreparedTileLoadResult?, Never>
     ) {
         lock.lock()
         preparedTiles.insert(tile)

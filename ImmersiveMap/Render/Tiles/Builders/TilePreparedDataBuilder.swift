@@ -16,12 +16,12 @@ final class TilePreparedDataBuilder {
         self.roadLabelsBuilder = roadLabelsBuilder
     }
 
-    func build(tile: Tile, data: Data) throws -> PreparedTileCPU {
+    func build(tile: Tile, data: Data) throws -> PreparedTileLoadResult {
         let parsedTile = try tileParser.parse(tile: tile, mvtData: data)
         let textLabels = textLabelsBuilder.build(textLabels: parsedTile.textLabels, tile: tile)
         let roadLabels = roadLabelsBuilder.build(roadTextLabels: parsedTile.roadTextLabels, tile: tile)
 
-        return PreparedTileCPU(
+        let preparedTile = PreparedTileCPU(
             tile: tile,
             ground: PreparedTileCPU.GeometryLayer(vertices: parsedTile.drawingPolygon.vertices,
                                                   indices: parsedTile.drawingPolygon.indices,
@@ -45,5 +45,7 @@ final class TilePreparedDataBuilder {
             textLabels: textLabels,
             roadLabels: roadLabels
         )
+        return PreparedTileLoadResult(preparedTile: preparedTile,
+                                      parseLayerTimings: parsedTile.parseLayerTimings)
     }
 }

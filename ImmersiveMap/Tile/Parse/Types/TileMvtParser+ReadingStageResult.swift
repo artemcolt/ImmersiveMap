@@ -16,5 +16,6 @@ extension TileMvtParser {
         let bridgeStyles: [UInt8: FeatureStyle]
         let textLabels: [TextLabel]
         let roadTextLabels: [RoadTextLabel]
+        let layerTimings: [TileParseLayerTiming]
     }
 }

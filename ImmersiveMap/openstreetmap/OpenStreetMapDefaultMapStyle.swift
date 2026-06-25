@@ -6,6 +6,7 @@ final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
 
     private let fallbackKey: UInt8 = 0
     private let maximumOverviewWaterLabelZoom = 6
+    private let landcoverMinimumZoom = 10
     private let configuration: OpenStreetMapDefaultMapStyleConfiguration
     private let settings: ImmersiveMapSettings.StyleSettings
     private let mapBaseColors: ImmersiveMapBaseColors
@@ -43,7 +44,7 @@ final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
         case "ocean", "water_polygons":
             return polygon(key: 10, color: configuration.layers.water)
         case "land":
-            return polygon(key: 11, color: configuration.layers.land)
+            return landcoverStyle(kind: kind, tileZoom: data.tile.z)
         case "sites":
             return polygon(key: 12, color: siteColor(kind: kind))
         case "buildings":
@@ -88,6 +89,19 @@ final class OpenStreetMapDefaultMapStyle: ImmersiveMapStyle {
             return configuration.layers.forest
         default:
             return configuration.layers.site
+        }
+    }
+
+    private func landcoverStyle(kind: String?, tileZoom: Int) -> FeatureStyle {
+        guard tileZoom >= landcoverMinimumZoom else {
+            return fallbackStyle
+        }
+
+        switch kind {
+        case "forest", "wood":
+            return polygon(key: 11, color: configuration.layers.forest)
+        default:
+            return polygon(key: 11, color: configuration.layers.land)
         }
     }
 

@@ -11,7 +11,7 @@ protocol TileLoadPipeline {
     func saveOnDisk(tile: Tile, data: Data)
     func removePreparedFromDisk(tile: Tile)
     func removeFromDisk(tile: Tile)
-    func prepare(tile: Tile, data: Data) async -> PreparedTileCPU?
+    func prepare(tile: Tile, data: Data) async -> PreparedTileLoadResult?
     func materialize(preparedTile: PreparedTileCPU) async -> Bool
     func parse(tile: Tile, data: Data) async -> Bool
 }

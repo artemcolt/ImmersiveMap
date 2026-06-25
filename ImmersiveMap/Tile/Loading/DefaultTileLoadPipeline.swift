@@ -47,7 +47,7 @@ final class DefaultTileLoadPipeline: TileLoadPipeline {
         tileDiskCaching.removeFromDisk(tile: tile)
     }
 
-    func prepare(tile: Tile, data: Data) async -> PreparedTileCPU? {
+    func prepare(tile: Tile, data: Data) async -> PreparedTileLoadResult? {
         guard let tileRenderStore else {
             return nil
         }
@@ -62,9 +62,9 @@ final class DefaultTileLoadPipeline: TileLoadPipeline {
     }
 
     func parse(tile: Tile, data: Data) async -> Bool {
-        guard let preparedTile = await prepare(tile: tile, data: data) else {
+        guard let result = await prepare(tile: tile, data: data) else {
             return false
         }
-        return await materialize(preparedTile: preparedTile)
+        return await materialize(preparedTile: result.preparedTile)
     }
 }

@@ -24,6 +24,23 @@ final class OpenStreetMapDefaultMapStyleTests: XCTestCase {
         XCTAssertEqual(background.color, OpenStreetMapDefaultMapStyleConfiguration.osmDefault.layers.land)
     }
 
+    func testDefaultStyleSkipsShortbreadLandcoverUntilDetailedZoom() {
+        let style = OpenStreetMapDefaultMapStyle(configuration: .osmDefault,
+                                                settings: ImmersiveMapSettings.default.style)
+
+        let overviewForest = makeStyle(style,
+                                       layerName: "land",
+                                       properties: ["kind": stringValue("forest")],
+                                       zoom: 7)
+        let detailedForest = makeStyle(style,
+                                       layerName: "land",
+                                       properties: ["kind": stringValue("forest")],
+                                       zoom: 10)
+
+        XCTAssertEqual(overviewForest.key, 0)
+        XCTAssertEqual(detailedForest.color, OpenStreetMapDefaultMapStyleConfiguration.osmDefault.layers.forest)
+    }
+
     func testDefaultStyleRendersShortbreadStreetLines() {
         let style = OpenStreetMapDefaultMapStyle(configuration: .osmDefault,
                                                 settings: ImmersiveMapSettings.default.style)

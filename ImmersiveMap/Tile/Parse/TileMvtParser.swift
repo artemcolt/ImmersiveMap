@@ -64,7 +64,8 @@ class TileMvtParser {
             bridgeOverviewStyleMasks: unificationResult.bridgeOverviewStyleMasks,
             tile: tile,
             textLabels: readingStageResult.textLabels,
-            roadTextLabels: readingStageResult.roadTextLabels
+            roadTextLabels: readingStageResult.roadTextLabels,
+            parseLayerTimings: readingStageResult.layerTimings
         )
     }
 
@@ -636,8 +637,10 @@ class TileMvtParser {
         var roadTextLabels: [RoadTextLabel] = []
         var roadPolygonSequence = 0
         var buildingExtrusionCandidates: [BuildingExtrusionCandidate] = []
+        var layerTimings: [TileParseLayerTiming] = []
         
         for layer in vectorTile.layers {
+            let layerStart = DispatchTime.now().uptimeNanoseconds
             let layerName = layer.name
             let buildingPartIds = layerName == "building" ? collectBuildingPartIds(layer: layer) : []
             let buildingPartFootprintSignatures = layerName == "building"
@@ -998,6 +1001,9 @@ class TileMvtParser {
                     }
                 }
             }
+            let elapsedNanoseconds = DispatchTime.now().uptimeNanoseconds - layerStart
+            layerTimings.append(TileParseLayerTiming(layerName: layerName,
+                                                     duration: TimeInterval(elapsedNanoseconds) / 1_000_000_000.0))
 
         }
 
@@ -1030,7 +1036,8 @@ class TileMvtParser {
             roadStyles: roadStyles,
             bridgeStyles: bridgeStyles,
             textLabels: textLabels,
-            roadTextLabels: roadTextLabels
+            roadTextLabels: roadTextLabels,
+            layerTimings: layerTimings
         )
     }
 
