@@ -15,8 +15,8 @@ struct ImmersiveMapMacApp: App {
 
 private struct MapScreen: View {
     @State private var camera = ImmersiveMapCameraController()
-    private let tileProvider = ExampleMapProvider.makeTileProvider()
-    private let mapStyle = ExampleMapProvider.makeMapStyle()
+    private let tileProvider = MapboxTileProvider(accessToken: ProcessInfo.processInfo.environment["IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"])
+    private let mapStyle = MapboxMapStyle()
 
     var body: some View {
         ImmersiveMapView()

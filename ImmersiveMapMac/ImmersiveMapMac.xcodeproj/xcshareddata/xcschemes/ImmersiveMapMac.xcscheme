@@ -51,6 +51,13 @@
             ReferencedContainer = "container:ImmersiveMapMac.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "IMMERSIVE_MAP_MAPBOX_ACCESS_TOKEN"
+            value = ""
+            isEnabled = "NO">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
