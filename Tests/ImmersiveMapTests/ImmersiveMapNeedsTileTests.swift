@@ -117,6 +117,81 @@ final class ImmersiveMapNeedsTileTests: XCTestCase {
         ))
     }
 
+    func testTileLoadingSnapshotReportsPerTilePreparationStagesAndParseLayers() async {
+        var settings = ImmersiveMapSettings.default
+        settings.tiles.network.maxConcurrentFetches = 1
+        var now = 1.0
+        let pipeline = ControlledTileLoadPipeline()
+        let reporter = TileLoadingStatusReporter(now: { now })
+        let loader = ImmersiveMapNeedsTile(config: settings,
+                                           loadPipeline: pipeline,
+                                           tileLoadingStatusReporter: reporter)
+        let tile = Tile(x: 78, y: 39, z: 7)
+
+        loader.request(tiles: [tile])
+        let didStart = await pipeline.waitUntilStarted(tile)
+        XCTAssertTrue(didStart)
+
+        now = 1.100
+        pipeline.completeDownload(tile, result: .success(Data([1, 2, 3])))
+        let didPrepare = await pipeline.waitUntilPrepared(tile)
+        XCTAssertTrue(didPrepare)
+
+        now = 1.350
+        pipeline.completePrepare(tile, timings: [
+            TileParseLayerTiming(layerName: "streets", duration: 0.003),
+            TileParseLayerTiming(layerName: "land", duration: 0.127),
+            TileParseLayerTiming(layerName: "water_polygons", duration: 0.041)
+        ])
+        let didMaterialize = await pipeline.waitUntilMaterialized(tile)
+        XCTAssertTrue(didMaterialize)
+
+        now = 1.380
+        pipeline.completeMaterialize(tile, result: true)
+
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        let stages = try? XCTUnwrap(reporter.snapshot().tiles.first?.preparationStages)
+        XCTAssertEqual(stages?.map(\.name), ["network", "parse", "materialize", "ready"])
+        XCTAssertEqual(stages?[0].duration ?? 0, 0.100, accuracy: 0.001)
+        XCTAssertEqual(stages?[1].duration ?? 0, 0.250, accuracy: 0.001)
+        XCTAssertEqual(stages?[2].duration ?? 0, 0.030, accuracy: 0.001)
+        XCTAssertEqual(stages?[1].layerTimings.map(\.layerName), ["land", "water_polygons", "streets"])
+    }
+
+    func testDisplayedTileKeepsRecentPreparationStagesAfterDemandPrunesReadyRecord() {
+        var now = 1.0
+        let reporter = TileLoadingStatusReporter(now: { now })
+        let tile = Tile(x: 11, y: 6, z: 4)
+
+        reporter.recordDemand(input: 1, deduplicated: 1, tiles: [tile])
+        reporter.recordNetworkStarted(tile: tile)
+        now = 1.100
+        reporter.recordNetworkSucceeded(tile: tile, bytes: 1024)
+        reporter.recordParsingStarted(tile: tile)
+        now = 1.350
+        reporter.recordParsingSucceeded(tile: tile, layerTimings: [
+            TileParseLayerTiming(layerName: "boundaries", duration: 0.244),
+            TileParseLayerTiming(layerName: "ocean", duration: 0.044)
+        ])
+        reporter.recordMaterializationStarted(tile: tile)
+        now = 1.380
+        reporter.recordMaterializationSucceeded(tile: tile)
+        reporter.recordDemand(input: 0, deduplicated: 0, tiles: [])
+        reporter.recordLoadCompleted(tile: tile)
+
+        XCTAssertFalse(reporter.snapshot().tiles.contains { $0.tile == tile })
+
+        reporter.recordDisplayedTiles([tile])
+
+        guard let stages = reporter.snapshot().tiles.first?.preparationStages else {
+            XCTFail("Expected displayed tile stages")
+            return
+        }
+        XCTAssertEqual(stages.map(\.name), ["network", "parse", "materialize", "ready"])
+        XCTAssertEqual(stages[1].layerTimings.map(\.layerName), ["boundaries", "ocean"])
+    }
+
     func testTileLoadingSnapshotKeepsOnlyCurrentDemandAndActiveWork() async {
         var settings = ImmersiveMapSettings.default
         settings.tiles.network.maxConcurrentFetches = 2

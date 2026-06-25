@@ -148,6 +148,77 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertFalse(view.isAtlasContentVisibleForTesting)
     }
 
+    func testTilesTabExpandsTilePreparationStagesAndParseLayers() {
+        let view = DebugOverlayHUDView()
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        let tile = Tile(x: 78, y: 39, z: 7)
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: true,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: DebugOverlayHUDSnapshot(
+            coordinateLines: DebugOverlayCoordinateLines(zoom: "z: 1.00", latLon: "lat: 0.000 lon: 0.000"),
+            diagnosticsLines: [],
+            atlasPages: [],
+            tileLoadingStatusLines: [
+                "network in:0 done:1 fail:0 bytes:1024",
+                "parse in:0 done:1 fail:0"
+            ],
+            tileLoadingStatusTiles: [
+                TileLoadingStatusTileSnapshot(
+                    tile: tile,
+                    status: .ready,
+                    progress: 1,
+                    detail: "ready",
+                    preparationStages: [
+                        TilePreparationStageSnapshot(name: "network", duration: 0.100),
+                        TilePreparationStageSnapshot(name: "parse",
+                                                     duration: 0.250,
+                                                     layerTimings: [
+                                                         TileParseLayerTiming(layerName: "land", duration: 0.127),
+                                                         TileParseLayerTiming(layerName: "water_polygons", duration: 0.041),
+                                                         TileParseLayerTiming(layerName: "streets", duration: 0.003)
+                                                     ]),
+                        TilePreparationStageSnapshot(name: "materialize", duration: 0.030),
+                        TilePreparationStageSnapshot(name: "ready", duration: nil)
+                    ])
+            ],
+            coordinateScale: settings.coordinateScale,
+            diagnosticsScale: settings.diagnosticsScale,
+            leftPadding: settings.leftPadding,
+            topPadding: settings.topPadding,
+            sectionSpacing: settings.sectionSpacing,
+            textColor: settings.textColor
+        ))
+
+        view.simulateTilesTabSelectionForTesting()
+        view.layoutIfNeeded()
+        view.simulateTilesStatusRowTapForTesting(at: 0)
+
+        XCTAssertEqual(view.tilesStatusVisibleRowTextsForTesting, [
+            "▾ z7/78/39 ready",
+            "  network 100ms",
+            "  ▸ parse 250ms",
+            "  materialize 30ms",
+            "  ready"
+        ])
+
+        view.simulateTilesStatusParseStageTapForTesting(tile: tile)
+
+        XCTAssertEqual(view.tilesStatusVisibleRowTextsForTesting, [
+            "▾ z7/78/39 ready",
+            "  network 100ms",
+            "  ▾ parse 250ms",
+            "    land 127ms",
+            "    water_polygons 41ms",
+            "    streets 3ms",
+            "  materialize 30ms",
+            "  ready"
+        ])
+    }
+
     func testTilesTabDisplaysIdleMessageWhenStatusIsEmpty() {
         let view = DebugOverlayHUDView()
         var settings = ImmersiveMapSettings.default.debug

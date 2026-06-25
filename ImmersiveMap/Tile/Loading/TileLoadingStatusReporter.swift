@@ -22,6 +22,33 @@ struct TileLoadingStatusTileSnapshot: Equatable {
     let status: TileLoadingTileStatus
     let progress: Double
     let detail: String
+    let preparationStages: [TilePreparationStageSnapshot]
+
+    init(tile: Tile,
+         status: TileLoadingTileStatus,
+         progress: Double,
+         detail: String,
+         preparationStages: [TilePreparationStageSnapshot] = []) {
+        self.tile = tile
+        self.status = status
+        self.progress = progress
+        self.detail = detail
+        self.preparationStages = preparationStages
+    }
+}
+
+struct TilePreparationStageSnapshot: Equatable {
+    let name: String
+    let duration: TimeInterval?
+    let layerTimings: [TileParseLayerTiming]
+
+    init(name: String,
+         duration: TimeInterval?,
+         layerTimings: [TileParseLayerTiming] = []) {
+        self.name = name
+        self.duration = duration
+        self.layerTimings = layerTimings
+    }
 }
 
 struct TileLoadingStatusSnapshot: Equatable {
@@ -116,10 +143,13 @@ final class TileLoadingStatusReporter {
         var status: TileLoadingTileStatus
         var progress: Double
         var detail: String
+        var preparationStages: [TilePreparationStageSnapshot] = []
+        var stageStartTimes: [String: TimeInterval] = [:]
         var sequence: UInt64
     }
 
     private let queue = DispatchQueue(label: "ImmersiveMap.TileLoadingStatusReporter")
+    private let now: () -> TimeInterval
     private var requested = 0
     private var deduplicated = 0
     private var activeLoads = 0
@@ -139,7 +169,12 @@ final class TileLoadingStatusReporter {
     private var currentDemand: Set<Tile> = []
     private var displayedTiles: Set<Tile> = []
     private var tileRecords: [Tile: TileRecord] = [:]
+    private var recentPreparationStagesByTile: [Tile: [TilePreparationStageSnapshot]] = [:]
     private var sequence: UInt64 = 0
+
+    init(now: @escaping () -> TimeInterval = { Date().timeIntervalSinceReferenceDate }) {
+        self.now = now
+    }
 
     func recordDemand(input: Int, deduplicated: Int, tiles: [Tile]) {
         queue.sync {
@@ -157,6 +192,7 @@ final class TileLoadingStatusReporter {
                 guard shouldCreateDisplayedRecord(for: tile) else {
                     continue
                 }
+                restoreRecentPreparationStages(for: tile)
                 updateTile(tile,
                            status: .ready,
                            progress: 1,
@@ -190,6 +226,8 @@ final class TileLoadingStatusReporter {
         queue.sync {
             activeLoads = max(0, activeLoads - 1)
             totalCompleted += 1
+            appendInstantStage("ready", for: tile)
+            storeRecentPreparationStages(for: tile)
             updateTile(tile,
                        status: .ready,
                        progress: 1,
@@ -216,6 +254,7 @@ final class TileLoadingStatusReporter {
             network.inFlight += 1
             activeNetworkTiles.insert(tile)
             latestNetworkTile = tile
+            startStage("network", for: tile)
             updateTile(tile,
                        status: .loading,
                        progress: 0.35,
@@ -229,6 +268,7 @@ final class TileLoadingStatusReporter {
             network.completed += 1
             networkBytes += bytes
             activeNetworkTiles.remove(tile)
+            finishStage("network", for: tile)
             updateTile(tile,
                        status: .loading,
                        progress: 0.55,
@@ -243,6 +283,7 @@ final class TileLoadingStatusReporter {
             network.failed += 1
             activeNetworkTiles.remove(tile)
             latestFailure = reason
+            finishStage("network", for: tile)
             updateTile(tile,
                        status: .failed,
                        progress: 1,
@@ -256,6 +297,7 @@ final class TileLoadingStatusReporter {
             parsing.inFlight += 1
             activeParsingTiles.insert(tile)
             latestParsingTile = tile
+            startStage("parse", for: tile)
             updateTile(tile,
                        status: .parsing,
                        progress: 0.7,
@@ -269,7 +311,8 @@ final class TileLoadingStatusReporter {
             parsing.completed += 1
             activeParsingTiles.remove(tile)
             latestParseLayerTimingTile = tile
-            latestParseLayerTimings = layerTimings
+            latestParseLayerTimings = Self.sortedLayerTimings(layerTimings)
+            finishStage("parse", for: tile, layerTimings: latestParseLayerTimings)
             updateTile(tile,
                        status: .parsing,
                        progress: 0.85,
@@ -284,11 +327,42 @@ final class TileLoadingStatusReporter {
             parsing.failed += 1
             activeParsingTiles.remove(tile)
             latestFailure = reason
+            finishStage("parse", for: tile)
             updateTile(tile,
                        status: .failed,
                        progress: 1,
                        detail: reason)
             refreshLatestParsingTile()
+        }
+    }
+
+    func recordMaterializationStarted(tile: Tile) {
+        queue.sync {
+            startStage("materialize", for: tile)
+            updateTile(tile,
+                       status: .parsing,
+                       progress: 0.9,
+                       detail: "materialize")
+        }
+    }
+
+    func recordMaterializationSucceeded(tile: Tile) {
+        queue.sync {
+            finishStage("materialize", for: tile)
+            updateTile(tile,
+                       status: .parsing,
+                       progress: 0.95,
+                       detail: "materialized")
+        }
+    }
+
+    func recordMaterializationFailed(tile: Tile, reason: String) {
+        queue.sync {
+            finishStage("materialize", for: tile)
+            updateTile(tile,
+                       status: .parsing,
+                       progress: 0.95,
+                       detail: reason)
         }
     }
 
@@ -303,7 +377,8 @@ final class TileLoadingStatusReporter {
                         snapshot: TileLoadingStatusTileSnapshot(tile: tile,
                                                                 status: record.status,
                                                                 progress: record.progress,
-                                                                detail: record.detail),
+                                                                detail: record.detail,
+                                                                preparationStages: record.preparationStages),
                         sequence: record.sequence
                     )
                 }
@@ -332,10 +407,81 @@ final class TileLoadingStatusReporter {
                             progress: Double,
                             detail: String) {
         sequence &+= 1
-        tileRecords[tile] = TileRecord(status: status,
-                                       progress: min(max(progress, 0), 1),
-                                       detail: detail,
-                                       sequence: sequence)
+        var record = tileRecords[tile] ?? TileRecord(status: status,
+                                                     progress: progress,
+                                                     detail: detail,
+                                                     sequence: sequence)
+        record.status = status
+        record.progress = min(max(progress, 0), 1)
+        record.detail = detail
+        record.sequence = sequence
+        tileRecords[tile] = record
+    }
+
+    private func startStage(_ name: String, for tile: Tile) {
+        var record = tileRecords[tile] ?? TileRecord(status: .queued,
+                                                     progress: 0.1,
+                                                     detail: "queued",
+                                                     sequence: sequence)
+        record.stageStartTimes[name] = now()
+        tileRecords[tile] = record
+    }
+
+    private func finishStage(_ name: String,
+                             for tile: Tile,
+                             layerTimings: [TileParseLayerTiming] = []) {
+        var record = tileRecords[tile] ?? TileRecord(status: .queued,
+                                                     progress: 0.1,
+                                                     detail: "queued",
+                                                     sequence: sequence)
+        let duration = record.stageStartTimes.removeValue(forKey: name).map { max(0, now() - $0) }
+        record.preparationStages.removeAll { $0.name == name }
+        record.preparationStages.append(TilePreparationStageSnapshot(name: name,
+                                                                     duration: duration,
+                                                                     layerTimings: layerTimings))
+        tileRecords[tile] = record
+    }
+
+    private func appendInstantStage(_ name: String, for tile: Tile) {
+        var record = tileRecords[tile] ?? TileRecord(status: .queued,
+                                                     progress: 0.1,
+                                                     detail: "queued",
+                                                     sequence: sequence)
+        record.preparationStages.removeAll { $0.name == name }
+        record.preparationStages.append(TilePreparationStageSnapshot(name: name,
+                                                                     duration: nil))
+        tileRecords[tile] = record
+    }
+
+    private func storeRecentPreparationStages(for tile: Tile) {
+        guard let stages = tileRecords[tile]?.preparationStages,
+              stages.isEmpty == false else {
+            return
+        }
+        recentPreparationStagesByTile[tile] = stages
+        pruneRecentPreparationStages()
+    }
+
+    private func restoreRecentPreparationStages(for tile: Tile) {
+        guard let stages = recentPreparationStagesByTile[tile],
+              stages.isEmpty == false else {
+            return
+        }
+        var record = tileRecords[tile] ?? TileRecord(status: .ready,
+                                                     progress: 1,
+                                                     detail: "displayed",
+                                                     sequence: sequence)
+        record.preparationStages = stages
+        tileRecords[tile] = record
+    }
+
+    private func pruneRecentPreparationStages() {
+        let retainedTiles = currentDemand.union(displayedTiles).union(activeNetworkTiles).union(activeParsingTiles)
+        let maximumRecentPreparationStageCount = 256
+        if recentPreparationStagesByTile.count <= maximumRecentPreparationStageCount {
+            return
+        }
+        recentPreparationStagesByTile = recentPreparationStagesByTile.filter { retainedTiles.contains($0.key) }
     }
 
     private func pruneInactiveStaleTiles() {
@@ -387,6 +533,17 @@ final class TileLoadingStatusReporter {
         case .queued, .ready, .failed:
             return false
         }
+    }
+
+    private static func sortedLayerTimings(_ timings: [TileParseLayerTiming]) -> [TileParseLayerTiming] {
+        timings
+            .filter { $0.duration > 0 }
+            .sorted { lhs, rhs in
+                if lhs.duration != rhs.duration {
+                    return lhs.duration > rhs.duration
+                }
+                return lhs.layerName < rhs.layerName
+            }
     }
 
     private static func shouldPlaceTileBefore(

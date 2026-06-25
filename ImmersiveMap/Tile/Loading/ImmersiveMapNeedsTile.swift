@@ -260,7 +260,15 @@ class ImmersiveMapNeedsTile {
         guard preparedTile.tile == expectedTile else {
             return false
         }
-        return await loadPipeline.materialize(preparedTile: preparedTile)
+        tileLoadingStatusReporter?.recordMaterializationStarted(tile: expectedTile)
+        let isMaterialized = await loadPipeline.materialize(preparedTile: preparedTile)
+        if isMaterialized {
+            tileLoadingStatusReporter?.recordMaterializationSucceeded(tile: expectedTile)
+        } else {
+            tileLoadingStatusReporter?.recordMaterializationFailed(tile: expectedTile,
+                                                                  reason: "materialize_failed")
+        }
+        return isMaterialized
     }
 
     // Завершает in-flight загрузку тайла и пытается запустить следующий подходящий тайл из pending-очереди.

@@ -123,10 +123,14 @@ final class DebugOverlayHUDView: UIView {
         }
         tilesScrollView.backgroundColor = .clear
         tilesScrollView.alwaysBounceVertical = false
+        tilesScrollView.delaysContentTouches = false
         tilesScrollView.showsHorizontalScrollIndicator = false
         tilesScrollView.showsVerticalScrollIndicator = true
         containerView.addSubview(tilesScrollView)
         tilesScrollView.addSubview(tilesStatusListView)
+        tilesStatusListView.onExpansionChanged = { [weak self] in
+            self?.setNeedsLayout()
+        }
         atlasDetailsLabel.numberOfLines = 0
         atlasDetailsLabel.lineBreakMode = .byWordWrapping
         atlasDetailsLabel.adjustsFontSizeToFitWidth = false
@@ -828,19 +832,60 @@ private final class DebugOverlayAtlasLayoutView: UIView {
 
 private final class DebugOverlayTilesStatusListView: UIView {
     private enum Layout {
-        static let rowHeight: CGFloat = 22
+        static let rowHeight: CGFloat = 24
+        static let childRowHeight: CGFloat = 20
         static let rowSpacing: CGFloat = 4
-        static let textWidth: CGFloat = 96
-        static let barHeight: CGFloat = 8
-        static let cornerRadius: CGFloat = 3
+        static let textInset: CGFloat = 8
+        static let cornerRadius: CGFloat = 5
+    }
+
+    private enum Row: Equatable {
+        case tile(TileLoadingStatusTileSnapshot, isExpanded: Bool, canExpand: Bool)
+        case stage(tile: Tile, stage: TilePreparationStageSnapshot, isExpanded: Bool)
+        case layer(tile: Tile, timing: TileParseLayerTiming)
+
+        var height: CGFloat {
+            switch self {
+            case .tile:
+                return Layout.rowHeight
+            case .stage, .layer:
+                return Layout.childRowHeight
+            }
+        }
+
+        var text: String {
+            switch self {
+            case let .tile(tile, isExpanded, canExpand):
+                let disclosure = canExpand ? (isExpanded ? "▾" : "▸") : " "
+                let tileText = "z\(tile.tile.z)/\(tile.tile.x)/\(tile.tile.y)"
+                let detailText = tile.detail.isEmpty ? DebugOverlayTilesStatusListView.statusText(tile.status) : tile.detail
+                return "\(disclosure) \(tileText) \(detailText)"
+            case let .stage(_, stage, isExpanded):
+                let disclosure = stage.layerTimings.isEmpty ? " " : (isExpanded ? "▾" : "▸")
+                if let duration = stage.duration {
+                    return "  \(disclosure) \(stage.name) \(DebugOverlayTilesStatusListView.millisecondsDescription(duration))"
+                }
+                return "  \(disclosure) \(stage.name)"
+            case let .layer(_, timing):
+                return "    \(timing.layerName) \(DebugOverlayTilesStatusListView.millisecondsDescription(timing.duration))"
+            }
+        }
     }
 
     private var tiles: [TileLoadingStatusTileSnapshot] = []
+    private var expandedTiles: Set<Tile> = []
+    private var expandedParseStageTiles: Set<Tile> = []
+
+    var onExpansionChanged: (() -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         isOpaque = false
         backgroundColor = .clear
+        isUserInteractionEnabled = true
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapGesture(_:)))
+        tapGesture.cancelsTouchesInView = true
+        addGestureRecognizer(tapGesture)
     }
 
     required init?(coder: NSCoder) {
@@ -853,15 +898,19 @@ private final class DebugOverlayTilesStatusListView: UIView {
 
     func apply(tiles: [TileLoadingStatusTileSnapshot]) {
         self.tiles = tiles
+        let tileSet = Set(tiles.map(\.tile))
+        expandedTiles = expandedTiles.intersection(tileSet)
+        expandedParseStageTiles = expandedParseStageTiles.intersection(tileSet)
         setNeedsDisplay()
     }
 
     func preferredHeight(forWidth _: CGFloat) -> CGFloat {
-        guard tiles.isEmpty == false else {
+        let rows = visibleRows()
+        guard rows.isEmpty == false else {
             return 0
         }
-        return CGFloat(tiles.count) * Layout.rowHeight
-            + CGFloat(max(0, tiles.count - 1)) * Layout.rowSpacing
+        let rowsHeight = rows.reduce(CGFloat(0)) { $0 + $1.height }
+        return rowsHeight + CGFloat(max(0, rows.count - 1)) * Layout.rowSpacing
     }
 
     override func draw(_ rect: CGRect) {
@@ -869,47 +918,144 @@ private final class DebugOverlayTilesStatusListView: UIView {
             return
         }
 
-        for (index, tile) in tiles.enumerated() {
-            let rowTop = CGFloat(index) * (Layout.rowHeight + Layout.rowSpacing)
-            draw(tile: tile,
-                 rowRect: CGRect(x: 0, y: rowTop, width: rect.width, height: Layout.rowHeight),
+        var rowTop: CGFloat = 0
+        for row in visibleRows() {
+            draw(row: row,
+                 rowRect: CGRect(x: 0, y: rowTop, width: rect.width, height: row.height),
                  context: context)
+            rowTop += row.height + Layout.rowSpacing
         }
     }
 
-    private func draw(tile: TileLoadingStatusTileSnapshot,
+    @objc private func handleTapGesture(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended else {
+            return
+        }
+
+        let point = gesture.location(in: self)
+        guard
+              let row = row(atY: point.y) else {
+            return
+        }
+
+        switch row {
+        case let .tile(tile, _, true):
+            toggleTileExpansion(tile.tile)
+        case .tile:
+            break
+        case let .stage(tile, stage, _) where stage.name == "parse" && stage.layerTimings.isEmpty == false:
+            toggleParseExpansion(tile)
+        case .stage, .layer:
+            break
+        }
+    }
+
+    private func draw(row: Row,
                       rowRect: CGRect,
                       context _: CGContext) {
+        switch row {
+        case let .tile(tile, _, _):
+            drawTile(tile, rowRect: rowRect)
+        case .stage, .layer:
+            drawChildText(row.text, rowRect: rowRect)
+        }
+    }
+
+    private func drawTile(_ tile: TileLoadingStatusTileSnapshot,
+                          rowRect: CGRect) {
         let color = statusColor(tile.status)
-        let tileText = "z\(tile.tile.z)/\(tile.tile.x)/\(tile.tile.y)"
-        let detailText = tile.detail.isEmpty ? statusText(tile.status) : tile.detail
-        let text = "\(tileText) \(detailText)"
+        let backgroundRect = rowRect.insetBy(dx: 0, dy: 3)
+        UIColor.black.withAlphaComponent(0.16).setFill()
+        UIBezierPath(roundedRect: backgroundRect, cornerRadius: Layout.cornerRadius).fill()
+
+        let progressWidth = max(Layout.cornerRadius * 2, backgroundRect.width * CGFloat(tile.progress))
+        let progressRect = CGRect(x: backgroundRect.minX,
+                                  y: backgroundRect.minY,
+                                  width: progressWidth,
+                                  height: backgroundRect.height)
+            .intersection(backgroundRect)
+        color.withAlphaComponent(0.82).setFill()
+        UIBezierPath(roundedRect: progressRect, cornerRadius: Layout.cornerRadius).fill()
+
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.monospacedSystemFont(ofSize: 10, weight: .bold),
+            .font: UIFont.monospacedSystemFont(ofSize: 11, weight: .heavy),
+            .foregroundColor: UIColor.white.withAlphaComponent(0.98)
+        ]
+        let textRect = CGRect(x: Layout.textInset,
+                              y: rowRect.minY,
+                              width: max(0, rowRect.width - Layout.textInset * 2),
+                              height: rowRect.height)
+        let isExpanded = expandedTiles.contains(tile.tile)
+        Row.tile(tile, isExpanded: isExpanded, canExpand: tile.preparationStages.isEmpty == false)
+            .text
+            .draw(in: textRect, withAttributes: attributes)
+    }
+
+    private func drawChildText(_ text: String, rowRect: CGRect) {
+        let textRect = CGRect(x: Layout.textInset,
+                              y: rowRect.minY,
+                              width: max(0, rowRect.width - Layout.textInset * 2),
+                              height: rowRect.height)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.monospacedSystemFont(ofSize: 10.5, weight: .bold),
             .foregroundColor: UIColor.white.withAlphaComponent(0.94)
         ]
-        let textRect = CGRect(x: 0,
-                              y: rowRect.minY,
-                              width: min(Layout.textWidth, max(rowRect.width * 0.42, 72)),
-                              height: rowRect.height)
         text.draw(in: textRect, withAttributes: attributes)
+    }
 
-        let barLeft = textRect.maxX + 8
-        let barWidth = max(0, rowRect.width - barLeft)
-        let barRect = CGRect(x: barLeft,
-                             y: rowRect.minY + (rowRect.height - Layout.barHeight) / 2,
-                             width: barWidth,
-                             height: Layout.barHeight)
-        UIColor.white.withAlphaComponent(0.14).setFill()
-        UIBezierPath(roundedRect: barRect, cornerRadius: Layout.cornerRadius).fill()
+    private func row(atY y: CGFloat) -> Row? {
+        var rowTop: CGFloat = 0
+        for row in visibleRows() {
+            let rowBottom = rowTop + row.height
+            if y >= rowTop, y <= rowBottom {
+                return row
+            }
+            rowTop = rowBottom + Layout.rowSpacing
+        }
+        return nil
+    }
 
-        let fillRect = CGRect(x: barRect.minX,
-                              y: barRect.minY,
-                              width: max(Layout.cornerRadius * 2, barRect.width * CGFloat(tile.progress)),
-                              height: barRect.height)
-            .intersection(barRect)
-        color.setFill()
-        UIBezierPath(roundedRect: fillRect, cornerRadius: Layout.cornerRadius).fill()
+    private func toggleTileExpansion(_ tile: Tile) {
+        if expandedTiles.contains(tile) {
+            expandedTiles.remove(tile)
+            expandedParseStageTiles.remove(tile)
+        } else {
+            expandedTiles.insert(tile)
+        }
+        setNeedsDisplay()
+        onExpansionChanged?()
+    }
+
+    private func toggleParseExpansion(_ tile: Tile) {
+        if expandedParseStageTiles.contains(tile) {
+            expandedParseStageTiles.remove(tile)
+        } else {
+            expandedParseStageTiles.insert(tile)
+        }
+        setNeedsDisplay()
+        onExpansionChanged?()
+    }
+
+    private func visibleRows() -> [Row] {
+        tiles.flatMap { tile -> [Row] in
+            let isTileExpanded = expandedTiles.contains(tile.tile)
+            var rows: [Row] = [
+                .tile(tile,
+                      isExpanded: isTileExpanded,
+                      canExpand: tile.preparationStages.isEmpty == false)
+            ]
+            guard isTileExpanded else {
+                return rows
+            }
+            for stage in tile.preparationStages {
+                let isParseExpanded = stage.name == "parse" && expandedParseStageTiles.contains(tile.tile)
+                rows.append(.stage(tile: tile.tile, stage: stage, isExpanded: isParseExpanded))
+                if stage.name == "parse", isParseExpanded {
+                    rows.append(contentsOf: stage.layerTimings.map { .layer(tile: tile.tile, timing: $0) })
+                }
+            }
+            return rows
+        }
     }
 
     private func statusColor(_ status: TileLoadingTileStatus) -> UIColor {
@@ -923,7 +1069,7 @@ private final class DebugOverlayTilesStatusListView: UIView {
         }
     }
 
-    private func statusText(_ status: TileLoadingTileStatus) -> String {
+    private static func statusText(_ status: TileLoadingTileStatus) -> String {
         switch status {
         case .queued:
             return "queued"
@@ -937,6 +1083,25 @@ private final class DebugOverlayTilesStatusListView: UIView {
             return "failed"
         }
     }
+
+    private static func millisecondsDescription(_ duration: TimeInterval) -> String {
+        "\(Int((duration * 1000).rounded()))ms"
+    }
+
+    #if DEBUG
+    var visibleRowTextsForTesting: [String] {
+        visibleRows().map(\.text)
+    }
+
+    func simulateTileRowTapForTesting(at index: Int) {
+        guard tiles.indices.contains(index) else { return }
+        toggleTileExpansion(tiles[index].tile)
+    }
+
+    func simulateParseStageTapForTesting(tile: Tile) {
+        toggleParseExpansion(tile)
+    }
+    #endif
 }
 
 #if DEBUG
@@ -1011,6 +1176,22 @@ extension DebugOverlayHUDView {
 
     var tilesStatusRowCountForTesting: Int {
         tilesStatusListView.rowCount
+    }
+
+    var tilesStatusVisibleRowTextsForTesting: [String] {
+        tilesStatusListView.visibleRowTextsForTesting
+    }
+
+    func simulateTilesStatusRowTapForTesting(at index: Int) {
+        tilesStatusListView.simulateTileRowTapForTesting(at: index)
+        setNeedsLayout()
+        layoutIfNeeded()
+    }
+
+    func simulateTilesStatusParseStageTapForTesting(tile: Tile) {
+        tilesStatusListView.simulateParseStageTapForTesting(tile: tile)
+        setNeedsLayout()
+        layoutIfNeeded()
     }
 
     var isTilesScrollEnabledForTesting: Bool {
