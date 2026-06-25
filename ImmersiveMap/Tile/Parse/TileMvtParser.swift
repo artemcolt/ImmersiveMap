@@ -9,6 +9,7 @@ internal import SwiftEarcut
 class TileMvtParser {
     private static let dashEpsilon: Float = 0.0001
     private static let minClippedRoadLabelFragmentLength: Float = 256.0
+    static let complexOceanHoleSplitThreshold = 64
     let determineFeatureStyle               : DetermineFeatureStyle
     private let decodePolygon               : DecodePolygon = DecodePolygon()
     private let decodeLine                  : DecodeLine = DecodeLine()
@@ -165,7 +166,7 @@ class TileMvtParser {
                 continue
             }
 
-            let lines = decodeLine.decode(geometry: feature.geometry)
+            let lines = normalize(decodeLine.decode(geometry: feature.geometry), layer: layer)
             for line in lines {
                 let fragments = lineClipper.clip(line: line, tileExtent: Float(tileExtent))
                 for fragment in fragments {
@@ -678,7 +679,9 @@ class TileMvtParser {
                 
                 if feature.type == .polygon {
                     let geometry: [UInt32] = feature.geometry
-                    let polygons = decodePolygon.decode(geometry: geometry)
+                    let polygons = normalize(decodePolygon.decode(geometry: geometry), layer: layer)
+                    let shouldSplitComplexOceanHoles = layerName == "ocean"
+                        && polygons.contains { $0.interiorRings.count >= Self.complexOceanHoleSplitThreshold }
                     let extrudeFlag = attributes["extrude"].flatMap(parseBoolValue)
                     let isBuildingPart = isTruthy(attributes["building:part"])
                     let buildingId = buildingIdentifier(attributes: attributes, featureId: feature.id)
@@ -706,6 +709,16 @@ class TileMvtParser {
                         : nil
                     
                     for polygon in polygons {
+                        if shouldSplitComplexOceanHoles,
+                           appendComplexOceanPolygon(polygon,
+                                                     style: style,
+                                                     polygonByStyle: &polygonByStyle,
+                                                     styles: &styles,
+                                                     parsePolygon: parsePolygon,
+                                                     tile: tile) {
+                            continue
+                        }
+
                         guard let parsedGeometry = parsePolygon.parseGeometry(polygon: polygon,
                                                                               tileExtent: Float(tileExtent)) else {
                             continue
@@ -753,7 +766,7 @@ class TileMvtParser {
                             max(partial, pass.parseGeometryStyleData.lineWidth * 0.5)
                         }
                     )
-                    let lines = decodeLine.decode(geometry: geometry)
+                    let lines = normalize(decodeLine.decode(geometry: geometry), layer: layer)
                     for line in lines {
                         let exactClippedFragments = lineClipper.clip(line: line, tileExtent: Float(tileExtent))
                         guard exactClippedFragments.isEmpty == false else {
@@ -957,12 +970,12 @@ class TileMvtParser {
                     }
                 } else if feature.type == .point {
                     guard let labelTextStyle = style.labelTextStyle else { continue }
-                    let points = decodePoint.decode(geometry: feature.geometry)
+                    let points = normalize(decodePoint.decode(geometry: feature.geometry), layer: layer)
                     let featureID = feature.hasID ? feature.id : nil
                     let poiIcon = poiSpriteResolver.resolve(attributes: attributes, layerName: layerName)
                     for point in points where isPointInsideTile(point) {
                         let anchor = SIMD2(Int16(point.x), Int16(point.y))
-                        let labelFeature = VectorTileLabelFeature(providerID: "mapbox",
+                        let labelFeature = VectorTileLabelFeature(providerID: labelProviderProfile.providerID,
                                                                   tile: tile,
                                                                   layerName: layerName,
                                                                   featureID: featureID,

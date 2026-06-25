@@ -194,6 +194,45 @@ extension TileMvtParser {
         return parseBoolValue(value) ?? false
     }
 
+    func appendComplexOceanPolygon(_ polygon: Polygon,
+                                   style: FeatureStyle,
+                                   polygonByStyle: inout [UInt8: [ParsedPolygon]],
+                                   styles: inout [UInt8: FeatureStyle],
+                                   parsePolygon: ParsePolygon,
+                                   tile: Tile) -> Bool {
+        guard polygon.interiorRings.count >= Self.complexOceanHoleSplitThreshold else {
+            return false
+        }
+
+        let oceanPolygon = Polygon(exteriorRing: polygon.exteriorRing,
+                                   interiorRings: [])
+        guard let parsedOcean = parsePolygon.parse(polygon: oceanPolygon,
+                                                   tileExtent: Float(tileExtent)) else {
+            return false
+        }
+
+        polygonByStyle[style.key, default: []].append(parsedOcean)
+        styles[style.key] = style
+
+        let landStyle = determineFeatureStyle.makeStyle(data: DetFeatureStyleData(layerName: "background",
+                                                                                  properties: [:],
+                                                                                  tile: tile))
+        guard landStyle.key != 0 else {
+            return true
+        }
+
+        styles[landStyle.key] = landStyle
+        for interiorRing in polygon.interiorRings {
+            let landPolygon = Polygon(exteriorRing: interiorRing,
+                                      interiorRings: [])
+            if let parsedLand = parsePolygon.parse(polygon: landPolygon,
+                                                   tileExtent: Float(tileExtent)) {
+                polygonByStyle[landStyle.key, default: []].append(parsedLand)
+            }
+        }
+        return true
+    }
+
     func buildingIdentifier(attributes: [String: VectorTile_Tile.Value],
                             featureId: UInt64) -> UInt64 {
         if let value = attributes["osm_id"], let id = parseUInt64Value(value) {
@@ -226,7 +265,7 @@ extension TileMvtParser {
         for feature in layer.features {
             let attributes = decodeAttributes(feature: feature, layer: layer)
             guard isTruthy(attributes["building:part"]) else { continue }
-            let polygons = polygonDecoder.decode(geometry: feature.geometry)
+            let polygons = normalize(polygonDecoder.decode(geometry: feature.geometry), layer: layer)
             for polygon in polygons {
                 if let signature = buildingFootprintSignature(for: polygon) {
                     signatures.insert(signature)
@@ -234,6 +273,47 @@ extension TileMvtParser {
             }
         }
         return signatures
+    }
+
+    func normalize(_ polygons: MultiPolygon, layer: VectorTile_Tile.Layer) -> MultiPolygon {
+        let scale = coordinateScale(for: layer)
+        guard scale != 1 else {
+            return polygons
+        }
+        return polygons.map { polygon in
+            Polygon(exteriorRing: normalize(polygon.exteriorRing, scale: scale),
+                    interiorRings: polygon.interiorRings.map { normalize($0, scale: scale) })
+        }
+    }
+
+    func normalize(_ lines: MultiLineString, layer: VectorTile_Tile.Layer) -> MultiLineString {
+        let scale = coordinateScale(for: layer)
+        guard scale != 1 else {
+            return lines
+        }
+        return lines.map { normalize($0, scale: scale) }
+    }
+
+    func normalize(_ points: MultiPoint, layer: VectorTile_Tile.Layer) -> MultiPoint {
+        let scale = coordinateScale(for: layer)
+        guard scale != 1 else {
+            return points
+        }
+        return normalize(points, scale: scale)
+    }
+
+    private func coordinateScale(for layer: VectorTile_Tile.Layer) -> Double {
+        guard layer.extent > 0 else {
+            return 1
+        }
+        return tileExtent / Double(layer.extent)
+    }
+
+    private func normalize(_ points: [Point], scale: Double) -> [Point] {
+        points.map { point in
+            Point(x: Int32((Double(point.x) * scale).rounded()),
+                  y: Int32((Double(point.y) * scale).rounded()))
+        }
     }
 
     func buildingFootprintSignature(for polygon: Polygon) -> BuildingFootprintSignature? {
@@ -883,7 +963,7 @@ extension TileMvtParser {
 
         let parsedPolygon = ParsedPolygon(vertices: vertices, indices: indices)
         
-        polygonByStyle[style.key] = [parsedPolygon]
+        polygonByStyle[style.key, default: []].insert(parsedPolygon, at: 0)
         styles[style.key] = style
     }
 }

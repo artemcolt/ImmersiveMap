@@ -11,6 +11,10 @@ public protocol ImmersiveMapProvider {
     var vectorTileStyle: any ImmersiveMapVectorTileStyle { get }
 }
 
+public protocol ImmersiveMapProviderTileCoverageConfiguring {
+    var maximumTileZoomLevel: Int? { get }
+}
+
 protocol ImmersiveMapProviderRuntime {
     func makeRuntimeMapStyle(settings: ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle
     func makeLabelProviderProfile(settings: ImmersiveMapSettings) -> any VectorTileLabelProviderProfile
@@ -21,6 +25,7 @@ public struct AnyImmersiveMapProvider: Equatable {
     public let cacheNamespace: String
     public let configurationFingerprint: UInt64
     public let tileSource: ImmersiveMapTileSource
+    public let maximumTileZoomLevel: Int?
 
     let vectorTileStyle: any ImmersiveMapVectorTileStyle
     private let runtimeMapStyleFactory: (ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle
@@ -32,6 +37,7 @@ public struct AnyImmersiveMapProvider: Equatable {
         self.configurationFingerprint = provider.configurationFingerprint
         self.tileSource = provider.tileSource
         self.vectorTileStyle = provider.vectorTileStyle
+        self.maximumTileZoomLevel = (provider as? ImmersiveMapProviderTileCoverageConfiguring)?.maximumTileZoomLevel
 
         if let runtimeProvider = provider as? ImmersiveMapProviderRuntime {
             self.runtimeMapStyleFactory = runtimeProvider.makeRuntimeMapStyle
@@ -54,6 +60,7 @@ public struct AnyImmersiveMapProvider: Equatable {
             && lhs.cacheNamespace == rhs.cacheNamespace
             && lhs.configurationFingerprint == rhs.configurationFingerprint
             && lhs.tileSource == rhs.tileSource
+            && lhs.maximumTileZoomLevel == rhs.maximumTileZoomLevel
     }
 
     func makeRuntimeMapStyle(settings: ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle {
@@ -71,32 +78,40 @@ public struct CustomVectorTileProvider: ImmersiveMapProvider {
     public let configurationFingerprint: UInt64
     public let tileSource: ImmersiveMapTileSource
     public let vectorTileStyle: any ImmersiveMapVectorTileStyle
+    public let maximumTileZoomLevel: Int?
 
     public init(id: String,
                 cacheNamespace: String? = nil,
                 tileSource: ImmersiveMapTileSource,
                 style: any ImmersiveMapVectorTileStyle,
+                maximumTileZoomLevel: Int? = nil,
                 configurationFingerprint: UInt64? = nil) {
         self.id = id
         self.cacheNamespace = cacheNamespace ?? id
         self.tileSource = tileSource
         self.vectorTileStyle = style
+        self.maximumTileZoomLevel = maximumTileZoomLevel
         self.configurationFingerprint = configurationFingerprint
             ?? Self.makeFingerprint(id: id,
                                     cacheNamespace: cacheNamespace ?? id,
                                     tileSource: tileSource,
-                                    styleFingerprint: style.cacheFingerprint)
+                                    styleFingerprint: style.cacheFingerprint,
+                                    maximumTileZoomLevel: maximumTileZoomLevel)
     }
 
     private static func makeFingerprint(id: String,
                                         cacheNamespace: String,
                                         tileSource: ImmersiveMapTileSource,
-                                        styleFingerprint: UInt32) -> UInt64 {
+                                        styleFingerprint: UInt32,
+                                        maximumTileZoomLevel: Int?) -> UInt64 {
         var hash: UInt64 = 1469598103934665603
         mix(id, into: &hash)
         mix(cacheNamespace, into: &hash)
         mix(tileSource.tileBaseURL.absoluteString, into: &hash)
         mix(String(styleFingerprint), into: &hash)
+        if let maximumTileZoomLevel {
+            mix(String(maximumTileZoomLevel), into: &hash)
+        }
         return hash
     }
 
@@ -107,3 +122,5 @@ public struct CustomVectorTileProvider: ImmersiveMapProvider {
         }
     }
 }
+
+extension CustomVectorTileProvider: ImmersiveMapProviderTileCoverageConfiguring {}

@@ -3,6 +3,7 @@
 
 public struct MapboxProvider: ImmersiveMapProvider {
     public static let defaultTilesetID = "mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2"
+    public static let defaultMaximumTileZoomLevel = 20
 
     public let accessToken: String?
     public let tilesetID: String
@@ -45,6 +46,12 @@ public struct MapboxProvider: ImmersiveMapProvider {
             hash ^= UInt64(byte)
             hash &*= 1099511628211
         }
+    }
+}
+
+extension MapboxProvider: ImmersiveMapProviderTileCoverageConfiguring {
+    public var maximumTileZoomLevel: Int? {
+        Self.defaultMaximumTileZoomLevel
     }
 }
 

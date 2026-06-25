@@ -840,6 +840,9 @@ public extension ImmersiveMapSettings {
         settings.tiles.network.tileBaseURL = provider.tileSource.tileBaseURL
         settings.tiles.network.authorizationToken = provider.tileSource.accessToken
         settings.tiles.network.authorizationMode = provider.tileSource.authorization
+        if let maximumTileZoomLevel = provider.maximumTileZoomLevel {
+            settings.tiles.coverage.maximumZoomLevel = maximumTileZoomLevel
+        }
         return settings
     }
 

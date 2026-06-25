@@ -101,6 +101,150 @@ final class TileMvtParserFallbackLabelTests: XCTestCase {
         XCTAssertFalse(labels.contains("Atlantic Ocean"))
     }
 
+    func testPointLabelsUseConfiguredProviderIDInRuntimeProfile() throws {
+        var config = ImmersiveMapSettings.default
+        config = config.provider(ParserProviderIDTestProvider(id: "parser-provider"))
+
+        let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: FallbackWaterLabelStyle()),
+                                   config: config,
+                                   glyphCoverage: .legacyAtlasForTests)
+        let parsedTile = try parser.parse(tile: Tile(x: 0, y: 0, z: 0),
+                                          mvtData: try makeProviderAtlanticOceanTile().serializedData())
+        let expectedKey = VectorTileLabelIdentity.providerFeature(providerID: "parser-provider",
+                                                                  layerName: "natural_label",
+                                                                  featureID: 1).runtimeKey
+        let mapboxKey = VectorTileLabelIdentity.providerFeature(providerID: "mapbox",
+                                                                layerName: "natural_label",
+                                                                featureID: 1).runtimeKey
+
+        XCTAssertTrue(parsedTile.textLabels.map(\.key).contains(expectedKey))
+        XCTAssertFalse(parsedTile.textLabels.map(\.key).contains(mapboxKey))
+    }
+
+    func testParserNormalizesLayerExtentToInternalTileExtent() throws {
+        let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: ParserSolidPolygonStyle()),
+                                   config: .default,
+                                   glyphCoverage: .legacyAtlasForTests)
+        let parsedTile = try parser.parse(tile: Tile(x: 0, y: 0, z: 0),
+                                          mvtData: try makeFullTilePolygonTile(extent: 2048).serializedData())
+        let positions = parsedTile.drawingPolygon.vertices
+            .filter { $0.styleIndex == 1 }
+            .map(\.position)
+        let maxX = positions.map(\.x).max()
+        let maxY = positions.map(\.y).max()
+
+        XCTAssertEqual(maxX, 4096)
+        XCTAssertEqual(maxY, 4096)
+    }
+
+    func testParserSplitsComplexOceanHolesIntoBackgroundPolygons() throws {
+        let parser = TileMvtParser(determineFeatureStyle: DetermineFeatureStyle(mapStyle: ParserSolidPolygonStyle()),
+                                   config: .default,
+                                   glyphCoverage: .legacyAtlasForTests)
+        let parsedTile = try parser.parse(tile: Tile(x: 0, y: 0, z: 0),
+                                          mvtData: try makeComplexOceanTile().serializedData())
+        let backgroundVertexCount = parsedTile.drawingPolygon.vertices
+            .filter { $0.styleIndex == 0 }
+            .count
+        let oceanVertexCount = parsedTile.drawingPolygon.vertices
+            .filter { $0.styleIndex == 1 }
+            .count
+
+        XCTAssertGreaterThan(backgroundVertexCount, 65 * 65)
+        XCTAssertGreaterThan(oceanVertexCount, 0)
+    }
+
+    private func makeFullTilePolygonTile(extent: UInt32) -> VectorTile_Tile {
+        var feature = VectorTile_Tile.Feature()
+        feature.id = 1
+        feature.type = .polygon
+        feature.geometry = [
+            command(id: 1, count: 1),
+            parameter(0),
+            parameter(0),
+            command(id: 2, count: 3),
+            parameter(Int32(extent)),
+            parameter(0),
+            parameter(0),
+            parameter(Int32(extent)),
+            parameter(-Int32(extent)),
+            parameter(0),
+            command(id: 7, count: 1)
+        ]
+
+        var layer = VectorTile_Tile.Layer()
+        layer.version = 2
+        layer.name = "solid"
+        layer.extent = extent
+        layer.features = [feature]
+
+        var tile = VectorTile_Tile()
+        tile.layers = [layer]
+        return tile
+    }
+
+    private func makeComplexOceanTile() -> VectorTile_Tile {
+        var geometry: [UInt32] = []
+        var cursor = SIMD2<Int32>(0, 0)
+        appendRing(points: [
+            SIMD2(0, 0),
+            SIMD2(4096, 0),
+            SIMD2(4096, 4096),
+            SIMD2(0, 4096)
+        ], to: &geometry, cursor: &cursor)
+
+        let holeCount = TileMvtParser.complexOceanHoleSplitThreshold + 1
+        for index in 0..<holeCount {
+            let column = index % 13
+            let row = index / 13
+            let x = Int32(128 + column * 280)
+            let y = Int32(128 + row * 280)
+            appendRing(points: [
+                SIMD2(x, y),
+                SIMD2(x, y + 64),
+                SIMD2(x + 64, y + 64),
+                SIMD2(x + 64, y)
+            ], to: &geometry, cursor: &cursor)
+        }
+
+        var feature = VectorTile_Tile.Feature()
+        feature.id = 1
+        feature.type = .polygon
+        feature.geometry = geometry
+
+        var layer = VectorTile_Tile.Layer()
+        layer.version = 2
+        layer.name = "ocean"
+        layer.extent = 4096
+        layer.features = [feature]
+
+        var tile = VectorTile_Tile()
+        tile.layers = [layer]
+        return tile
+    }
+
+    private func appendRing(points: [SIMD2<Int32>],
+                            to geometry: inout [UInt32],
+                            cursor: inout SIMD2<Int32>) {
+        guard let first = points.first else {
+            return
+        }
+
+        geometry.append(command(id: 1, count: 1))
+        geometry.append(parameter(first.x - cursor.x))
+        geometry.append(parameter(first.y - cursor.y))
+        cursor = first
+
+        geometry.append(command(id: 2, count: UInt32(points.count - 1)))
+        for point in points.dropFirst() {
+            geometry.append(parameter(point.x - cursor.x))
+            geometry.append(parameter(point.y - cursor.y))
+            cursor = point
+        }
+
+        geometry.append(command(id: 7, count: 1))
+    }
+
     private func parseFallbackWaterLabels(
         language: ImmersiveMapSettings.LabelLanguage,
         tile: Tile = Tile(x: 0, y: 0, z: 0),
@@ -218,5 +362,87 @@ private final class FallbackWaterLabelStyle: ImmersiveMapStyle {
                             color: SIMD4<Float>(1, 1, 1, 1),
                             parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 1),
                             labelTextStyle: labelTextStyle)
+    }
+}
+
+private final class ParserSolidPolygonStyle: ImmersiveMapStyle {
+    let preparedTileStyleRevision: UInt32 = 1
+
+    func getMapBaseColors() -> ImmersiveMapBaseColors {
+        ImmersiveMapBaseColors()
+    }
+
+    func makeStyle(data: DetFeatureStyleData) -> FeatureStyle {
+        let key: UInt8 = data.layerName == "background" ? 1 : 2
+        return FeatureStyle(key: key,
+                     color: SIMD4<Float>(1, 1, 1, 1),
+                     parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: 1))
+    }
+}
+
+private struct ParserProviderIDTestProvider: ImmersiveMapProvider {
+    let id: String
+
+    var cacheNamespace: String {
+        id
+    }
+
+    var configurationFingerprint: UInt64 {
+        1
+    }
+
+    var tileSource: ImmersiveMapTileSource {
+        .url(URL(string: "https://example.com/api/v1/map/tiles")!)
+    }
+
+    var vectorTileStyle: any ImmersiveMapVectorTileStyle {
+        BasicVectorTileStyle()
+    }
+}
+
+extension ParserProviderIDTestProvider: ImmersiveMapProviderRuntime {
+    func makeRuntimeMapStyle(settings: ImmersiveMapSettings.StyleSettings) -> any ImmersiveMapStyle {
+        FallbackWaterLabelStyle()
+    }
+
+    func makeLabelProviderProfile(settings: ImmersiveMapSettings) -> any VectorTileLabelProviderProfile {
+        ParserProviderIDTestLabelProviderProfile(providerID: id)
+    }
+}
+
+private struct ParserProviderIDTestLabelProviderProfile: VectorTileLabelProviderProfile {
+    let providerID: String
+
+    var languagePreferences: VectorTileLabelLanguagePreferences {
+        .from(settingsLanguage: .english, fallbackPolicy: .international)
+    }
+
+    func sortKey(properties: [String: VectorTile_Tile.Value]) -> Int {
+        0
+    }
+
+    func collisionRank(layerName: String, sortKey: Int) -> Int {
+        sortKey
+    }
+
+    func includesBasePointLabel(layerName: String,
+                                properties: [String: VectorTile_Tile.Value],
+                                tileZoom: Int,
+                                sortKey: Int) -> Bool {
+        true
+    }
+
+    func identity(feature: VectorTileLabelFeature, text: String, kind: String) -> VectorTileLabelIdentity {
+        .providerFeature(providerID: feature.providerID,
+                         layerName: feature.layerName,
+                         featureID: feature.featureID ?? 0)
+    }
+
+    func normalizedKind(layerName: String, properties: [String: VectorTile_Tile.Value]) -> String {
+        layerName
+    }
+
+    func isHouseNumberLayer(_ layerName: String) -> Bool {
+        false
     }
 }

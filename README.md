@@ -251,6 +251,9 @@ ImmersiveMapView()
 
 ImmersiveMapView()
     .provider(MapboxProvider(accessToken: "your-mapbox-public-token"))
+
+ImmersiveMapView()
+    .provider(OpenStreetMapProvider())
 ```
 
 Use fluent settings modifiers when you need to tune lower-level renderer, cache, label, or camera settings:
@@ -339,6 +342,39 @@ ImmersiveMapView()
 ```
 
 Changing map style tokens invalidates prepared tile cache entries automatically.
+
+### OpenStreetMap Default Map Style
+
+`OpenStreetMapProvider` uses the OSMF Shortbread vector tile endpoint by default:
+
+```swift
+ImmersiveMapView()
+    .provider(OpenStreetMapProvider())
+```
+
+Tune the built-in Shortbread-compatible renderer with `OpenStreetMapDefaultMapStyleConfiguration.osmDefault`:
+
+```swift
+let style = OpenStreetMapDefaultMapStyleConfiguration.osmDefault
+    .layers { layers in
+        layers.water = SIMD4<Float>(0.35, 0.58, 0.78, 1.0)
+        layers.park = SIMD4<Float>(0.50, 0.70, 0.48, 0.75)
+        layers.roads.major = SIMD4<Float>(0.95, 0.88, 0.76, 1.0)
+    }
+    .labels { labels in
+        labels.place.strokeWidthPx = 2.0
+        labels.poi.strokeWidthPx = 2.0
+        labels.road.fillColor = SIMD3<Float>(0.48, 0.48, 0.46)
+    }
+    .features { features in
+        features.buildingFillColor = SIMD4<Float>(0.94, 0.91, 0.86, 1.0)
+    }
+
+ImmersiveMapView()
+    .provider(OpenStreetMapProvider(style: style))
+```
+
+The default URL is `https://vector.openstreetmap.org/shortbread_v1/{z}/{x}/{y}.mvt`. `OpenStreetMapProvider` also limits tile coverage to Shortbread's max zoom 14. Follow the [OSMF Vector Tile Usage Policy](https://operations.osmfoundation.org/policies/vector/) for attribution, User-Agent, caching, and traffic limits.
 
 ## Build This Package
 
