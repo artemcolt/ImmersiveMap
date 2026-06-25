@@ -416,9 +416,9 @@ final class DebugOverlayHUDView: UIView {
         latLonLabel.attributedText = attributedText(snapshot.coordinateLines.latLon,
                                                    fontSize: coordinateFontSize,
                                                    color: color)
-        diagnosticsLabel.attributedText = attributedText(snapshot.diagnosticsLines.joined(separator: "\n"),
-                                                        fontSize: diagnosticsFontSize,
-                                                        color: color)
+        diagnosticsLabel.attributedText = diagnosticsAttributedText(snapshot.diagnosticsLines.joined(separator: "\n"),
+                                                                    fontSize: diagnosticsFontSize,
+                                                                    color: color)
         tilesStatusLabel.attributedText = attributedText(tilesStatusText(lines: snapshot.tileLoadingStatusLines),
                                                         fontSize: diagnosticsFontSize,
                                                         color: color)
@@ -628,6 +628,52 @@ final class DebugOverlayHUDView: UIView {
                 .foregroundColor: color
             ]
         )
+    }
+
+    private func diagnosticsAttributedText(_ text: String,
+                                           fontSize: CGFloat,
+                                           color: UIColor) -> NSAttributedString {
+        let attributedText = NSMutableAttributedString(attributedString: attributedText(text,
+                                                                                       fontSize: fontSize,
+                                                                                       color: color))
+        for run in DebugOverlayDiagnosticsTextStylePlanner.makeRuns(for: text) {
+            attributedText.addAttribute(.foregroundColor,
+                                        value: diagnosticsColor(for: run.style),
+                                        range: run.range)
+        }
+        return attributedText
+    }
+
+    private func diagnosticsColor(for style: DebugOverlayDiagnosticsTextStyle) -> UIColor {
+        switch style {
+        case let .section(title):
+            return diagnosticsSectionColor(title: title)
+        case .key:
+            return UIColor.white.withAlphaComponent(0.58)
+        case .warningValue:
+            return UIColor.systemOrange
+        }
+    }
+
+    private func diagnosticsSectionColor(title: String) -> UIColor {
+        switch title {
+        case "Camera":
+            return UIColor.systemCyan
+        case "Frame":
+            return UIColor.systemGreen
+        case "Tiles":
+            return UIColor.systemYellow
+        case "Labels":
+            return UIColor.systemPurple
+        case "Resources":
+            return UIColor.systemBlue
+        case "Globe culling":
+            return UIColor.systemOrange
+        case "Skip":
+            return UIColor.systemRed
+        default:
+            return UIColor.white.withAlphaComponent(0.82)
+        }
     }
 }
 

@@ -212,6 +212,42 @@ final class DebugOverlayRendererTests: XCTestCase {
         ])
     }
 
+    func testDiagnosticsTextStylePlannerMarksSectionsKeysAndWarningSkipBody() {
+        let text = [
+            "[Frame]",
+            "frame:73 dt:3.55ms fps:281.9",
+            "",
+            "[Skip]",
+            "debugOverlayDisabled,noAvatarContent"
+        ].joined(separator: "\n")
+
+        let runs = DebugOverlayDiagnosticsTextStylePlanner.makeRuns(for: text)
+
+        XCTAssertTrue(runs.contains(DebugOverlayDiagnosticsTextStyleRun(
+            range: (text as NSString).range(of: "[Frame]"),
+            style: .section("Frame")
+        )))
+        XCTAssertTrue(runs.contains(DebugOverlayDiagnosticsTextStyleRun(
+            range: (text as NSString).range(of: "frame:"),
+            style: .key
+        )))
+        XCTAssertTrue(runs.contains(DebugOverlayDiagnosticsTextStyleRun(
+            range: (text as NSString).range(of: "dt:"),
+            style: .key
+        )))
+        XCTAssertTrue(runs.contains(DebugOverlayDiagnosticsTextStyleRun(
+            range: (text as NSString).range(of: "[Skip]"),
+            style: .section("Skip")
+        )))
+        XCTAssertTrue(runs.contains(DebugOverlayDiagnosticsTextStyleRun(
+            range: (text as NSString).range(of: "debugOverlayDisabled,noAvatarContent"),
+            style: .warningValue
+        )))
+        XCTAssertFalse(runs.contains { run in
+            run.range == (text as NSString).range(of: "73") && run.style == .key
+        })
+    }
+
     private func makeSingleAllocationAtlasPlan() throws -> GlobeAtlasPlan {
         let sourceTile = Tile(x: 0, y: 0, z: 1)
         let targetTile = Tile(x: 0, y: 0, z: 1)
