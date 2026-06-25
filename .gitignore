@@ -1,8 +1,10 @@
 .DS_Store
+AGENTS.md
 /.build/
 /.swiftpm/
 /.worktrees/
 /DerivedData/
+/ImmersiveMapMacDevelop/
 Docs/superpowers/
 DerivedData/
 **/xcuserdata/
