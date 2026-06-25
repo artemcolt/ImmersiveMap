@@ -55,6 +55,39 @@ final class OpenStreetMapDefaultMapStyleTests: XCTestCase {
                        OpenStreetMapDefaultMapStyleConfiguration.osmDefault.labels.place.fillColor)
     }
 
+    func testLargeCityLabelsReceiveVisualPriority() throws {
+        let style = OpenStreetMapDefaultMapStyle(configuration: .osmDefault,
+                                                settings: ImmersiveMapSettings.default.style)
+        let capital = try XCTUnwrap(makeStyle(style,
+                                              layerName: "place_labels",
+                                              properties: [
+                                                "kind": stringValue("city"),
+                                                "population": intValue(13_000_000),
+                                                "capital": intValue(2)
+                                              ]).labelTextStyle)
+        let regionalCity = try XCTUnwrap(makeStyle(style,
+                                                   layerName: "place_labels",
+                                                   properties: [
+                                                    "kind": stringValue("city"),
+                                                    "population": intValue(600_000)
+                                                   ]).labelTextStyle)
+        let city = try XCTUnwrap(makeStyle(style,
+                                           layerName: "place_labels",
+                                           properties: ["kind": stringValue("city")]).labelTextStyle)
+        let town = try XCTUnwrap(makeStyle(style,
+                                           layerName: "place_labels",
+                                           properties: ["kind": stringValue("town")]).labelTextStyle)
+
+        XCTAssertEqual(capital.sizePx, 34, accuracy: 0.0001)
+        XCTAssertEqual(capital.strokeWidthPx, 5.4, accuracy: 0.0001)
+        XCTAssertEqual(regionalCity.sizePx, 29, accuracy: 0.0001)
+        XCTAssertEqual(city.sizePx, 26, accuracy: 0.0001)
+        XCTAssertEqual(town.sizePx, 24, accuracy: 0.0001)
+        XCTAssertGreaterThan(capital.sizePx, regionalCity.sizePx)
+        XCTAssertGreaterThan(regionalCity.sizePx, city.sizePx)
+        XCTAssertGreaterThan(city.sizePx, town.sizePx)
+    }
+
     func testDefaultLabelSizesAreReadableOnGlobe() {
         let labels = OpenStreetMapDefaultMapStyleConfiguration.osmDefault.labels
 
@@ -109,6 +142,12 @@ final class OpenStreetMapDefaultMapStyleTests: XCTestCase {
     private func stringValue(_ value: String) -> VectorTile_Tile.Value {
         var tileValue = VectorTile_Tile.Value()
         tileValue.stringValue = value
+        return tileValue
+    }
+
+    private func intValue(_ value: Int64) -> VectorTile_Tile.Value {
+        var tileValue = VectorTile_Tile.Value()
+        tileValue.intValue = value
         return tileValue
     }
 }

@@ -1,6 +1,8 @@
 // Copyright (c) 2025-2026 Artem Bobkin.
 // SPDX-License-Identifier: MIT
 
+import Foundation
+
 struct OpenStreetMapVectorTileLabelProviderProfile: VectorTileLabelProviderProfile {
     private let lowZoomOverviewMaximumTileZoom = 3
     private let lowZoomMajorCityMinimumPopulation = 1_000_000
@@ -18,6 +20,9 @@ struct OpenStreetMapVectorTileLabelProviderProfile: VectorTileLabelProviderProfi
     func sortKey(properties: [String: VectorTile_Tile.Value]) -> Int {
         if let rank = parseIntValue(properties["rank"]) {
             return rank
+        }
+        if let populationSortKey = populationSortKey(properties: properties) {
+            return populationSortKey
         }
         if let wayArea = parseDoubleValue(properties["way_area"]) {
             return max(0, 100_000 - Int(wayArea.squareRoot()))
@@ -112,6 +117,50 @@ struct OpenStreetMapVectorTileLabelProviderProfile: VectorTileLabelProviderProfi
         return population >= lowZoomMajorCityMinimumPopulation
     }
 
+    private func populationSortKey(properties: [String: VectorTile_Tile.Value]) -> Int? {
+        let kind = properties["kind"]?.stringValue.lowercased()
+        if kind == "capital" || kind == "state_capital" {
+            return 100
+        }
+        guard let population = population(properties: properties), population > 0 else {
+            return nil
+        }
+        let populationRank = 1_000 - min(800, Int(log10(Double(population)) * 100.0))
+        let capitalBoost = isTruthy(properties["capital"]) ? 150 : 0
+        return max(0, populationRank - capitalBoost)
+    }
+
+    private func population(properties: [String: VectorTile_Tile.Value]) -> Int? {
+        for key in ["population", "pop", "pop_max", "population_max"] {
+            guard let population = parseIntValue(properties[key]) else {
+                continue
+            }
+            return population
+        }
+        return nil
+    }
+
+    private func isTruthy(_ value: VectorTile_Tile.Value?) -> Bool {
+        guard let value else {
+            return false
+        }
+        if value.hasBoolValue {
+            return value.boolValue
+        }
+        if let intValue = parseIntValue(value) {
+            return intValue > 0
+        }
+        if value.hasStringValue {
+            switch value.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "1", "yes", "true", "y":
+                return true
+            default:
+                return false
+            }
+        }
+        return false
+    }
+
     private func parseIntValue(_ value: VectorTile_Tile.Value?) -> Int? {
         guard let value else {
             return nil
@@ -124,6 +173,12 @@ struct OpenStreetMapVectorTileLabelProviderProfile: VectorTileLabelProviderProfi
         }
         if value.hasSintValue {
             return Int(value.sintValue)
+        }
+        if value.hasDoubleValue {
+            return Int(value.doubleValue)
+        }
+        if value.hasFloatValue {
+            return Int(value.floatValue)
         }
         if value.hasStringValue {
             return Int(value.stringValue)

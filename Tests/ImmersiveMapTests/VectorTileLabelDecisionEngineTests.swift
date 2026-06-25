@@ -543,6 +543,29 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
                                                       sortKey: 1))
     }
 
+    func testOpenStreetMapProfilePrioritizesLargePlaceLabels() {
+        let profile = OpenStreetMapVectorTileLabelProviderProfile(settings: .default)
+
+        let capitalSortKey = profile.sortKey(properties: [
+            "kind": stringValue("city"),
+            "population": intValue(13_000_000),
+            "capital": intValue(2)
+        ])
+        let regionalCitySortKey = profile.sortKey(properties: [
+            "kind": stringValue("city"),
+            "population": intValue(600_000)
+        ])
+        let townSortKey = profile.sortKey(properties: [
+            "kind": stringValue("town"),
+            "population": intValue(80_000)
+        ])
+        let unrankedSortKey = profile.sortKey(properties: ["kind": stringValue("village")])
+
+        XCTAssertLessThan(capitalSortKey, regionalCitySortKey)
+        XCTAssertLessThan(regionalCitySortKey, townSortKey)
+        XCTAssertLessThan(townSortKey, unrankedSortKey)
+    }
+
     func testDecisionEngineBuildsTextLabelCompatibleDecision() {
         let style = LabelTextStyle(key: 30,
                                    fillColor: SIMD3<Float>(0.1, 0.2, 0.3),
