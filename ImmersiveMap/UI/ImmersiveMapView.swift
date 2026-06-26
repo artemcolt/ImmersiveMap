@@ -6,11 +6,12 @@
 import SwiftUI
 import UIKit // For UIView
 
-public struct ImmersiveMapView: UIViewRepresentable {
+public struct ImmersiveMapView: View {
     var settings: ImmersiveMapSettings
     private var cameraPosition: ImmersiveMapCameraPosition?
     private var avatarsController: ImmersiveMapAvatarsController?
     private var cameraController: ImmersiveMapCameraController?
+    private var cameraUIControls: CameraUIControls?
     private var selectionController: ImmersiveMapSelectionController?
 
     public init(settings: ImmersiveMapSettings = .default,
@@ -24,6 +25,32 @@ public struct ImmersiveMapView: UIViewRepresentable {
         self.cameraController = cameraController
         self.selectionController = selectionController
     }
+
+    public var body: some View {
+        let mapView = ImmersiveMapUIViewRepresentable(settings: settings,
+                                                      avatarsController: avatarsController,
+                                                      cameraPosition: cameraPosition,
+                                                      cameraController: cameraController,
+                                                      selectionController: selectionController)
+
+        if let cameraUIControls, cameraUIControls.isEnabled, let cameraController {
+            mapView.immersiveMapCameraControlsOverlay(
+                camera: cameraController,
+                initialCameraPosition: cameraPosition ?? Self.defaultCameraControlsPosition,
+                maximumPitch: cameraUIControls.maximumPitch
+            )
+        } else {
+            mapView
+        }
+    }
+}
+
+private struct ImmersiveMapUIViewRepresentable: UIViewRepresentable {
+    let settings: ImmersiveMapSettings
+    let avatarsController: ImmersiveMapAvatarsController?
+    let cameraPosition: ImmersiveMapCameraPosition?
+    let cameraController: ImmersiveMapCameraController?
+    let selectionController: ImmersiveMapSelectionController?
 
     public func makeUIView(context: Context) -> ImmersiveMapUIView {
         let uiView = ImmersiveMapUIView(frame: .zero,
@@ -46,60 +73,58 @@ public struct ImmersiveMapView: UIViewRepresentable {
     public static func dismantleUIView(_ uiView: ImmersiveMapUIView, coordinator: ()) {
         uiView.dismantle()
     }
+}
 
-    public func avatars(_ controller: ImmersiveMapAvatarsController?) -> ImmersiveMapView {
+public extension ImmersiveMapView {
+
+    func avatars(_ controller: ImmersiveMapAvatarsController?) -> ImmersiveMapView {
         var view = self
         view.avatarsController = controller
         return view
     }
 
-    public func camera(_ controller: ImmersiveMapCameraController?) -> ImmersiveMapView {
+    func camera(_ controller: ImmersiveMapCameraController?) -> ImmersiveMapView {
         var view = self
         view.cameraController = controller
         return view
     }
 
-    public func camera(_ controller: ImmersiveMapCameraController?,
-                       position: ImmersiveMapCameraPosition) -> ImmersiveMapView {
-        var view = self
-        view.cameraController = controller
-        view.cameraPosition = position
-        return view
-    }
-
-    public func cameraPosition(_ position: ImmersiveMapCameraPosition?) -> ImmersiveMapView {
-        var view = self
-        view.cameraPosition = position
-        return view
-    }
-
-    public func cameraController(_ controller: ImmersiveMapCameraController?) -> ImmersiveMapView {
-        var view = self
-        view.cameraController = controller
-        return view
-    }
-
-    public func cameraController(_ controller: ImmersiveMapCameraController?,
-                                 position: ImmersiveMapCameraPosition) -> ImmersiveMapView {
+    func camera(_ controller: ImmersiveMapCameraController?,
+                position: ImmersiveMapCameraPosition) -> ImmersiveMapView {
         var view = self
         view.cameraController = controller
         view.cameraPosition = position
         return view
     }
 
-    @ViewBuilder
-    public func enableCameraUIControls(_ isEnabled: Bool = true,
-                                       maximumPitch: Float = ImmersiveMapSettings.default.camera.maximumPitch) -> some View {
-        if isEnabled, let cameraController {
-            immersiveMapCameraControlsOverlay(camera: cameraController,
-                                              initialCameraPosition: cameraPosition ?? Self.defaultCameraControlsPosition,
-                                              maximumPitch: maximumPitch)
-        } else {
-            self
-        }
+    func cameraPosition(_ position: ImmersiveMapCameraPosition?) -> ImmersiveMapView {
+        var view = self
+        view.cameraPosition = position
+        return view
     }
 
-    public func selection(_ controller: ImmersiveMapSelectionController?) -> ImmersiveMapView {
+    func cameraController(_ controller: ImmersiveMapCameraController?) -> ImmersiveMapView {
+        var view = self
+        view.cameraController = controller
+        return view
+    }
+
+    func cameraController(_ controller: ImmersiveMapCameraController?,
+                          position: ImmersiveMapCameraPosition) -> ImmersiveMapView {
+        var view = self
+        view.cameraController = controller
+        view.cameraPosition = position
+        return view
+    }
+
+    func enableCameraUIControls(_ isEnabled: Bool = true,
+                                maximumPitch: Float = ImmersiveMapSettings.default.camera.maximumPitch) -> ImmersiveMapView {
+        var view = self
+        view.cameraUIControls = CameraUIControls(isEnabled: isEnabled, maximumPitch: maximumPitch)
+        return view
+    }
+
+    func selection(_ controller: ImmersiveMapSelectionController?) -> ImmersiveMapView {
         var view = self
         view.selectionController = controller
         return view
@@ -217,7 +242,15 @@ public struct ImmersiveMapView: UIViewRepresentable {
         return view
     }
 
-    private static var defaultCameraControlsPosition: ImmersiveMapCameraPosition {
+}
+
+private extension ImmersiveMapView {
+    struct CameraUIControls {
+        let isEnabled: Bool
+        let maximumPitch: Float
+    }
+
+    static var defaultCameraControlsPosition: ImmersiveMapCameraPosition {
         ImmersiveMapCameraPosition(latitudeDegrees: 0,
                                    longitudeDegrees: 0,
                                    zoom: 0)

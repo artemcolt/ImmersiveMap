@@ -49,6 +49,19 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertEqual(reflectedValue("cameraPosition", in: controlledView), cameraPosition)
         XCTAssertFalse(String(describing: type(of: controlsView)).isEmpty)
     }
+
+    func testCameraUIControlsPreserveImmersiveMapViewBuilderModifiers() throws {
+        let camera = ImmersiveMapCameraController()
+
+        let view = ImmersiveMapView()
+            .cameraController(camera)
+            .enableCameraUIControls()
+            .debugPanel()
+
+        let settings: ImmersiveMapSettings? = reflectedValue("settings", in: view)
+        let unwrappedSettings = try XCTUnwrap(settings)
+        XCTAssertTrue(unwrappedSettings.debug.enableDebugPanel)
+    }
     #endif
 
     func testDebugPanelEnablesDebugOverlaySettings() {

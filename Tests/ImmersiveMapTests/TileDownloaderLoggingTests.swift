@@ -7,6 +7,13 @@ import Foundation
 import XCTest
 
 final class TileDownloaderLoggingTests: XCTestCase {
+    func testDefaultSessionConfigurationAllowsTLS13() {
+        let configuration = TileDownloader.makeSessionConfiguration()
+        let tls13: tls_protocol_version_t = .TLSv13
+
+        XCTAssertGreaterThanOrEqual(configuration.tlsMaximumSupportedProtocolVersion.rawValue, tls13.rawValue)
+    }
+
     func testSuccessfulDownloadDoesNotWriteRoutineLogsToStandardOutput() async {
         let responseData = Data([0x01, 0x02, 0x03])
         SuccessfulTileURLProtocol.responseData = responseData

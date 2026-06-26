@@ -29,8 +29,7 @@ class TileDownloader {
     private let session: URLSession
 
     init(config: ImmersiveMapSettings) {
-        let configuration = URLSessionConfiguration.default
-        configuration.tlsMaximumSupportedProtocolVersion = .TLSv12
+        let configuration = Self.makeSessionConfiguration()
         let network = config.tiles.network
         authorizationToken = network.authorizationToken
         authorizationMode = network.authorizationMode
@@ -47,6 +46,10 @@ class TileDownloader {
         self.session = session
         self.authorizationToken = authorizationToken
         self.authorizationMode = .bearerHeader
+    }
+
+    static func makeSessionConfiguration() -> URLSessionConfiguration {
+        URLSessionConfiguration.default
     }
 
     private static func queryItemsProvider(token: String?,

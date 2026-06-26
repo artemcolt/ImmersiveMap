@@ -33,9 +33,9 @@ private struct MapScreen: View {
             .tileSettings(clearDiskCachesOnLaunch: true)
             .tileProvider(tileProvider)
             .mapStyle(mapStyle)
+            .enableCameraUIControls()
             .debugPanel()
             .earthScene(isEnabled: true)
-            .enableCameraUIControls()
             .ignoresSafeArea()
     }
 }
