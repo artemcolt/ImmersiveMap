@@ -18,7 +18,7 @@ private struct MapScreen: View {
 
     var body: some View {
         ImmersiveMapView()
-            .camera(
+            .cameraController(
                 camera,
                 position: ImmersiveMapCameraPosition(
                     latitudeDegrees: 55.7558,

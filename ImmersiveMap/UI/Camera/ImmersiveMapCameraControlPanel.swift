@@ -4,12 +4,12 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
-public extension View {
-    func immersiveMapCameraControls(camera: ImmersiveMapCameraController,
-                                    initialCameraPosition: ImmersiveMapCameraPosition = ImmersiveMapCameraPosition(latitudeDegrees: 0,
-                                                                                                                   longitudeDegrees: 0,
-                                                                                                                   zoom: 0),
-                                    maximumPitch: Float = ImmersiveMapSettings.default.camera.maximumPitch) -> some View {
+extension View {
+    func immersiveMapCameraControlsOverlay(camera: ImmersiveMapCameraController,
+                                           initialCameraPosition: ImmersiveMapCameraPosition = ImmersiveMapCameraPosition(latitudeDegrees: 0,
+                                                                                                                          longitudeDegrees: 0,
+                                                                                                                          zoom: 0),
+                                           maximumPitch: Float = ImmersiveMapSettings.default.camera.maximumPitch) -> some View {
         modifier(ImmersiveMapCameraControlsModifier(camera: camera,
                                                     initialCameraPosition: initialCameraPosition,
                                                     maximumPitch: maximumPitch))

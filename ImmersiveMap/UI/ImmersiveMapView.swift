@@ -79,6 +79,26 @@ public struct ImmersiveMapView: UIViewRepresentable {
         return view
     }
 
+    public func cameraController(_ controller: ImmersiveMapCameraController?,
+                                 position: ImmersiveMapCameraPosition) -> ImmersiveMapView {
+        var view = self
+        view.cameraController = controller
+        view.cameraPosition = position
+        return view
+    }
+
+    @ViewBuilder
+    public func enableCameraUIControls(_ isEnabled: Bool = true,
+                                       maximumPitch: Float = ImmersiveMapSettings.default.camera.maximumPitch) -> some View {
+        if isEnabled, let cameraController {
+            immersiveMapCameraControlsOverlay(camera: cameraController,
+                                              initialCameraPosition: cameraPosition ?? Self.defaultCameraControlsPosition,
+                                              maximumPitch: maximumPitch)
+        } else {
+            self
+        }
+    }
+
     public func selection(_ controller: ImmersiveMapSelectionController?) -> ImmersiveMapView {
         var view = self
         view.selectionController = controller
@@ -197,6 +217,11 @@ public struct ImmersiveMapView: UIViewRepresentable {
         return view
     }
 
+    private static var defaultCameraControlsPosition: ImmersiveMapCameraPosition {
+        ImmersiveMapCameraPosition(latitudeDegrees: 0,
+                                   longitudeDegrees: 0,
+                                   zoom: 0)
+    }
 }
 
 #endif

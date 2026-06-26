@@ -26,7 +26,7 @@ struct ContentView: View {
 
     var body: some View {
         ImmersiveMapView()
-            .camera(
+            .cameraController(
                 camera,
                 position: .init(
                     latitudeDegrees: 55.7558,
