@@ -6,10 +6,11 @@ enum BaseLabelVisibilityResolver {
 
     static func targetVisibility(inputs: [BaseLabelPresentationInput],
                                  collisionFlags: [UInt32],
-                                 horizonVisibility: [Bool]) -> [Bool] {
+                                 horizonVisibility: [Bool],
+                                 collisionVisibilityIsFresh: Bool = true) -> [Bool] {
         inputs.indices.map { index in
             let input = inputs[index]
-            let collisionHidden = index < collisionFlags.count ? collisionFlags[index] != 0 : false
+            let collisionHidden = collisionVisibilityIsFresh && index < collisionFlags.count ? collisionFlags[index] != 0 : false
             let horizonVisible = index < horizonVisibility.count ? horizonVisibility[index] : false
             return input.isValid &&
                 input.duplicate == 0 &&

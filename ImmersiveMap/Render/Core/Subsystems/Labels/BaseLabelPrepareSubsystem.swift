@@ -205,23 +205,13 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                                             expectedCount: baseLabelCache.activeLabelSpanCount)
 
         let overviewFadeAlpha = LowZoomOverviewFade.alpha(for: frameContext.zoom)
-        var targetVisibility = BaseLabelVisibilityResolver.targetVisibility(
+        let collisionVisibilityIsFresh = publishedVisibilityCameraFingerprint == latestCameraFingerprint
+        let targetVisibility = BaseLabelVisibilityResolver.targetVisibility(
             inputs: baseLabelCache.presentationInputs,
             collisionFlags: publishedBaseCollisionFlags,
-            horizonVisibility: baseProjection.horizonVisibility
+            horizonVisibility: baseProjection.horizonVisibility,
+            collisionVisibilityIsFresh: collisionVisibilityIsFresh
         )
-        let collisionVisibilityIsFresh = publishedVisibilityCameraFingerprint == latestCameraFingerprint
-        if collisionVisibilityIsFresh == false {
-            let count = min(targetVisibility.count, currentBaseAlphas.count)
-            for index in 0..<count where currentBaseAlphas[index] <= BaseLabelVisibilityResolver.activeAlphaThreshold {
-                targetVisibility[index] = false
-            }
-            if count < targetVisibility.count {
-                for index in count..<targetVisibility.count {
-                    targetVisibility[index] = false
-                }
-            }
-        }
         let fadeResolution = presentationStateStore.resolveAlphas(inputs: baseLabelCache.presentationInputs,
                                                                   targetVisibility: targetVisibility,
                                                                   time: frameContext.time,

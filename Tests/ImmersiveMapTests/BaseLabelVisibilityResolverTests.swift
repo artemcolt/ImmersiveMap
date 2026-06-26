@@ -35,6 +35,19 @@ final class BaseLabelVisibilityResolverTests: XCTestCase {
         XCTAssertEqual(result, [true, false])
     }
 
+    func testTargetVisibilityAllowsHorizonVisibleLabelWhenCollisionVisibilityIsStale() {
+        let inputs = [
+            BaseLabelPresentationInput(labelKey: 1, duplicate: 0, isRetained: 0, isValid: true)
+        ]
+
+        let result = BaseLabelVisibilityResolver.targetVisibility(inputs: inputs,
+                                                                  collisionFlags: [1],
+                                                                  horizonVisibility: [true],
+                                                                  collisionVisibilityIsFresh: false)
+
+        XCTAssertEqual(result, [true])
+    }
+
     func testCollisionCandidateRemainsEnabledDuringFadeOutBehindHorizon() {
         let baseCandidates = [
             ScreenCollisionCandidate(position: .zero,
