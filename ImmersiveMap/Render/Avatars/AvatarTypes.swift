@@ -21,13 +21,15 @@ struct AvatarInstanceGPU {
 struct AvatarBatteryBadgeInstanceGPU {
     var uvRect: SIMD4<Float>
     var flags: UInt32
-    var _padding: SIMD3<Float>
+    var screenSizeScale: Float
+    var _padding: SIMD2<Float>
 }
 
 struct AvatarSpeedBadgeInstanceGPU {
     var uvRect: SIMD4<Float>
     var flags: UInt32
-    var _padding: SIMD3<Float>
+    var screenSizeScale: Float
+    var _padding: SIMD2<Float>
 }
 
 struct AvatarOffset {

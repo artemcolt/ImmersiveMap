@@ -160,9 +160,10 @@ final class AvatarsRenderer {
                               squashScale: SIMD2<Float>) -> AvatarInstanceGPU {
         let border = marker.borderColor ?? config.borderColor
         let flags: UInt32 = marker.isSelected ? AvatarInstanceFlags.selected : 0
+        let scaledSquashScale = squashScale * marker.screenSizeScale
         return AvatarInstanceGPU(uvRect: slot.uvRect,
                                  borderColor: border,
-                                 squashScale: squashScale,
+                                 squashScale: scaledSquashScale,
                                  atlasIndex: UInt32(slot.pageIndex),
                                  flags: flags)
     }
@@ -184,10 +185,12 @@ final class AvatarsRenderer {
               let slot = batteryBadgeAtlas.slot(for: badge) else {
             return AvatarBatteryBadgeInstanceGPU(uvRect: .zero,
                                                  flags: 0,
+                                                 screenSizeScale: marker.screenSizeScale,
                                                  _padding: .zero)
         }
         return AvatarBatteryBadgeInstanceGPU(uvRect: slot.uvRect,
                                              flags: 1,
+                                             screenSizeScale: marker.screenSizeScale,
                                              _padding: .zero)
     }
 
@@ -196,10 +199,12 @@ final class AvatarsRenderer {
               let slot = speedBadgeAtlas.slot(for: badge) else {
             return AvatarSpeedBadgeInstanceGPU(uvRect: .zero,
                                                flags: 0,
+                                               screenSizeScale: marker.screenSizeScale,
                                                _padding: .zero)
         }
         return AvatarSpeedBadgeInstanceGPU(uvRect: slot.uvRect,
                                            flags: 1,
+                                           screenSizeScale: marker.screenSizeScale,
                                            _padding: .zero)
     }
 

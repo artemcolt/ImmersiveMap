@@ -69,6 +69,7 @@ public struct AvatarMarker {
     public var batteryBadge: AvatarBatteryBadge?
     public var speedBadge: AvatarSpeedBadge?
     public var borderColor: SIMD4<Float>?
+    public var screenSizeScale: Float
     public var isSelected: Bool
     public var drawPriority: Int
     public var clusterPolicy: AvatarClusterPolicy
@@ -79,6 +80,7 @@ public struct AvatarMarker {
                 batteryBadge: AvatarBatteryBadge? = nil,
                 speedBadge: AvatarSpeedBadge? = nil,
                 borderColor: SIMD4<Float>? = nil,
+                screenSizeScale: Float = 1.0,
                 isSelected: Bool = false,
                 drawPriority: Int = 0,
                 clusterPolicy: AvatarClusterPolicy = .none) {
@@ -89,6 +91,7 @@ public struct AvatarMarker {
         self.batteryBadge = batteryBadge
         self.speedBadge = speedBadge
         self.borderColor = borderColor
+        self.screenSizeScale = screenSizeScale
         self.isSelected = isSelected
         self.drawPriority = drawPriority
         self.clusterPolicy = clusterPolicy
@@ -100,6 +103,7 @@ public struct AvatarMarker {
                 batteryBadge: AvatarBatteryBadge? = nil,
                 speedBadge: AvatarSpeedBadge? = nil,
                 borderColor: SIMD4<Float>? = nil,
+                screenSizeScale: Float = 1.0,
                 isSelected: Bool = false,
                 drawPriority: Int = 0,
                 clusterPolicy: AvatarClusterPolicy = .none) {
@@ -110,6 +114,7 @@ public struct AvatarMarker {
         self.batteryBadge = batteryBadge
         self.speedBadge = speedBadge
         self.borderColor = borderColor
+        self.screenSizeScale = screenSizeScale
         self.isSelected = isSelected
         self.drawPriority = drawPriority
         self.clusterPolicy = clusterPolicy
@@ -122,6 +127,7 @@ public struct AvatarMarker {
                 batteryBadge: AvatarBatteryBadge? = nil,
                 speedBadge: AvatarSpeedBadge? = nil,
                 borderColor: SIMD4<Float>? = nil,
+                screenSizeScale: Float = 1.0,
                 isSelected: Bool = false,
                 drawPriority: Int = 0,
                 clusterPolicy: AvatarClusterPolicy = .none) {
@@ -134,6 +140,7 @@ public struct AvatarMarker {
                   batteryBadge: batteryBadge,
                   speedBadge: speedBadge,
                   borderColor: borderColor,
+                  screenSizeScale: screenSizeScale,
                   isSelected: isSelected,
                   drawPriority: drawPriority,
                   clusterPolicy: clusterPolicy)

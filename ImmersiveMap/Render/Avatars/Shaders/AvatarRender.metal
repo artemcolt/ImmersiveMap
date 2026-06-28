@@ -140,9 +140,10 @@ vertex AvatarBatteryBadgeVertexOut avatarBatteryBadgeVertex(
     }
 
     float2 uv = quad[vid];
-    float badgeBottom = -(style.gapPx + style.sizePx.y);
-    float2 local = float2((uv.x - 0.5) * style.sizePx.x,
-                          badgeBottom + uv.y * style.sizePx.y);
+    float screenSizeScale = max(instance.screenSizeScale, 0.0);
+    float badgeBottom = -(style.gapPx + style.sizePx.y) * screenSizeScale;
+    float2 local = float2((uv.x - 0.5) * style.sizePx.x * screenSizeScale,
+                          badgeBottom + uv.y * style.sizePx.y * screenSizeScale);
     float2 pixelPosition = point.position + local;
 
     out.position = screenMatrix * float4(pixelPosition, 0.0, 1.0);
@@ -182,8 +183,9 @@ vertex AvatarSpeedBadgeVertexOut avatarSpeedBadgeVertex(
     }
 
     float2 uv = quad[vid];
-    float2 local = float2(style.originXPx + uv.x * style.sizePx.x,
-                          style.originYPx + uv.y * style.sizePx.y);
+    float screenSizeScale = max(instance.screenSizeScale, 0.0);
+    float2 local = float2(style.originXPx * screenSizeScale + uv.x * style.sizePx.x * screenSizeScale,
+                          style.originYPx * screenSizeScale + uv.y * style.sizePx.y * screenSizeScale);
     float2 pixelPosition = point.position + local;
 
     out.position = screenMatrix * float4(pixelPosition, 0.0, 1.0);

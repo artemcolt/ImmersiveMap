@@ -145,6 +145,28 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertEqual(settings.tiles.cache.memoryCacheSizeInBytes, 56)
     }
 
+    func testAvatarSettingsModifierUpdatesOnlyProvidedAvatarValues() {
+        let settings = ImmersiveMapSettings.default
+            .avatarSettings(size: .px128,
+                            sizeScale: 2.0,
+                            borderWidthPx: 4.0)
+
+        XCTAssertEqual(settings.avatars.size, .px128)
+        XCTAssertEqual(settings.avatars.sizeScale, 2.0)
+        XCTAssertEqual(settings.avatars.borderWidthPx, 4.0)
+        XCTAssertEqual(settings.avatars.singleLiftScale, ImmersiveMapSettings.default.avatars.singleLiftScale)
+        XCTAssertEqual(settings.avatars.collisionPaddingPx, ImmersiveMapSettings.default.avatars.collisionPaddingPx)
+    }
+
+    func testAvatarSettingsSizeSupportsLargeTextureGrid() {
+        XCTAssertEqual(ImmersiveMapSettings.AvatarSettings.Size.px64.rawValue, 64)
+        XCTAssertEqual(ImmersiveMapSettings.AvatarSettings.Size.px128.rawValue, 128)
+        XCTAssertEqual(ImmersiveMapSettings.AvatarSettings.Size.px256.rawValue, 256)
+        XCTAssertEqual(ImmersiveMapSettings.AvatarSettings.Size.px512.rawValue, 512)
+        XCTAssertEqual(ImmersiveMapSettings.AvatarSettings.Size.px1024.rawValue, 1024)
+        XCTAssertEqual(ImmersiveMapSettings.AvatarSettings.Size.px2048.rawValue, 2048)
+    }
+
     #if canImport(UIKit)
     func testImmersiveMapViewTileCacheSettingsModifierUpdatesOnlyProvidedCacheValues() {
         let view = ImmersiveMapView()
@@ -159,6 +181,24 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
                        ImmersiveMapSettings.default.tiles.cache.rawDiskTimeToLive)
         XCTAssertEqual(settings?.tiles.cache.preparedDiskTimeToLive,
                        ImmersiveMapSettings.default.tiles.cache.preparedDiskTimeToLive)
+    }
+    #endif
+
+    #if canImport(UIKit)
+    func testImmersiveMapViewAvatarSettingsModifierUpdatesOnlyProvidedAvatarValues() throws {
+        let view = ImmersiveMapView()
+            .avatarSettings(size: .px128,
+                            sizeScale: 2.0,
+                            borderWidthPx: 4.0)
+
+        let settings: ImmersiveMapSettings? = reflectedValue("settings", in: view)
+        let avatars = try XCTUnwrap(settings?.avatars)
+
+        XCTAssertEqual(avatars.size, .px128)
+        XCTAssertEqual(avatars.sizeScale, 2.0)
+        XCTAssertEqual(avatars.borderWidthPx, 4.0)
+        XCTAssertEqual(avatars.singleLiftScale, ImmersiveMapSettings.default.avatars.singleLiftScale)
+        XCTAssertEqual(avatars.collisionPaddingPx, ImmersiveMapSettings.default.avatars.collisionPaddingPx)
     }
     #endif
 

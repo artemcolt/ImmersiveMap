@@ -13,6 +13,14 @@ final class AvatarRenderShaderShapeTests: XCTestCase {
         XCTAssertTrue(source.contains("sdfTexture.sample"))
     }
 
+    func testBadgeVerticesApplyPerAvatarScreenSizeScale() throws {
+        let source = try avatarRenderShaderSource()
+
+        XCTAssertTrue(source.contains("instance.screenSizeScale"))
+        XCTAssertTrue(source.contains("style.sizePx.x * screenSizeScale"))
+        XCTAssertTrue(source.contains("style.originXPx * screenSizeScale"))
+    }
+
     private func avatarRenderShaderSource() throws -> String {
         let testFileURL = URL(fileURLWithPath: #filePath)
         let packageRootURL = testFileURL

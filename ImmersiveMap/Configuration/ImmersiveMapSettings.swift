@@ -609,6 +609,10 @@ public struct ImmersiveMapSettings: Equatable {
         public enum Size: Int, Equatable {
             case px64 = 64
             case px128 = 128
+            case px256 = 256
+            case px512 = 512
+            case px1024 = 1024
+            case px2048 = 2048
         }
 
         public var size: Size
@@ -924,6 +928,82 @@ public extension ImmersiveMapSettings {
         var settings = self
         settings.avatars = avatars
         return settings
+    }
+
+    func avatarSettings(size: AvatarSettings.Size? = nil,
+                        sizeScale: Float? = nil,
+                        singleLiftScale: Float? = nil,
+                        secondaryScale: Float? = nil,
+                        atlasSizePx: Int? = nil,
+                        atlasPagesMax: Int? = nil,
+                        borderWidthPx: Float? = nil,
+                        borderColor: SIMD4<Float>? = nil,
+                        beamWidthPx: Float? = nil,
+                        beamColor: SIMD4<Float>? = nil,
+                        collisionPaddingPx: Float? = nil,
+                        petalsThreshold: UInt32? = nil,
+                        petalSpacingPx: Float? = nil,
+                        maxOffsetPx: Float? = nil,
+                        clusterIterations: Int? = nil,
+                        repulsionK: Float? = nil,
+                        springK: Float? = nil,
+                        smoothing: Float? = nil) -> ImmersiveMapSettings {
+        var avatars = self.avatars
+        if let size {
+            avatars.size = size
+        }
+        if let sizeScale {
+            avatars.sizeScale = sizeScale
+        }
+        if let singleLiftScale {
+            avatars.singleLiftScale = singleLiftScale
+        }
+        if let secondaryScale {
+            avatars.secondaryScale = secondaryScale
+        }
+        if let atlasSizePx {
+            avatars.atlasSizePx = atlasSizePx
+        }
+        if let atlasPagesMax {
+            avatars.atlasPagesMax = atlasPagesMax
+        }
+        if let borderWidthPx {
+            avatars.borderWidthPx = borderWidthPx
+        }
+        if let borderColor {
+            avatars.borderColor = borderColor
+        }
+        if let beamWidthPx {
+            avatars.beamWidthPx = beamWidthPx
+        }
+        if let beamColor {
+            avatars.beamColor = beamColor
+        }
+        if let collisionPaddingPx {
+            avatars.collisionPaddingPx = collisionPaddingPx
+        }
+        if let petalsThreshold {
+            avatars.petalsThreshold = petalsThreshold
+        }
+        if let petalSpacingPx {
+            avatars.petalSpacingPx = petalSpacingPx
+        }
+        if let maxOffsetPx {
+            avatars.maxOffsetPx = maxOffsetPx
+        }
+        if let clusterIterations {
+            avatars.clusterIterations = clusterIterations
+        }
+        if let repulsionK {
+            avatars.repulsionK = repulsionK
+        }
+        if let springK {
+            avatars.springK = springK
+        }
+        if let smoothing {
+            avatars.smoothing = smoothing
+        }
+        return avatarSettings(avatars)
     }
 
     func attributionSettings(_ attribution: AttributionSettings) -> ImmersiveMapSettings {
