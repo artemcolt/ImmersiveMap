@@ -4,16 +4,26 @@
 import Foundation
 import Metal
 import CoreGraphics
+import os
 import simd
 #if canImport(UIKit)
 import UIKit
 #endif
 
 enum AvatarTextureRasterizer {
+    private static let logger = Logger(subsystem: "ImmersiveMap", category: "Avatars")
+
     static func makeBGRAData(for image: CGImage,
                              width: Int,
                              height: Int,
                              flipVertically: Bool = true) -> Data? {
+        if let warning = imageSizeWarning(sourceWidth: image.width,
+                                          sourceHeight: image.height,
+                                          targetWidth: width,
+                                          targetHeight: height) {
+            logger.warning("\(warning, privacy: .public)")
+        }
+
         let bytesPerRow = width * 4
         let byteCount = bytesPerRow * height
         var data = Data(count: byteCount)
@@ -42,6 +52,17 @@ enum AvatarTextureRasterizer {
             return true
         }
         return didDraw ? data : nil
+    }
+
+    static func imageSizeWarning(sourceWidth: Int,
+                                 sourceHeight: Int,
+                                 targetWidth: Int,
+                                 targetHeight: Int) -> String? {
+        guard sourceWidth != targetWidth || sourceHeight != targetHeight else {
+            return nil
+        }
+
+        return "Avatar marker image size mismatch: source \(sourceWidth)x\(sourceHeight), expected \(targetWidth)x\(targetHeight); image will be resampled into the avatar atlas."
     }
 }
 
