@@ -64,6 +64,14 @@ final class MapboxDefaultMapStyleLayerColorTests: XCTestCase {
                        SIMD4<Float>(0.45, 0.65, 0.45, 0.7))
     }
 
+    func testContourLayerIsHiddenAtTerrainZooms() {
+        let style = makeStyle(layerName: "contour",
+                              properties: [:],
+                              tile: Tile(x: 618, y: 320, z: 10))
+
+        XCTAssertEqual(style.key, 0)
+    }
+
     func testLayerUpdatesChangeCacheFingerprint() {
         let original = MapboxDefaultMapStyleConfiguration.mapboxDefault
         let updated = original.layers { layers in
@@ -80,13 +88,14 @@ final class MapboxDefaultMapStyleLayerColorTests: XCTestCase {
 
     private func makeStyle(layerName: String,
                            properties: [String: VectorTile_Tile.Value],
+                           tile: Tile = Tile(x: 0, y: 0, z: 14),
                            configuration: MapboxDefaultMapStyleConfiguration = .mapboxDefault,
                            styleSettings: ImmersiveMapSettings.StyleSettings = ImmersiveMapSettings.default.style) -> FeatureStyle {
         MapboxDefaultMapStyle(configuration: configuration,
                               settings: styleSettings).makeStyle(
             data: DetFeatureStyleData(layerName: layerName,
                                       properties: properties,
-                                      tile: Tile(x: 0, y: 0, z: 14))
+                                      tile: tile)
         )
     }
 

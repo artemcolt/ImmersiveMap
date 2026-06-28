@@ -1421,14 +1421,7 @@ class MapboxDefaultMapStyle: ImmersiveMapStyle {
             )
 
         case "contour":
-            if tile.z < 10 || tile.z > 15 {
-                return fallbackStyle
-            }
-            return FeatureStyle(
-                key: 15,
-                color: colors["contour"]!,
-                parseGeometryStyleData: TileMvtParser.ParseGeometryStyleData(lineWidth: tile.z >= 13 ? 1.0 : 0.55)
-            )
+            return fallbackStyle
 
         case "water":
             if classValue == "river" {

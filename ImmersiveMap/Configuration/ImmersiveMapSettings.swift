@@ -785,7 +785,7 @@ public struct ImmersiveMapSettings: Equatable {
                                                           near: 0.1,
                                                           far: 6000.0,
                                                           radiusScale: 10.5)),
-        style: StyleSettings(preparedTileStyleRevision: 84,
+        style: StyleSettings(preparedTileStyleRevision: 85,
                              flatSeparateRoadRenderingMinimumZoom: 12,
                              buildingExtrusionAlpha: 0.6,
                              fallbackFeatureColor: SIMD4<Float>(1.0, 0.0, 0.0, 1.0),
