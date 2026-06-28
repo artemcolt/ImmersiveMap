@@ -48,6 +48,30 @@ final class BaseLabelVisibilityResolverTests: XCTestCase {
         XCTAssertEqual(result, [true])
     }
 
+    func testTargetVisibilityRejectsUnknownCollisionVisibility() {
+        let inputs = [
+            BaseLabelPresentationInput(labelKey: 1, duplicate: 0, isRetained: 0, isValid: true)
+        ]
+
+        let result = BaseLabelVisibilityResolver.targetVisibility(inputs: inputs,
+                                                                  collisionVisibility: [.unknown],
+                                                                  horizonVisibility: [true])
+
+        XCTAssertEqual(result, [false])
+    }
+
+    func testTargetVisibilityRejectsHiddenCollisionVisibility() {
+        let inputs = [
+            BaseLabelPresentationInput(labelKey: 1, duplicate: 0, isRetained: 0, isValid: true)
+        ]
+
+        let result = BaseLabelVisibilityResolver.targetVisibility(inputs: inputs,
+                                                                  collisionVisibility: [.hidden],
+                                                                  horizonVisibility: [true])
+
+        XCTAssertEqual(result, [false])
+    }
+
     func testCollisionCandidateRemainsEnabledDuringFadeOutBehindHorizon() {
         let baseCandidates = [
             ScreenCollisionCandidate(position: .zero,

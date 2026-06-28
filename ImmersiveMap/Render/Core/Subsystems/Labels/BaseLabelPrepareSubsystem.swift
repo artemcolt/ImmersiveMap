@@ -42,7 +42,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
     private var publishedVisibilityCameraFingerprint: Int = 0
     private var lastVisibilityCycleStartTime: TimeInterval = -.greatestFiniteMagnitude
     private var publishedHorizonReservationSignature: [Int] = []
-    private var publishedBaseCollisionFlags: [UInt32] = []
+    private var publishedBaseCollisionVisibility: [BaseLabelCollisionVisibility] = []
     private var publishedRoadInstanceVisibility: [Bool] = []
     private var visibilityCycle: VisibilityCycle?
 
@@ -188,8 +188,8 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
             advanceVisibilityCycleIfNeeded(frameContext: frameContext)
         } else {
             visibilityCycle = nil
-            publishedBaseCollisionFlags = baseLabelCache.presentationInputs.map { input in
-                input.isValid ? UInt32(0) : UInt32(1)
+            publishedBaseCollisionVisibility = baseLabelCache.presentationInputs.map { input in
+                input.isValid ? .visible : .hidden
             }
             if let roadLabelCache {
                 publishedRoadInstanceVisibility = Array(repeating: true, count: roadLabelCache.instanceKeys.count)
@@ -201,16 +201,14 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         }
 
         let collisionFlagsBuffer = makeCollisionFlagsBuffer(frameContext: frameContext,
-                                                            collisionFlags: publishedBaseCollisionFlags,
+                                                            collisionFlags: collisionFlags(from: publishedBaseCollisionVisibility),
                                                             expectedCount: baseLabelCache.activeLabelSpanCount)
 
         let overviewFadeAlpha = LowZoomOverviewFade.alpha(for: frameContext.zoom)
-        let collisionVisibilityIsFresh = publishedVisibilityCameraFingerprint == latestCameraFingerprint
         let targetVisibility = BaseLabelVisibilityResolver.targetVisibility(
             inputs: baseLabelCache.presentationInputs,
-            collisionFlags: publishedBaseCollisionFlags,
-            horizonVisibility: baseProjection.horizonVisibility,
-            collisionVisibilityIsFresh: collisionVisibilityIsFresh
+            collisionVisibility: publishedBaseCollisionVisibility,
+            horizonVisibility: baseProjection.horizonVisibility
         )
         let fadeResolution = presentationStateStore.resolveAlphas(inputs: baseLabelCache.presentationInputs,
                                                                   targetVisibility: targetVisibility,
@@ -397,13 +395,13 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         return buffer
     }
 
-    private func reseedPublishedVisibilityState(baseVisibilityByKey: [UInt64: UInt32],
+    private func reseedPublishedVisibilityState(baseVisibilityByKey: [UInt64: BaseLabelCollisionVisibility],
                                                 roadVisibilityByKey: [UInt64: Bool]) {
-        publishedBaseCollisionFlags = baseLabelCache.presentationInputs.map { input in
+        publishedBaseCollisionVisibility = baseLabelCache.presentationInputs.map { input in
             guard input.isValid else {
-                return UInt32(1)
+                return .hidden
             }
-            return baseVisibilityByKey[input.labelKey] ?? 1
+            return baseVisibilityByKey[input.labelKey] ?? .hidden
         }
 
         if let roadLabelCache {
@@ -415,10 +413,10 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         }
     }
 
-    private func makePublishedBaseVisibilityByKey() -> [UInt64: UInt32] {
-        var visibilityByKey: [UInt64: UInt32] = [:]
+    private func makePublishedBaseVisibilityByKey() -> [UInt64: BaseLabelCollisionVisibility] {
+        var visibilityByKey: [UInt64: BaseLabelCollisionVisibility] = [:]
         let inputs = baseLabelCache.presentationInputs
-        let count = min(inputs.count, publishedBaseCollisionFlags.count)
+        let count = min(inputs.count, publishedBaseCollisionVisibility.count)
         guard count > 0 else {
             return visibilityByKey
         }
@@ -428,11 +426,11 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
             guard input.isValid else {
                 continue
             }
-            let flag = publishedBaseCollisionFlags[index]
+            let visibility = publishedBaseCollisionVisibility[index]
             if let existing = visibilityByKey[input.labelKey] {
-                visibilityByKey[input.labelKey] = min(existing, flag)
+                visibilityByKey[input.labelKey] = Self.mergedCollisionVisibility(existing, visibility)
             } else {
-                visibilityByKey[input.labelKey] = flag
+                visibilityByKey[input.labelKey] = visibility
             }
         }
         return visibilityByKey
@@ -457,6 +455,77 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         return visibilityByKey
     }
 
+    private static func mergedCollisionVisibility(_ lhs: BaseLabelCollisionVisibility,
+                                                  _ rhs: BaseLabelCollisionVisibility) -> BaseLabelCollisionVisibility {
+        if lhs == .visible || rhs == .visible {
+            return .visible
+        }
+        if lhs == .unknown || rhs == .unknown {
+            return .unknown
+        }
+        return .hidden
+    }
+
+    private func collisionFlags(from collisionVisibility: [BaseLabelCollisionVisibility]) -> [UInt32] {
+        collisionVisibility.map(\.collisionFlag)
+    }
+
+    static func mergedBaseCollisionVisibility(current: [BaseLabelCollisionVisibility],
+                                               cycleVisibility: [BaseLabelCollisionVisibility]) -> [BaseLabelCollisionVisibility] {
+        let count = max(current.count, cycleVisibility.count)
+        guard count > 0 else {
+            return []
+        }
+
+        var merged = Array(repeating: BaseLabelCollisionVisibility.hidden, count: count)
+        for index in 0..<count {
+            guard index < cycleVisibility.count else {
+                merged[index] = index < current.count ? current[index] : .hidden
+                continue
+            }
+
+            switch cycleVisibility[index] {
+            case .unknown:
+                merged[index] = index < current.count ? current[index] : .hidden
+            case .visible, .hidden:
+                merged[index] = cycleVisibility[index]
+            }
+        }
+        return merged
+    }
+
+    private func mergedRoadVisibility(current: [Bool],
+                                      cycleVisibility: [Bool],
+                                      resolved: [Bool]) -> [Bool] {
+        let count = max(current.count, cycleVisibility.count)
+        guard count > 0 else {
+            return []
+        }
+
+        var merged = Array(repeating: false, count: count)
+        for index in 0..<count {
+            if index < resolved.count,
+               resolved[index],
+               index < cycleVisibility.count {
+                merged[index] = cycleVisibility[index]
+            } else if index < current.count {
+                merged[index] = current[index]
+            }
+        }
+        return merged
+    }
+
+    static func shouldReplaceActiveVisibilityCycle(_ cycle: VisibilityCycle,
+                                                    latestCameraFingerprint: Int,
+                                                    forceRestart: Bool) -> Bool {
+        forceRestart
+    }
+
+    static func shouldPublishVisibilityCycle(_ cycle: VisibilityCycle,
+                                             topologyGeneration: UInt64) -> Bool {
+        cycle.topologyGeneration == topologyGeneration
+    }
+
     private func maybeStartVisibilityCycle(frameContext: FrameContext,
                                            baseProjection: TilePointScreenProjectionResult,
                                            currentBaseAlphas: [Float],
@@ -471,14 +540,24 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
             return
         }
 
-        guard visibilityCycle == nil else {
+        if let visibilityCycle {
+            guard Self.shouldReplaceActiveVisibilityCycle(visibilityCycle,
+                                                          latestCameraFingerprint: latestCameraFingerprint,
+                                                          forceRestart: forceRestart) else {
+                return
+            }
+            self.visibilityCycle = makeVisibilityCycle(frameContext: frameContext,
+                                                       baseProjection: baseProjection,
+                                                       currentBaseAlphas: currentBaseAlphas,
+                                                       horizonReservationSignature: horizonReservationSignature)
+            lastVisibilityCycleStartTime = frameContext.time
             return
         }
 
         let cameraChanged = latestCameraFingerprint != publishedVisibilityCameraFingerprint
         let horizonReservationChanged = horizonReservationSignature != publishedHorizonReservationSignature
         let cadenceElapsed = frameContext.time - lastVisibilityCycleStartTime >= visibilityRefreshInterval
-        guard (cameraChanged || horizonReservationChanged), cadenceElapsed else {
+        guard cameraChanged || (horizonReservationChanged && cadenceElapsed) else {
             return
         }
 
@@ -495,18 +574,20 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         }
 
         cycle.processNextGroups(maxGroupCount: collisionGroupBudgetPerFrame)
+        if Self.shouldPublishVisibilityCycle(cycle,
+                                             topologyGeneration: visibilityTopologyGeneration) {
+            publishedBaseCollisionVisibility = Self.mergedBaseCollisionVisibility(current: publishedBaseCollisionVisibility,
+                                                                                  cycleVisibility: cycle.baseCollisionVisibility)
+            publishedRoadInstanceVisibility = mergedRoadVisibility(current: publishedRoadInstanceVisibility,
+                                                                   cycleVisibility: cycle.roadInstanceVisibility,
+                                                                   resolved: cycle.roadInstanceVisibilityResolved)
+            publishedVisibilityCameraFingerprint = cycle.cameraFingerprint
+            publishedHorizonReservationSignature = cycle.horizonReservationSignature
+        }
+
         if cycle.isComplete == false {
             visibilityCycle = cycle
             return
-        }
-
-        let shouldPublish = cycle.topologyGeneration == visibilityTopologyGeneration &&
-            cycle.cameraFingerprint == latestCameraFingerprint
-        if shouldPublish {
-            publishedBaseCollisionFlags = cycle.baseCollisionFlags
-            publishedRoadInstanceVisibility = cycle.roadInstanceVisibility
-            publishedVisibilityCameraFingerprint = cycle.cameraFingerprint
-            publishedHorizonReservationSignature = cycle.horizonReservationSignature
         }
         visibilityCycle = nil
     }
@@ -1006,12 +1087,12 @@ private struct RoadPreparation {
     let instances: [RoadPreparedInstance]
 }
 
-private enum VisibilityCollisionTarget {
+enum VisibilityCollisionTarget {
     case base(Int)
     case road(Int)
 }
 
-private struct VisibilityCollisionGroup {
+struct VisibilityCollisionGroup {
     let target: VisibilityCollisionTarget
     let members: [ScreenCollisionCandidate]
     let priority: Int
@@ -1038,7 +1119,7 @@ private struct VisibilityCollisionGroup {
     }
 }
 
-private struct VisibilityCycle {
+struct VisibilityCycle {
     let topologyGeneration: UInt64
     let cameraFingerprint: Int
     let horizonReservationSignature: [Int]
@@ -1048,8 +1129,9 @@ private struct VisibilityCycle {
     private let cellSizePx: Float
 
     private(set) var cursor: Int = 0
-    private(set) var baseCollisionFlags: [UInt32]
+    private(set) var baseCollisionVisibility: [BaseLabelCollisionVisibility]
     private(set) var roadInstanceVisibility: [Bool]
+    private(set) var roadInstanceVisibilityResolved: [Bool]
     private var gridBuckets: [[VisibilityPlacedCandidate]]
 
     init(topologyGeneration: UInt64,
@@ -1067,8 +1149,9 @@ private struct VisibilityCycle {
         self.cellSizePx = cellSizePx
         self.gridWidth = max(1, Int(ceil(max(1.0, viewportSize.x) / cellSizePx)))
         self.gridHeight = max(1, Int(ceil(max(1.0, viewportSize.y) / cellSizePx)))
-        self.baseCollisionFlags = Array(repeating: 0, count: baseCount)
+        self.baseCollisionVisibility = Array(repeating: .unknown, count: baseCount)
         self.roadInstanceVisibility = Array(repeating: false, count: roadCount)
+        self.roadInstanceVisibilityResolved = Array(repeating: false, count: roadCount)
         self.gridBuckets = Array(repeating: [], count: max(1, self.gridWidth * self.gridHeight))
     }
 
@@ -1122,22 +1205,24 @@ private struct VisibilityCycle {
     private mutating func applyAccepted(_ target: VisibilityCollisionTarget) {
         switch target {
         case let .base(index):
-            guard index < baseCollisionFlags.count else { return }
-            baseCollisionFlags[index] = 0
+            guard index < baseCollisionVisibility.count else { return }
+            baseCollisionVisibility[index] = .visible
         case let .road(index):
             guard index < roadInstanceVisibility.count else { return }
             roadInstanceVisibility[index] = true
+            roadInstanceVisibilityResolved[index] = true
         }
     }
 
     private mutating func applyRejected(_ target: VisibilityCollisionTarget) {
         switch target {
         case let .base(index):
-            guard index < baseCollisionFlags.count else { return }
-            baseCollisionFlags[index] = 1
+            guard index < baseCollisionVisibility.count else { return }
+            baseCollisionVisibility[index] = .hidden
         case let .road(index):
             guard index < roadInstanceVisibility.count else { return }
             roadInstanceVisibility[index] = false
+            roadInstanceVisibilityResolved[index] = true
         }
     }
 

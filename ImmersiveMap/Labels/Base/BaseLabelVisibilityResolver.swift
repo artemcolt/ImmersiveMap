@@ -1,6 +1,21 @@
 // Copyright (c) 2025-2026 Artem Bobkin.
 // SPDX-License-Identifier: MIT
 
+enum BaseLabelCollisionVisibility: Equatable {
+    case unknown
+    case visible
+    case hidden
+
+    var collisionFlag: UInt32 {
+        switch self {
+        case .unknown, .hidden:
+            return 1
+        case .visible:
+            return 0
+        }
+    }
+}
+
 enum BaseLabelVisibilityResolver {
     static let activeAlphaThreshold: Float = 0.0001
 
@@ -8,9 +23,23 @@ enum BaseLabelVisibilityResolver {
                                  collisionFlags: [UInt32],
                                  horizonVisibility: [Bool],
                                  collisionVisibilityIsFresh: Bool = true) -> [Bool] {
+        let collisionVisibility = collisionFlags.map { flag -> BaseLabelCollisionVisibility in
+            if collisionVisibilityIsFresh == false {
+                return .visible
+            }
+            return flag == 0 ? .visible : .hidden
+        }
+        return targetVisibility(inputs: inputs,
+                                collisionVisibility: collisionVisibility,
+                                horizonVisibility: horizonVisibility)
+    }
+
+    static func targetVisibility(inputs: [BaseLabelPresentationInput],
+                                 collisionVisibility: [BaseLabelCollisionVisibility],
+                                 horizonVisibility: [Bool]) -> [Bool] {
         inputs.indices.map { index in
             let input = inputs[index]
-            let collisionHidden = collisionVisibilityIsFresh && index < collisionFlags.count ? collisionFlags[index] != 0 : false
+            let collisionHidden = index < collisionVisibility.count ? collisionVisibility[index] != .visible : true
             let horizonVisible = index < horizonVisibility.count ? horizonVisibility[index] : false
             return input.isValid &&
                 input.duplicate == 0 &&
