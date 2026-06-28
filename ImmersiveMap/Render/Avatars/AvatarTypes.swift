@@ -123,11 +123,11 @@ struct AvatarMarkerStyle {
 }
 
 struct AvatarBatteryBadgeStyle {
-    static let widthRatio: Float = 0.48
+    static let widthRatio: Float = 0.62
     static let heightRatio: Float = 0.21
     static let gapRatio: Float = 0.045
     static let cornerRadiusRatio: Float = 0.26
-    static let minimumWidthPx: Float = 56.0
+    static let minimumWidthPx: Float = 76.0
     static let minimumHeightPx: Float = 21.0
     static let minimumGapPx: Float = 5.0
 
