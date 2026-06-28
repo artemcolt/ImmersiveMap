@@ -201,7 +201,6 @@ final class RenderFrameEngine {
         resourceRegistry.setPipeline(persistentContext.globePipeline.pipelineState, named: .globePipeline)
         resourceRegistry.setTexture(persistentContext.textRenderer.texture, named: .labelGlyphAtlas)
         resourceRegistry.setTexture(persistentContext.poiSpriteAtlas.texture, named: .poiSpriteAtlas)
-        resourceRegistry.setTexture(persistentContext.nightLightsTexture.placeholderTexture, named: .nightLightsTexture)
     }
 
     private func prepareGPU(frameContext: FrameContext) {

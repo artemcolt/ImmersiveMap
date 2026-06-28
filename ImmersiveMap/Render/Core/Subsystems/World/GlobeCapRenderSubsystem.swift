@@ -9,18 +9,15 @@ final class GlobeCapRenderSubsystem: RenderSubsystem {
     private let globeCapDepthState: MTLDepthStencilState
     private let depthDisabledState: MTLDepthStencilState
     private let globeCapRenderer: GlobeCapRenderer
-    private let nightLightsTexture: NightLightsTexture
     private let tilesTexture: GlobeTilesTexture
 
     init(globeCapDepthState: MTLDepthStencilState,
          depthDisabledState: MTLDepthStencilState,
          globeCapRenderer: GlobeCapRenderer,
-         nightLightsTexture: NightLightsTexture,
          tilesTexture: GlobeTilesTexture) {
         self.globeCapDepthState = globeCapDepthState
         self.depthDisabledState = depthDisabledState
         self.globeCapRenderer = globeCapRenderer
-        self.nightLightsTexture = nightLightsTexture
         self.tilesTexture = tilesTexture
     }
 
@@ -34,17 +31,11 @@ final class GlobeCapRenderSubsystem: RenderSubsystem {
             return
         }
 
-        let earthScene = frameContext.earthSceneUniform
-        let nightTexture = earthScene.isEnabled != 0 && earthScene.nightLightsEnabled != 0
-            ? nightLightsTexture.texture()
-            : nightLightsTexture.placeholderTexture
-
         encoder.setDepthStencilState(globeCapDepthState)
         globeCapRenderer.draw(renderEncoder: encoder,
                               cameraUniform: frameContext.cameraUniform,
                               globe: frameContext.globeRenderUniform,
-                              earthScene: earthScene,
-                              nightLightsTexture: nightTexture,
+                              earthScene: frameContext.earthSceneUniform,
                               tilesTexture: tilesTexture)
 
         encoder.setDepthStencilState(depthDisabledState)

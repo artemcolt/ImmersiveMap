@@ -8,7 +8,6 @@ enum GlobeSurfaceDrawer {
                      cameraUniform: CameraUniform,
                      globe: GlobeUniform,
                      earthScene: EarthSceneUniform,
-                     nightLightsTexture: MTLTexture,
                      nightLightsAtlasState: NightLightsAtlasState,
                      globePipeline: GlobePipeline,
                      mapSurfaceGridBuffers: MapSurfaceGridBuffers,
@@ -34,7 +33,6 @@ enum GlobeSurfaceDrawer {
         renderEncoder.setVertexBytes(&globeValue, length: MemoryLayout<GlobeUniform>.stride, index: 2)
         renderEncoder.setFragmentBytes(&cameraUniformValue, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setFragmentBytes(&earthSceneValue, length: MemoryLayout<EarthSceneUniform>.stride, index: 2)
-        renderEncoder.setFragmentTexture(nightLightsTexture, index: 1)
         renderEncoder.setFragmentBytes(&nightLightsAtlasCounts,
                                        length: MemoryLayout<SIMD2<UInt32>>.stride,
                                        index: 4)
@@ -52,19 +50,20 @@ enum GlobeSurfaceDrawer {
                                                index: 5)
             }
         }
-        for pageIndex in 0..<NightLightsAtlasSurfaceBinding.maxPageCount {
-            let texture = pageIndex < nightLightsAtlasBinding.pages.count
-                ? nightLightsAtlasBinding.pages[pageIndex]
-                : nightLightsTexture
-            renderEncoder.setFragmentTexture(texture, index: 2 + pageIndex)
-        }
         renderEncoder.setVertexBuffer(mapSurfaceGridBuffers.verticesBuffer, offset: 0, index: 0)
 
         let pageMappings = GlobeTilePageMappingSorter.sortedPageMappings(tilesTexture: tilesTexture)
         var activePageIndex: Int?
         for pageMapping in pageMappings {
             if activePageIndex != pageMapping.pageIndex {
-                renderEncoder.setFragmentTexture(tilesTexture.pages[pageMapping.pageIndex].texture, index: 0)
+                let mapTexture = tilesTexture.pages[pageMapping.pageIndex].texture
+                renderEncoder.setFragmentTexture(mapTexture, index: 0)
+                for pageIndex in 0..<NightLightsAtlasSurfaceBinding.maxPageCount {
+                    let atlasTexture = pageIndex < nightLightsAtlasBinding.pages.count
+                        ? nightLightsAtlasBinding.pages[pageIndex]
+                        : mapTexture
+                    renderEncoder.setFragmentTexture(atlasTexture, index: 1 + pageIndex)
+                }
                 activePageIndex = pageMapping.pageIndex
             }
             let mapping = pageMapping.mapping

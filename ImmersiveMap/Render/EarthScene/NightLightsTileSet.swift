@@ -10,8 +10,6 @@ struct NightLightsTileMapping: Equatable {
 }
 
 final class NightLightsTileSet {
-    private static let metadataResourceName = "night_lights_tiles_metadata"
-
     struct Metadata: Codable, Equatable {
         let version: Int
         let format: String
@@ -43,24 +41,14 @@ final class NightLightsTileSet {
 
     let metadata: Metadata
 
-    private let bundle: Bundle
-
-    init(metadata: Metadata, bundle: Bundle = .module) {
+    init(metadata: Metadata) {
         self.metadata = metadata
-        self.bundle = bundle
     }
 
-    convenience init(bundle: Bundle = .module) throws {
-        let metadataURL = try Self.metadataURL(in: bundle)
+    convenience init(metadataURL: URL) throws {
         let data = try Data(contentsOf: metadataURL)
         let metadata = try JSONDecoder().decode(Metadata.self, from: data)
-        self.init(metadata: metadata, bundle: bundle)
-    }
-
-    convenience init(metadataURL: URL, bundle: Bundle = .module) throws {
-        let data = try Data(contentsOf: metadataURL)
-        let metadata = try JSONDecoder().decode(Metadata.self, from: data)
-        self.init(metadata: metadata, bundle: bundle)
+        self.init(metadata: metadata)
     }
 
     func bestAvailableTile(for tile: Tile) -> Tile {
@@ -102,73 +90,14 @@ final class NightLightsTileSet {
 
     func url(for tile: Tile) -> URL? {
         let sourceTile = bestAvailableTile(for: tile)
-        if let tileURLTemplate = metadata.tileURLTemplate {
-            let urlString = tileURLTemplate
-                .replacingOccurrences(of: "{z}", with: String(sourceTile.z))
-                .replacingOccurrences(of: "{x}", with: String(sourceTile.x))
-                .replacingOccurrences(of: "{y}", with: String(sourceTile.y))
-            return URL(string: urlString)
+        guard let tileURLTemplate = metadata.tileURLTemplate else {
+            return nil
         }
 
-        let resourceName = String(sourceTile.y)
-        let flatResourceName = "night_lights_\(sourceTile.z)_\(sourceTile.x)_\(sourceTile.y)"
-        let subdirectory = "NightLightsTiles/\(sourceTile.z)/\(sourceTile.x)"
-        let processedSubdirectory = "Render/EarthScene/Resources/\(subdirectory)"
-        let flatURL = bundle.bundleURL.appendingPathComponent("\(flatResourceName).\(metadata.format)")
-
-        if FileManager.default.fileExists(atPath: flatURL.path) {
-            return flatURL
-        }
-
-        return bundle.url(forResource: flatResourceName, withExtension: metadata.format)
-            ?? bundle.url(forResource: resourceName,
-                          withExtension: metadata.format,
-                          subdirectory: subdirectory)
-            ?? bundle.url(forResource: resourceName,
-                          withExtension: metadata.format,
-                          subdirectory: processedSubdirectory)
-    }
-
-    private static func metadataURL(in bundle: Bundle) throws -> URL {
-        if let url = bundle.url(forResource: metadataResourceName, withExtension: "json") {
-            return url
-        }
-
-        if let url = bundle.url(forResource: metadataResourceName,
-                                withExtension: "json",
-                                subdirectory: "NightLightsTiles") {
-            return url
-        }
-
-        if let url = bundle.url(forResource: metadataResourceName,
-                                withExtension: "json",
-                                subdirectory: "Render/EarthScene/Resources/NightLightsTiles") {
-            return url
-        }
-
-        if let url = bundle.url(forResource: "metadata",
-                                withExtension: "json",
-                                subdirectory: "NightLightsTiles") {
-            return url
-        }
-
-        if let url = bundle.url(forResource: "metadata",
-                                withExtension: "json",
-                                subdirectory: "Render/EarthScene/Resources/NightLightsTiles") {
-            return url
-        }
-
-        throw LoadError.missingMetadata
-    }
-
-    private enum LoadError: Error, CustomStringConvertible {
-        case missingMetadata
-
-        var description: String {
-            switch self {
-            case .missingMetadata:
-                return "missing bundled night_lights_tiles_metadata.json"
-            }
-        }
+        let urlString = tileURLTemplate
+            .replacingOccurrences(of: "{z}", with: String(sourceTile.z))
+            .replacingOccurrences(of: "{x}", with: String(sourceTile.x))
+            .replacingOccurrences(of: "{y}", with: String(sourceTile.y))
+        return URL(string: urlString)
     }
 }

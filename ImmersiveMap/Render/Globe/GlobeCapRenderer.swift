@@ -80,7 +80,6 @@ final class GlobeCapRenderer {
               cameraUniform: CameraUniform,
               globe: GlobeUniform,
               earthScene: EarthSceneUniform,
-              nightLightsTexture: MTLTexture,
               tilesTexture: GlobeTilesTexture) {
         pipeline.selectPipeline(renderEncoder: renderEncoder)
         // Cap winding differs from the globe tile mesh after geographic-latitude
@@ -93,7 +92,6 @@ final class GlobeCapRenderer {
         renderEncoder.setVertexBytes(&globe, length: MemoryLayout<GlobeUniform>.stride, index: 2)
         renderEncoder.setFragmentBytes(&cameraUniform, length: MemoryLayout<CameraUniform>.stride, index: 1)
         renderEncoder.setFragmentBytes(&earthScene, length: MemoryLayout<EarthSceneUniform>.stride, index: 2)
-        renderEncoder.setFragmentTexture(nightLightsTexture, index: 1)
 
         var fallbackTileData = Self.makeFallbackTileData()
         renderEncoder.setFragmentTexture(fallbackTexture, index: 0)

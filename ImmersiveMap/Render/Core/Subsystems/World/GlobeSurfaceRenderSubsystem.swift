@@ -9,20 +9,17 @@ final class GlobeSurfaceRenderSubsystem: RenderSubsystem {
     private let globeDepthState: MTLDepthStencilState
     private let globePipeline: GlobePipeline
     private let mapSurfaceGridBuffers: MapSurfaceGridBuffers
-    private let nightLightsTexture: NightLightsTexture
     private let tilesTexture: GlobeTilesTexture
     private let debugOverlayControls: DebugOverlayControlState
 
     init(globeDepthState: MTLDepthStencilState,
          globePipeline: GlobePipeline,
          mapSurfaceGridBuffers: MapSurfaceGridBuffers,
-         nightLightsTexture: NightLightsTexture,
          tilesTexture: GlobeTilesTexture,
          debugOverlayControls: DebugOverlayControlState) {
         self.globeDepthState = globeDepthState
         self.globePipeline = globePipeline
         self.mapSurfaceGridBuffers = mapSurfaceGridBuffers
-        self.nightLightsTexture = nightLightsTexture
         self.tilesTexture = tilesTexture
         self.debugOverlayControls = debugOverlayControls
     }
@@ -37,17 +34,11 @@ final class GlobeSurfaceRenderSubsystem: RenderSubsystem {
             return
         }
 
-        let earthScene = frameContext.earthSceneUniform
-        let nightTexture = earthScene.isEnabled != 0 && earthScene.nightLightsEnabled != 0
-            ? nightLightsTexture.texture()
-            : nightLightsTexture.placeholderTexture
-
         encoder.setDepthStencilState(globeDepthState)
         GlobeSurfaceDrawer.draw(renderEncoder: encoder,
                                 cameraUniform: frameContext.cameraUniform,
                                 globe: frameContext.globeRenderUniform,
-                                earthScene: earthScene,
-                                nightLightsTexture: nightTexture,
+                                earthScene: frameContext.earthSceneUniform,
                                 nightLightsAtlasState: frameContext.sharedState.nightLightsAtlasState,
                                 globePipeline: globePipeline,
                                 mapSurfaceGridBuffers: mapSurfaceGridBuffers,

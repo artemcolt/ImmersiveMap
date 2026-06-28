@@ -179,16 +179,6 @@ vertex VertexOut globeVertexShader(VertexIn vertexIn [[stage_in]],
     return out;
 }
 
-static float nightLightsMask(texture2d<float> nightLightsTexture, float2 uv) {
-    constexpr sampler sampler2d(filter::linear, address::repeat, mip_filter::linear);
-    return nightLightsTexture.sample(sampler2d, uv).r;
-}
-
-static float2 nightLightsFallback(texture2d<float> nightLightsTexture, float2 uv) {
-    float mask = nightLightsMask(nightLightsTexture, uv);
-    return float2(mask, mask);
-}
-
 static float3 cinematicNightLightsColor(float2 lights) {
     float core = saturate(lights.x);
     float halo = saturate(lights.y);
@@ -387,15 +377,14 @@ static GlobeCapAtlasSample globeCapAtlasSampleUV(float latitude,
 
 fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
                                     texture2d<float> texture [[texture(0)]],
-                                    texture2d<float> nightLightsTexture [[texture(1)]],
-                                    texture2d<float> nightLightsAtlasPage0 [[texture(2)]],
-                                    texture2d<float> nightLightsAtlasPage1 [[texture(3)]],
-                                    texture2d<float> nightLightsAtlasPage2 [[texture(4)]],
-                                    texture2d<float> nightLightsAtlasPage3 [[texture(5)]],
-                                    texture2d<float> nightLightsAtlasPage4 [[texture(6)]],
-                                    texture2d<float> nightLightsAtlasPage5 [[texture(7)]],
-                                    texture2d<float> nightLightsAtlasPage6 [[texture(8)]],
-                                    texture2d<float> nightLightsAtlasPage7 [[texture(9)]],
+                                    texture2d<float> nightLightsAtlasPage0 [[texture(1)]],
+                                    texture2d<float> nightLightsAtlasPage1 [[texture(2)]],
+                                    texture2d<float> nightLightsAtlasPage2 [[texture(3)]],
+                                    texture2d<float> nightLightsAtlasPage3 [[texture(4)]],
+                                    texture2d<float> nightLightsAtlasPage4 [[texture(5)]],
+                                    texture2d<float> nightLightsAtlasPage5 [[texture(6)]],
+                                    texture2d<float> nightLightsAtlasPage6 [[texture(7)]],
+                                    texture2d<float> nightLightsAtlasPage7 [[texture(8)]],
                                     constant Camera& camera [[buffer(1)]],
                                     constant EarthScene& earthScene [[buffer(2)]],
                                     constant Tile& tileData [[buffer(3)]],
@@ -459,7 +448,7 @@ fragment float4 globeFragmentShader(VertexOut in [[stage_in]],
                                                                         nightLightsAtlasPage7);
             float2 lights = atlasSample.isValid
                 ? atlasSample.lights
-                : nightLightsFallback(nightLightsTexture, in.nightLightsUV);
+                : float2(0.0);
             float3 lightColor = cinematicNightLightsColor(lights);
             color.rgb += lightColor * nightFactor * earthScene.nightLightsIntensity * (1.0 - in.transition);
         }
@@ -531,7 +520,6 @@ vertex CapVertexOut globeCapVertexShader(CapVertexIn vertexIn [[stage_in]],
 
 fragment float4 globeCapFragmentShader(CapVertexOut in [[stage_in]],
                                        texture2d<float> texture [[texture(0)]],
-                                       texture2d<float> nightLightsTexture [[texture(1)]],
                                        constant CapParams& params [[buffer(0)]],
                                        constant Camera& camera [[buffer(1)]],
                                        constant EarthScene& earthScene [[buffer(2)]],
@@ -565,14 +553,6 @@ fragment float4 globeCapFragmentShader(CapVertexOut in [[stage_in]],
         surfaceBrightness = mix(surfaceBrightness, 1.0, clamp(1.0 - in.capAlpha, 0.0, 1.0));
         color.rgb *= surfaceBrightness;
 
-        if (earthScene.nightLightsEnabled != 0) {
-            float nightFactor = 1.0 - smoothstep(-earthScene.nightLightsTerminatorFadeWidth,
-                                                 earthScene.nightLightsTerminatorFadeWidth,
-                                                 sunDot);
-            float2 lights = nightLightsFallback(nightLightsTexture, in.nightLightsUV);
-            float3 lightColor = cinematicNightLightsColor(lights);
-            color.rgb += lightColor * nightFactor * earthScene.nightLightsIntensity * in.capAlpha;
-        }
     }
 
     float3 viewDir = normalize(camera.eye - in.worldPos);

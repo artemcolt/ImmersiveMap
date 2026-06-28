@@ -48,13 +48,11 @@ enum RenderGraphFactory {
         let globeSurfaceSubsystem = GlobeSurfaceRenderSubsystem(globeDepthState: context.extrudedDepthState,
                                                                 globePipeline: context.globePipeline,
                                                                 mapSurfaceGridBuffers: context.mapSurfaceGridBuffers,
-                                                                nightLightsTexture: context.nightLightsTexture,
                                                                 tilesTexture: context.tilesTexture,
                                                                 debugOverlayControls: debugOverlayControls)
         let globeCapSubsystem = GlobeCapRenderSubsystem(globeCapDepthState: context.globeCapDepthState,
                                                         depthDisabledState: context.depthDisabledState,
                                                         globeCapRenderer: context.globeCapRenderer,
-                                                        nightLightsTexture: context.nightLightsTexture,
                                                         tilesTexture: context.tilesTexture)
         let debugSubsystem = DebugOverlayRenderSubsystem(polygonPipeline: context.polygonPipeline,
                                                          debugOverlayRenderer: context.debugOverlayRenderer,

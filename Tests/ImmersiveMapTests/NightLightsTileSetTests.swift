@@ -61,53 +61,12 @@ final class NightLightsTileSetTests: XCTestCase {
         XCTAssertEqual(mapping.uvScale.y, Float(0.25), accuracy: Float(0.0001))
     }
 
-    func testInitLoadsMetadataFromSupportedBundleResourcePaths() throws {
-        let rootBundle = try makeBundle(resourceRoot: "", metadataFileName: "night_lights_tiles_metadata")
-        let directBundle = try makeBundle(resourceRoot: "NightLightsTiles")
-        let processedBundle = try makeBundle(resourceRoot: "Render/EarthScene/Resources/NightLightsTiles")
+    func testInitLoadsMetadataFromManifestURL() throws {
+        let metadataURL = try makeManifestURL(json: metadataJSON)
 
-        XCTAssertEqual(try NightLightsTileSet(bundle: rootBundle).metadata, makeMetadata())
-        XCTAssertEqual(try NightLightsTileSet(bundle: directBundle).metadata, makeMetadata())
-        XCTAssertEqual(try NightLightsTileSet(bundle: processedBundle).metadata, makeMetadata())
-    }
+        let tileSet = try NightLightsTileSet(metadataURL: metadataURL)
 
-    func testRootGenericMetadataFileDoesNotShadowUniqueMetadataFile() throws {
-        let bundle = try makeBundle(resourceRoot: "", metadataFileName: "night_lights_tiles_metadata")
-        try """
-        {
-            "version": 999,
-            "format": "png",
-            "tileSize": 1,
-            "minZoom": 0,
-            "maxZoom": 0,
-            "source": "wrong",
-            "attribution": "wrong"
-        }
-        """.write(to: bundle.bundleURL.appendingPathComponent("metadata.json"),
-                  atomically: true,
-                  encoding: .utf8)
-
-        XCTAssertEqual(try NightLightsTileSet(bundle: bundle).metadata, makeMetadata())
-    }
-
-    func testURLResolvesProcessedResourceTilePath() throws {
-        let bundle = try makeBundle(resourceRoot: "Render/EarthScene/Resources/NightLightsTiles")
-        let tileSet = NightLightsTileSet(metadata: makeMetadata(), bundle: bundle)
-
-        let url = try XCTUnwrap(tileSet.url(for: Tile(x: 101, y: 142, z: 8)))
-
-        XCTAssertTrue(url.path.hasSuffix("Render/EarthScene/Resources/NightLightsTiles/6/25/35.jpg"))
-    }
-
-    func testURLResolvesFlatGeneratedTileNameBeforeDirectoryFallbacks() throws {
-        let bundle = try makeBundle(resourceRoot: "Render/EarthScene/Resources/NightLightsTiles")
-        let flatURL = bundle.bundleURL.appendingPathComponent("night_lights_6_25_35.jpg")
-        try Data([1]).write(to: flatURL)
-        let tileSet = NightLightsTileSet(metadata: makeMetadata(), bundle: bundle)
-
-        let url = try XCTUnwrap(tileSet.url(for: Tile(x: 101, y: 142, z: 8)))
-
-        XCTAssertEqual(url.lastPathComponent, "night_lights_6_25_35.jpg")
+        XCTAssertEqual(tileSet.metadata, makeRemoteMetadata())
     }
 
     func testURLResolvesRemoteTileTemplateFromMetadata() throws {
@@ -130,8 +89,14 @@ final class NightLightsTileSetTests: XCTestCase {
                        "http://localhost:9000/night-lights/v1/tiles/night_lights_6_25_35.jpg")
     }
 
+    func testURLReturnsNilWhenMetadataHasNoRemoteTileTemplate() {
+        let tileSet = NightLightsTileSet(metadata: makeMetadata())
+
+        XCTAssertNil(tileSet.url(for: Tile(x: 101, y: 142, z: 8)))
+    }
+
     private func makeTileSet() -> NightLightsTileSet {
-        NightLightsTileSet(metadata: makeMetadata())
+        NightLightsTileSet(metadata: makeRemoteMetadata())
     }
 
     private func makeMetadata() -> NightLightsTileSet.Metadata {
@@ -145,42 +110,25 @@ final class NightLightsTileSetTests: XCTestCase {
                                     tileURLTemplate: nil)
     }
 
-    private func makeBundle(resourceRoot: String,
-                            metadataFileName: String = "night_lights_tiles_metadata") throws -> Bundle {
+    private func makeRemoteMetadata() -> NightLightsTileSet.Metadata {
+        NightLightsTileSet.Metadata(version: 1,
+                                    format: "jpg",
+                                    tileSize: 1024,
+                                    minZoom: 4,
+                                    maxZoom: 6,
+                                    source: "NASA Black Marble 2016",
+                                    attribution: "NASA Earth Observatory",
+                                    tileURLTemplate: "http://localhost:9000/night-lights/v1/tiles/night_lights_{z}_{x}_{y}.jpg")
+    }
+
+    private func makeManifestURL(json: String) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            .appendingPathExtension("bundle")
-        let resourceDirectory = resourceRoot.isEmpty
-            ? directory
-            : directory.appendingPathComponent(resourceRoot, isDirectory: true)
-        let tileDirectory = resourceDirectory
-            .appendingPathComponent("6", isDirectory: true)
-            .appendingPathComponent("25", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        try FileManager.default.createDirectory(at: tileDirectory, withIntermediateDirectories: true)
-        try metadataJSON.write(to: resourceDirectory.appendingPathComponent("\(metadataFileName).json"),
-                               atomically: true,
-                               encoding: .utf8)
-        try Data().write(to: tileDirectory.appendingPathComponent("35.jpg"))
-
-        let bundleIdentifier = "com.immersivemap.tests.nightlights.\(UUID().uuidString)"
-        let infoPlist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>CFBundleIdentifier</key>
-            <string>\(bundleIdentifier)</string>
-            <key>CFBundlePackageType</key>
-            <string>BNDL</string>
-        </dict>
-        </plist>
-        """
-        try infoPlist.write(to: directory.appendingPathComponent("Info.plist"),
-                            atomically: true,
-                            encoding: .utf8)
-
-        return try XCTUnwrap(Bundle(url: directory))
+        let url = directory.appendingPathComponent("night_lights_manifest.json")
+        try json.write(to: url, atomically: true, encoding: .utf8)
+        return url
     }
 
     private var metadataJSON: String {
@@ -192,7 +140,8 @@ final class NightLightsTileSetTests: XCTestCase {
             "minZoom": 4,
             "maxZoom": 6,
             "source": "NASA Black Marble 2016",
-            "attribution": "NASA Earth Observatory"
+            "attribution": "NASA Earth Observatory",
+            "tileURLTemplate": "http://localhost:9000/night-lights/v1/tiles/night_lights_{z}_{x}_{y}.jpg"
         }
         """
     }

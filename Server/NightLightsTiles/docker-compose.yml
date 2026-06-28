@@ -29,4 +29,3 @@ services:
     volumes:
       - ./init:/init:ro
       - ./seed:/seed:ro
-      - ../../ImmersiveMap/Render/EarthScene/Resources/NightLightsTiles:/bundled-night-lights:ro

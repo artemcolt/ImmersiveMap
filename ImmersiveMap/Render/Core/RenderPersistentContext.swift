@@ -25,7 +25,6 @@ final class RenderPersistentContext {
 
     let globeCapRenderer: GlobeCapRenderer
     let starfieldRenderer: StarfieldRenderer
-    let nightLightsTexture: NightLightsTexture
     let nightLightsTileSet: NightLightsTileSet?
     let nightLightsTileCache: NightLightsTileCache
     let nightLightsAtlasTexture: NightLightsAtlasTexture
@@ -93,7 +92,6 @@ final class RenderPersistentContext {
                                                  sampleCount: metal.renderSampleCount,
                                                  maxLatitude: WebMercatorMath.maxLatitudeRadians,
                                                  mapBaseColors: mapBaseColors)
-        self.nightLightsTexture = NightLightsTexture(device: metal.device)
         let nightLightsTileSet = Self.makeNightLightsTileSet(settings: config.scene.earth.nightLights)
         self.nightLightsTileSet = nightLightsTileSet
         self.nightLightsTileCache = NightLightsTileCache { tile in
@@ -140,7 +138,7 @@ final class RenderPersistentContext {
             return try? NightLightsTileSet(metadataURL: tileManifestURL)
         }
 
-        return try? NightLightsTileSet()
+        return nil
     }
 
     // MARK: - Depth States

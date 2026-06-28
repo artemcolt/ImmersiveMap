@@ -41,5 +41,5 @@ ImmersiveMapView()
     )
 ```
 
-The init container seeds `v1/tiles/` from the package's current bundled night-light JPEG resources.
+The init container seeds `v1/` from `Server/NightLightsTiles/seed/night-lights/v1/`.
 The `seed/night-lights/v1/tiles/` directory is intentionally ignored except for `.gitkeep`; generated or external tile payloads should not be committed there.

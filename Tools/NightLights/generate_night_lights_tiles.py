@@ -84,7 +84,7 @@ for source in EXPECTED_SOURCES.values():
 
 SOURCE_COLUMNS = ("A", "B", "C", "D")
 SOURCE_ROWS = ("1", "2")
-METADATA_FILE_NAME = "night_lights_tiles_metadata.json"
+METADATA_FILE_NAME = "night_lights_generation_metadata.json"
 OUTPUT_NAME_TEMPLATE = "night_lights_{z}_{x}_{y}.jpg"
 MESH_BAND_HEIGHT = 8
 WEB_MERCATOR_MAX_LATITUDE = 85.0511287798066
