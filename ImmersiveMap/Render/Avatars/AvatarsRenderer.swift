@@ -31,6 +31,7 @@ final class AvatarsRenderer {
     private let speedBadgeStyle: AvatarSpeedBadgeStyle
     private let selectionProjector = AvatarSelectionProjector()
     private let clusterLayoutSolver = AvatarClusterLayoutSolver()
+    private let visibilityFadeStateStore = AvatarVisibilityFadeStateStore()
 
     private let instanceBufferStore: DynamicMetalBuffer<AvatarInstanceGPU>
     private let screenPointBufferStore: DynamicMetalBuffer<ScreenPointOutput>
@@ -56,6 +57,8 @@ final class AvatarsRenderer {
     private(set) var hasActiveAnimations: Bool = false
     private(set) var selectionSnapshot: AvatarSelectionSnapshot = .empty
     var hasRenderableAvatars: Bool { avatarCount > 0 || clusterCount > 0 }
+    private var fadeInSeconds: TimeInterval { ImmersiveMapSettings.default.labels.base.fadeInSeconds }
+    private var fadeOutSeconds: TimeInterval { ImmersiveMapSettings.default.labels.base.fadeOutSeconds }
 
     init(metalDevice: MTLDevice,
          layer: CAMetalLayer,
@@ -121,7 +124,7 @@ final class AvatarsRenderer {
         let presentedMarkers = presentationStateStore.presentedEntries(at: time)
         let hasActiveAnimations = presentationStateStore.hasActiveAnimations
         self.presentedEntries = presentedMarkers
-        self.hasActiveAnimations = hasActiveAnimations
+        self.hasActiveAnimations = hasActiveAnimations || visibilityFadeStateStore.hasActiveAnimations
     }
 
     private func apply(snapshot: AvatarsSnapshot, time: TimeInterval) {
@@ -299,13 +302,19 @@ final class AvatarsRenderer {
     func compute(drawSize: CGSize,
                  cameraUniform: CameraUniform,
                  resolvedPresentation: ResolvedPresentationState,
+                 time: TimeInterval,
                  commandBuffer: MTLCommandBuffer) {
-        let projectedMarkers = selectionProjector.project(markers: presentedEntries,
-                                                          drawSize: drawSize,
-                                                          cameraUniform: cameraUniform,
-                                                          resolvedPresentation: resolvedPresentation)
+        let rawProjectedMarkers = selectionProjector.project(markers: presentedEntries,
+                                                             drawSize: drawSize,
+                                                             cameraUniform: cameraUniform,
+                                                             resolvedPresentation: resolvedPresentation)
+        let fadeResolution = visibilityFadeStateStore.resolve(projectedMarkers: rawProjectedMarkers,
+                                                              time: time,
+                                                              fadeInSeconds: fadeInSeconds,
+                                                              fadeOutSeconds: fadeOutSeconds)
+        hasActiveAnimations = presentationStateStore.hasActiveAnimations || fadeResolution.hasActiveAnimations
         let markerSizePx = Float(config.size.rawValue) * config.sizeScale
-        let layout = clusterLayoutSolver.solve(projectedMarkers: projectedMarkers,
+        let layout = clusterLayoutSolver.solve(projectedMarkers: fadeResolution.projectedMarkers,
                                                markerSizePx: markerSizePx,
                                                collisionPaddingPx: config.collisionPaddingPx)
 

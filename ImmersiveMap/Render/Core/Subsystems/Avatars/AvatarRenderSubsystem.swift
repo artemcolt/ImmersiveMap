@@ -47,7 +47,9 @@ final class AvatarRenderSubsystem: RenderSubsystem, RenderPassAvailabilityProvid
         avatarsRenderer.compute(drawSize: frameContext.drawSize,
                                 cameraUniform: frameContext.cameraUniform,
                                 resolvedPresentation: frameContext.resolvedPresentation,
+                                time: frameContext.time,
                                 commandBuffer: commandBuffer)
+        frameContext.sharedState.avatarState.hasActiveAnimations = avatarsRenderer.hasActiveAnimations
         frameContext.sharedState.avatarState.selectionSnapshot = avatarsRenderer.selectionSnapshot
             .withFrameIndex(frameContext.frameIndex)
     }

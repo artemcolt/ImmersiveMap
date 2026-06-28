@@ -21,6 +21,14 @@ final class AvatarRenderShaderShapeTests: XCTestCase {
         XCTAssertTrue(source.contains("style.originXPx * screenSizeScale"))
     }
 
+    func testAvatarFragmentsApplyScreenPointVisibilityAlpha() throws {
+        let source = try avatarRenderShaderSource()
+
+        XCTAssertTrue(source.contains("out.visibilityAlpha = point.visibilityAlpha"))
+        XCTAssertTrue(source.contains("color.a = alpha * in.visibilityAlpha"))
+        XCTAssertTrue(source.contains("color.a *= in.visibilityAlpha"))
+    }
+
     private func avatarRenderShaderSource() throws -> String {
         let testFileURL = URL(fileURLWithPath: #filePath)
         let packageRootURL = testFileURL

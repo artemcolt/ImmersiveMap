@@ -145,7 +145,6 @@ struct AvatarSelectionProjector {
                     let visibility = globeProjectionVisibility(worldPosition: projection.worldPosition,
                                                                cameraUniform: cameraUniform,
                                                                constants: constants)
-                    point.visible = visibility.visible ? 1 : 0
                     point.visibilityAlpha = visibility.alpha
                 }
                 appendProjectedIfVisible(presentedMarker: presentedMarker,
@@ -230,6 +229,9 @@ struct AvatarSelectionProjector {
                                      speedBadgeStyle: AvatarSpeedBadgeStyle,
                                      entries: inout [AvatarSelectionEntry]) {
         guard screenPoint.visible != 0 else {
+            return
+        }
+        guard screenPoint.visibilityAlpha > AvatarVisibilityFadeStateStore.activeAlphaThreshold else {
             return
         }
 

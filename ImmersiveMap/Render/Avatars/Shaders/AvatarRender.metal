@@ -11,6 +11,7 @@ struct AvatarVertexOut {
     float2 uvLocal;
     float4 uvRect;
     float4 borderColor;
+    float visibilityAlpha;
     uint atlasIndex [[flat]];
     uint flags [[flat]];
 };
@@ -19,12 +20,14 @@ struct AvatarBatteryBadgeVertexOut {
     float4 position [[position]];
     float2 uv;
     float4 uvRect;
+    float visibilityAlpha;
 };
 
 struct AvatarSpeedBadgeVertexOut {
     float4 position [[position]];
     float2 uv;
     float4 uvRect;
+    float visibilityAlpha;
 };
 
 static inline float decodeSignedDistanceTexels(float encodedDistance,
@@ -51,6 +54,7 @@ vertex AvatarVertexOut avatarVertex(uint vid [[vertex_id]],
         out.uvLocal = float2(0.0);
         out.uvRect = float4(0.0);
         out.borderColor = float4(0.0);
+        out.visibilityAlpha = 0.0;
         out.atlasIndex = 0;
         out.flags = 0;
         return out;
@@ -64,6 +68,7 @@ vertex AvatarVertexOut avatarVertex(uint vid [[vertex_id]],
     out.uvLocal = uv;
     out.uvRect = instance.uvRect;
     out.borderColor = instance.borderColor;
+    out.visibilityAlpha = point.visibilityAlpha;
     out.atlasIndex = instance.atlasIndex;
     out.flags = instance.flags;
     return out;
@@ -112,7 +117,7 @@ fragment float4 avatarFragment(AvatarVertexOut in [[stage_in]],
     float4 outlineColor = float4(0.0, 0.0, 0.0, 1.0) * borderMask;
     float4 color = imageColor + whiteFillColor + outlineColor;
     float alpha = tex.a * imageMask + whiteFillMask + borderMask;
-    color.a = alpha;
+    color.a = alpha * in.visibilityAlpha;
     return color;
 }
 
@@ -136,6 +141,7 @@ vertex AvatarBatteryBadgeVertexOut avatarBatteryBadgeVertex(
         out.position = float4(-2.0, -2.0, 0.0, 1.0);
         out.uv = float2(0.0);
         out.uvRect = float4(0.0);
+        out.visibilityAlpha = 0.0;
         return out;
     }
 
@@ -149,6 +155,7 @@ vertex AvatarBatteryBadgeVertexOut avatarBatteryBadgeVertex(
     out.position = screenMatrix * float4(pixelPosition, 0.0, 1.0);
     out.uv = uv;
     out.uvRect = instance.uvRect;
+    out.visibilityAlpha = point.visibilityAlpha;
     return out;
 }
 
@@ -156,7 +163,9 @@ fragment float4 avatarBatteryBadgeFragment(AvatarBatteryBadgeVertexOut in [[stag
                                            texture2d<float> badgeAtlas [[texture(0)]]) {
     constexpr sampler badgeSampler(mag_filter::linear, min_filter::linear, address::clamp_to_edge);
     float2 uv = mix(in.uvRect.xy, in.uvRect.zw, in.uv);
-    return badgeAtlas.sample(badgeSampler, uv);
+    float4 color = badgeAtlas.sample(badgeSampler, uv);
+    color.a *= in.visibilityAlpha;
+    return color;
 }
 
 vertex AvatarSpeedBadgeVertexOut avatarSpeedBadgeVertex(
@@ -179,6 +188,7 @@ vertex AvatarSpeedBadgeVertexOut avatarSpeedBadgeVertex(
         out.position = float4(-2.0, -2.0, 0.0, 1.0);
         out.uv = float2(0.0);
         out.uvRect = float4(0.0);
+        out.visibilityAlpha = 0.0;
         return out;
     }
 
@@ -191,6 +201,7 @@ vertex AvatarSpeedBadgeVertexOut avatarSpeedBadgeVertex(
     out.position = screenMatrix * float4(pixelPosition, 0.0, 1.0);
     out.uv = uv;
     out.uvRect = instance.uvRect;
+    out.visibilityAlpha = point.visibilityAlpha;
     return out;
 }
 
@@ -198,5 +209,7 @@ fragment float4 avatarSpeedBadgeFragment(AvatarSpeedBadgeVertexOut in [[stage_in
                                          texture2d<float> badgeAtlas [[texture(0)]]) {
     constexpr sampler badgeSampler(mag_filter::linear, min_filter::linear, address::clamp_to_edge);
     float2 uv = mix(in.uvRect.xy, in.uvRect.zw, in.uv);
-    return badgeAtlas.sample(badgeSampler, uv);
+    float4 color = badgeAtlas.sample(badgeSampler, uv);
+    color.a *= in.visibilityAlpha;
+    return color;
 }
