@@ -272,6 +272,20 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertEqual(view.tilesStatusTextForTesting, "tiles: idle")
     }
 
+    func testApplyingSameSnapshotDoesNotRebuildText() {
+        let view = DebugOverlayHUDView()
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        let snapshot = makeSnapshot(settings: settings, atlasPages: [])
+
+        view.apply(snapshot: snapshot)
+        let firstUpdateCount = view.textUpdateCountForTesting
+
+        view.apply(snapshot: snapshot)
+
+        XCTAssertEqual(view.textUpdateCountForTesting, firstUpdateCount)
+    }
+
     func testTilesTabKeepsPanelWidthStableWhenStatusTextChanges() {
         let view = DebugOverlayHUDView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         var settings = ImmersiveMapSettings.default.debug

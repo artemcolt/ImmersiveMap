@@ -57,6 +57,9 @@ final class DebugOverlayHUDView: UIView {
     private var isCollapsed = false
     private var selectedTab: SelectedTab = .stats
     private var tileTraceSnapshot = TileTraceRecorderSnapshot(isRecording: false, fileURL: nil)
+    #if DEBUG
+    private var textUpdateCountForTestingStorage = 0
+    #endif
 
     var onAxesEnabledChanged: ((Bool) -> Void)?
     var onTileLayersEnabledChanged: ((Bool) -> Void)?
@@ -151,6 +154,10 @@ final class DebugOverlayHUDView: UIView {
     }
 
     func apply(snapshot: DebugOverlayHUDSnapshot?) {
+        guard self.snapshot != snapshot else {
+            return
+        }
+
         self.snapshot = snapshot
         updateText()
         updateVisibility()
@@ -393,6 +400,10 @@ final class DebugOverlayHUDView: UIView {
     }
 
     private func updateText() {
+        #if DEBUG
+        textUpdateCountForTestingStorage += 1
+        #endif
+
         guard let snapshot else {
             zoomLabel.attributedText = nil
             latLonLabel.attributedText = nil
@@ -1269,6 +1280,10 @@ extension DebugOverlayHUDView {
 
     var tileTraceStatusTextForTesting: String? {
         tileTraceStatusLabel.text
+    }
+
+    var textUpdateCountForTesting: Int {
+        textUpdateCountForTestingStorage
     }
 }
 #endif

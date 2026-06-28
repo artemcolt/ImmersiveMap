@@ -3,22 +3,28 @@
 
 #if canImport(UIKit)
 
+import Foundation
 import UIKit
 
 @MainActor
 final class ImmersiveMapDebugOverlayRuntime {
     private let hudView = DebugOverlayHUDView()
     private let controls: DebugOverlayControlState
+    private let hudSnapshotStore: DebugOverlayHUDSnapshotStore
     private let tileTraceRecorder: TileTraceRecorder
     private weak var renderRuntime: ImmersiveMapRenderRuntime?
+    private var hudSnapshotTimer: Timer?
+    private var consumedHUDSnapshotVersion: UInt64 = 0
 
     init(mapView: ImmersiveMapUIView,
          controls: DebugOverlayControlState,
+         hudSnapshotStore: DebugOverlayHUDSnapshotStore,
          tileTraceRecorder: TileTraceRecorder,
          renderRuntime: ImmersiveMapRenderRuntime,
          cameraRuntime: ImmersiveMapCameraRuntime,
          cameraAnimationRuntime: ImmersiveMapCameraAnimationRuntime) {
         self.controls = controls
+        self.hudSnapshotStore = hudSnapshotStore
         self.tileTraceRecorder = tileTraceRecorder
         self.renderRuntime = renderRuntime
         hudView.onAxesEnabledChanged = { [weak controls, weak renderRuntime] isEnabled in
@@ -54,12 +60,17 @@ final class ImmersiveMapDebugOverlayRuntime {
         mapView.addSubview(hudView)
     }
 
+    deinit {
+        hudSnapshotTimer?.invalidate()
+    }
+
     func layout(in bounds: CGRect) {
         hudView.frame = bounds
     }
 
     func apply(snapshot: DebugOverlayHUDSnapshot?) {
-        hudView.apply(snapshot: snapshot)
+        hudSnapshotStore.publish(snapshot)
+        flushPendingHUDSnapshot()
     }
 
     func apply(settings: ImmersiveMapSettings) {
@@ -67,9 +78,43 @@ final class ImmersiveMapDebugOverlayRuntime {
                       controls: controls.snapshot(),
                       earthSceneEnabled: settings.scene.earth.isEnabled)
         hudView.apply(tileTraceSnapshot: tileTraceRecorder.snapshot())
-        if settings.debug.enableDebugPanel == false {
+        if settings.debug.enableDebugPanel {
+            startHUDSnapshotTimer()
+            flushPendingHUDSnapshot()
+        } else {
+            stopHUDSnapshotTimer()
+            consumedHUDSnapshotVersion = hudSnapshotStore.publish(nil)
             hudView.apply(snapshot: nil)
         }
+    }
+
+    private func startHUDSnapshotTimer() {
+        guard hudSnapshotTimer == nil else {
+            return
+        }
+
+        let timer = Timer(timeInterval: DebugOverlayHUDSnapshotThrottler.defaultMinimumInterval,
+                          repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.flushPendingHUDSnapshot()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        hudSnapshotTimer = timer
+    }
+
+    private func stopHUDSnapshotTimer() {
+        hudSnapshotTimer?.invalidate()
+        hudSnapshotTimer = nil
+    }
+
+    private func flushPendingHUDSnapshot() {
+        guard let value = hudSnapshotStore.consumeLatest(after: consumedHUDSnapshotVersion) else {
+            return
+        }
+
+        consumedHUDSnapshotVersion = value.version
+        hudView.apply(snapshot: value.snapshot)
     }
 }
 

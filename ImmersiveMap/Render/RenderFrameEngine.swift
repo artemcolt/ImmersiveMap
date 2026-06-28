@@ -28,6 +28,7 @@ final class RenderFrameEngine {
     private let attachments: FrameAttachmentStore
     private let inFlightFramePool = InFlightFramePool(slotsCount: InFlightFramePool.inFlightFramesCount)
     private var timeline = RenderFrameTimeline()
+    private var debugHUDSnapshotThrottler = DebugOverlayHUDSnapshotThrottler()
 
     private(set) var currentDiagnostics: FrameDiagnostics?
 
@@ -213,6 +214,11 @@ final class RenderFrameEngine {
     }
 
     private func publishDebugOverlayHUDSnapshot(frameContext: FrameContext) {
+        guard debugHUDSnapshotThrottler.shouldBuildSnapshot(isEnabled: settings.debug.enableDebugPanel,
+                                                            at: CACurrentMediaTime()) else {
+            return
+        }
+
         #if DEBUG
         let diagnosticsOverlay: FrameDiagnostics? = frameContext.diagnostics
         #else

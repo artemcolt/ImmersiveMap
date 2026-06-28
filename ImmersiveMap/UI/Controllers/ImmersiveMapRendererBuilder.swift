@@ -12,23 +12,23 @@ final class ImmersiveMapRendererBuilder {
     private let avatarRuntime: ImmersiveMapAvatarRuntime
     private let renderRuntime: ImmersiveMapRenderRuntime
     private let selectionHandler: ImmersiveMapSelectionHandler
-    private let debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime
     private let debugOverlayControls: DebugOverlayControlState
+    private let debugOverlayHUDSnapshotStore: DebugOverlayHUDSnapshotStore
     private let tileTraceRecorder: TileTraceRecorder
 
     init(cameraRuntime: ImmersiveMapCameraRuntime,
          avatarRuntime: ImmersiveMapAvatarRuntime,
          renderRuntime: ImmersiveMapRenderRuntime,
          selectionHandler: ImmersiveMapSelectionHandler,
-         debugOverlayRuntime: ImmersiveMapDebugOverlayRuntime,
          debugOverlayControls: DebugOverlayControlState,
+         debugOverlayHUDSnapshotStore: DebugOverlayHUDSnapshotStore,
          tileTraceRecorder: TileTraceRecorder) {
         self.cameraRuntime = cameraRuntime
         self.avatarRuntime = avatarRuntime
         self.renderRuntime = renderRuntime
         self.selectionHandler = selectionHandler
-        self.debugOverlayRuntime = debugOverlayRuntime
         self.debugOverlayControls = debugOverlayControls
+        self.debugOverlayHUDSnapshotStore = debugOverlayHUDSnapshotStore
         self.tileTraceRecorder = tileTraceRecorder
     }
 
@@ -39,7 +39,7 @@ final class ImmersiveMapRendererBuilder {
                                                           cameraPosition: cameraPosition)
         let eventSink = ImmersiveMapRenderEventSink(renderRuntime: renderRuntime,
                                                     selectionHandler: selectionHandler,
-                                                    debugOverlayRuntime: debugOverlayRuntime)
+                                                    debugOverlayHUDSnapshotStore: debugOverlayHUDSnapshotStore)
         let providerRuntime = ImmersiveMapProviderRuntimeContext(settings: settings)
         return RenderFrameEngine(layer: layer,
                                  avatarSource: avatarRuntime,
