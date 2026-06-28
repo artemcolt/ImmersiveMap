@@ -81,43 +81,24 @@ fragment float4 avatarFragment(AvatarVertexOut in [[stage_in]],
     float borderMask;
     float interiorMask;
     float imageMask;
-    bool circleShape = (in.flags & 2u) != 0u;
-    if (circleShape) {
-        float2 centeredPx = (in.uvLocal - float2(0.5)) * style.totalSizePx;
-        float circleRadiusPx = min(style.totalSizePx.x, style.totalSizePx.y) * 0.5;
-        float markerDistancePx = length(centeredPx) - circleRadiusPx;
-        float edgeWidthPx = max(fwidth(markerDistancePx) * 0.75, 0.75);
-        float outlineWidthPx = max(style.outlineWidthPx, edgeWidthPx);
-        fillMask = 1.0 - smoothstep(-edgeWidthPx, edgeWidthPx, markerDistancePx);
-        borderMask = smoothstep(-outlineWidthPx - edgeWidthPx,
-                                -edgeWidthPx,
-                                markerDistancePx) * fillMask;
-        interiorMask = max(fillMask - borderMask, 0.0);
-        float contentInsetPx = max(style.contentInsetPx, outlineWidthPx + edgeWidthPx);
-        imageMask = 1.0 - smoothstep(-contentInsetPx - edgeWidthPx,
-                                     -contentInsetPx + edgeWidthPx,
-                                     markerDistancePx);
-        imageMask *= interiorMask;
-    } else {
-        float2 sdfUv = float2(in.uvLocal.x, 1.0 - in.uvLocal.y);
-        float4 mtsdfSample = sdfTexture.sample(sdfSampler, sdfUv);
-        float encodedDistance = mtsdfSample.a;
-        float markerDistanceTexels = decodeSignedDistanceTexels(encodedDistance, sdfParams);
-        float2 sdfTextureSize = float2(float(sdfTexture.get_width()), float(sdfTexture.get_height()));
-        float texelsPerPixelX = length(dfdx(in.uvLocal) * sdfTextureSize);
-        float texelsPerPixelY = length(dfdy(in.uvLocal) * sdfTextureSize);
-        float texelsPerPixel = max(max(texelsPerPixelX, texelsPerPixelY), 0.0001);
-        float edgeWidthTexels = max(0.75 * texelsPerPixel, 0.75);
-        float outlineWidthTexels = max(style.outlineWidthPx * texelsPerPixel, edgeWidthTexels);
-        fillMask = 1.0 - smoothstep(-edgeWidthTexels, edgeWidthTexels, markerDistanceTexels);
-        borderMask = smoothstep(-outlineWidthTexels - edgeWidthTexels, -edgeWidthTexels, markerDistanceTexels) * fillMask;
-        interiorMask = max(fillMask - borderMask, 0.0);
-        float contentInsetTexels = max(style.contentInsetPx * texelsPerPixel, outlineWidthTexels + edgeWidthTexels);
-        imageMask = 1.0 - smoothstep(-contentInsetTexels - edgeWidthTexels,
-                                     -contentInsetTexels + edgeWidthTexels,
-                                     markerDistanceTexels);
-        imageMask *= interiorMask;
-    }
+    float2 sdfUv = float2(in.uvLocal.x, 1.0 - in.uvLocal.y);
+    float4 mtsdfSample = sdfTexture.sample(sdfSampler, sdfUv);
+    float encodedDistance = mtsdfSample.a;
+    float markerDistanceTexels = decodeSignedDistanceTexels(encodedDistance, sdfParams);
+    float2 sdfTextureSize = float2(float(sdfTexture.get_width()), float(sdfTexture.get_height()));
+    float texelsPerPixelX = length(dfdx(in.uvLocal) * sdfTextureSize);
+    float texelsPerPixelY = length(dfdy(in.uvLocal) * sdfTextureSize);
+    float texelsPerPixel = max(max(texelsPerPixelX, texelsPerPixelY), 0.0001);
+    float edgeWidthTexels = max(0.75 * texelsPerPixel, 0.75);
+    float outlineWidthTexels = max(style.outlineWidthPx * texelsPerPixel, edgeWidthTexels);
+    fillMask = 1.0 - smoothstep(-edgeWidthTexels, edgeWidthTexels, markerDistanceTexels);
+    borderMask = smoothstep(-outlineWidthTexels - edgeWidthTexels, -edgeWidthTexels, markerDistanceTexels) * fillMask;
+    interiorMask = max(fillMask - borderMask, 0.0);
+    float contentInsetTexels = max(style.contentInsetPx * texelsPerPixel, outlineWidthTexels + edgeWidthTexels);
+    imageMask = 1.0 - smoothstep(-contentInsetTexels - edgeWidthTexels,
+                                 -contentInsetTexels + edgeWidthTexels,
+                                 markerDistanceTexels);
+    imageMask *= interiorMask;
 
     float2 insetUv = float2(style.contentInsetPx / max(style.totalSizePx.x, 1.0),
                             style.contentInsetPx / max(style.totalSizePx.y, 1.0));

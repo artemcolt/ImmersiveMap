@@ -65,6 +65,7 @@ public struct AvatarMarker {
     public let id: UInt64
     public var coordinate: GeoCoordinate
     public var image: CGImage
+    public var imageSource: AvatarMarkerImageSource
     public var batteryBadge: AvatarBatteryBadge?
     public var speedBadge: AvatarSpeedBadge?
     public var borderColor: SIMD4<Float>?
@@ -84,6 +85,28 @@ public struct AvatarMarker {
         self.id = id
         self.coordinate = coordinate
         self.image = image
+        self.imageSource = .cgImage(image)
+        self.batteryBadge = batteryBadge
+        self.speedBadge = speedBadge
+        self.borderColor = borderColor
+        self.isSelected = isSelected
+        self.drawPriority = drawPriority
+        self.clusterPolicy = clusterPolicy
+    }
+
+    public init(id: UInt64,
+                coordinate: GeoCoordinate,
+                image: AvatarMarkerImageSource,
+                batteryBadge: AvatarBatteryBadge? = nil,
+                speedBadge: AvatarSpeedBadge? = nil,
+                borderColor: SIMD4<Float>? = nil,
+                isSelected: Bool = false,
+                drawPriority: Int = 0,
+                clusterPolicy: AvatarClusterPolicy = .none) {
+        self.id = id
+        self.coordinate = coordinate
+        self.image = image.initialImage
+        self.imageSource = image
         self.batteryBadge = batteryBadge
         self.speedBadge = speedBadge
         self.borderColor = borderColor

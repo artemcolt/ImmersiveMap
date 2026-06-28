@@ -19,14 +19,24 @@ public struct AvatarsSnapshot {
 /// Собирает marker mutations в snapshots для renderer и selection runtime.
 public final class ImmersiveMapAvatarsController {
     private let lock = NSLock()
+    private let imageLoader: (URL) async throws -> CGImage
     private var markersById: [UInt64: AvatarMarker] = [:]
     private var removedIds: Set<UInt64> = []
     private var imageUpdateIds: Set<UInt64> = []
+    private var loadingRemoteImageURLsById: [UInt64: URL] = [:]
     private var version: UInt64 = 0
     private var hasChanges: Bool = false
     private var changeHandler: (() -> Void)?
 
-    public init() {}
+    public convenience init() {
+        self.init(imageLoader: { url in
+            try await AvatarMarkerImageLoader.loadCGImage(from: url)
+        })
+    }
+
+    init(imageLoader: @escaping (URL) async throws -> CGImage) {
+        self.imageLoader = imageLoader
+    }
 
     public func add(_ marker: AvatarMarker) {
         upsert([marker])
@@ -41,8 +51,10 @@ public final class ImmersiveMapAvatarsController {
         markersById = Dictionary(uniqueKeysWithValues: markers.map { ($0.id, $0) })
         removedIds.removeAll(keepingCapacity: true)
         imageUpdateIds = Set(markersById.keys)
+        let remoteImageLoadRequests = remoteImageLoadRequestsLocked(for: markers)
         markChangedLocked()
         lock.unlock()
+        scheduleRemoteImageLoads(remoteImageLoadRequests)
         notifyChanged()
     }
 
@@ -53,8 +65,10 @@ public final class ImmersiveMapAvatarsController {
             removedIds.remove(marker.id)
             imageUpdateIds.insert(marker.id)
         }
+        let remoteImageLoadRequests = remoteImageLoadRequestsLocked(for: markers)
         markChangedLocked()
         lock.unlock()
+        scheduleRemoteImageLoads(remoteImageLoadRequests)
         notifyChanged()
     }
 
@@ -92,6 +106,7 @@ public final class ImmersiveMapAvatarsController {
         }
         if let image {
             marker.image = image
+            marker.imageSource = .cgImage(image)
             imageUpdateIds.insert(id)
         }
         if let borderColor {
@@ -127,6 +142,7 @@ public final class ImmersiveMapAvatarsController {
             markersById.removeValue(forKey: id)
             removedIds.insert(id)
             imageUpdateIds.remove(id)
+            loadingRemoteImageURLsById.removeValue(forKey: id)
         }
         markChangedLocked()
         lock.unlock()
@@ -142,6 +158,7 @@ public final class ImmersiveMapAvatarsController {
         removedIds.formUnion(markersById.keys)
         markersById.removeAll(keepingCapacity: true)
         imageUpdateIds.removeAll(keepingCapacity: true)
+        loadingRemoteImageURLsById.removeAll(keepingCapacity: true)
         markChangedLocked()
         lock.unlock()
         notifyChanged()
@@ -181,6 +198,66 @@ public final class ImmersiveMapAvatarsController {
     private func markSnapshotDirtyLocked() {
         imageUpdateIds.formUnion(markersById.keys)
         markChangedLocked()
+    }
+
+    private func remoteImageLoadRequestsLocked(for markers: [AvatarMarker]) -> [(id: UInt64, url: URL)] {
+        var requests: [(id: UInt64, url: URL)] = []
+        requests.reserveCapacity(markers.count)
+        for marker in markers {
+            guard let remoteURL = marker.imageSource.remoteURL else {
+                loadingRemoteImageURLsById.removeValue(forKey: marker.id)
+                continue
+            }
+            guard loadingRemoteImageURLsById[marker.id] != remoteURL else {
+                continue
+            }
+            loadingRemoteImageURLsById[marker.id] = remoteURL
+            requests.append((id: marker.id, url: remoteURL))
+        }
+        return requests
+    }
+
+    private func scheduleRemoteImageLoads(_ requests: [(id: UInt64, url: URL)]) {
+        for request in requests {
+            Task { [weak self] in
+                guard let self else { return }
+                do {
+                    let image = try await imageLoader(request.url)
+                    applyRemoteImage(image, markerID: request.id, url: request.url)
+                } catch {
+                    finishRemoteImageLoad(markerID: request.id, url: request.url)
+                }
+            }
+        }
+    }
+
+    private func applyRemoteImage(_ image: CGImage, markerID: UInt64, url: URL) {
+        lock.lock()
+        var shouldNotify = false
+        if var marker = markersById[markerID],
+           marker.imageSource.remoteURL == url {
+            marker.image = image
+            markersById[markerID] = marker
+            imageUpdateIds.insert(markerID)
+            markChangedLocked()
+            shouldNotify = true
+        }
+        if loadingRemoteImageURLsById[markerID] == url {
+            loadingRemoteImageURLsById.removeValue(forKey: markerID)
+        }
+        lock.unlock()
+
+        if shouldNotify {
+            notifyChanged()
+        }
+    }
+
+    private func finishRemoteImageLoad(markerID: UInt64, url: URL) {
+        lock.lock()
+        if loadingRemoteImageURLsById[markerID] == url {
+            loadingRemoteImageURLsById.removeValue(forKey: markerID)
+        }
+        lock.unlock()
     }
 
     private func notifyChanged() {
