@@ -5,6 +5,10 @@
 import XCTest
 
 final class AvatarTextureRasterizerTests: XCTestCase {
+    func testSpeedBadgeUsesEnglishUnitText() {
+        XCTAssertEqual(AvatarSpeedBadgeAtlas.unitText, "km/h")
+    }
+
     func testImageSizeWarningIsNilWhenSourceMatchesTargetSize() {
         let warning = AvatarTextureRasterizer.imageSizeWarning(sourceWidth: 128,
                                                               sourceHeight: 128,

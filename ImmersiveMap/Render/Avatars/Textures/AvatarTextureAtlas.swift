@@ -460,6 +460,8 @@ private struct AvatarSpeedBadgeImageLayout {
 }
 
 final class AvatarSpeedBadgeAtlas {
+    static let unitText = "km/h"
+
     private let cellWidth: Int
     private let cellHeight: Int
     private let columns: Int
@@ -570,7 +572,7 @@ final class AvatarSpeedBadgeAtlas {
                 .font: UIFont.monospacedDigitSystemFont(ofSize: layout.valueFontSize, weight: .bold),
                 .foregroundColor: UIColor(white: 0.08, alpha: 1.0)
             ]
-            let unitText = "км / ч" as NSString
+            let unitText = Self.unitText as NSString
             let unitAttributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: layout.unitFontSize, weight: .bold),
                 .foregroundColor: UIColor(white: 0.08, alpha: 1.0)
