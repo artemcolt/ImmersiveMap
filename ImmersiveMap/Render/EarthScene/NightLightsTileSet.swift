@@ -20,6 +20,25 @@ final class NightLightsTileSet {
         let maxZoom: Int
         let source: String
         let attribution: String
+        let tileURLTemplate: String?
+
+        init(version: Int,
+             format: String,
+             tileSize: Int,
+             minZoom: Int,
+             maxZoom: Int,
+             source: String,
+             attribution: String,
+             tileURLTemplate: String? = nil) {
+            self.version = version
+            self.format = format
+            self.tileSize = tileSize
+            self.minZoom = minZoom
+            self.maxZoom = maxZoom
+            self.source = source
+            self.attribution = attribution
+            self.tileURLTemplate = tileURLTemplate
+        }
     }
 
     let metadata: Metadata
@@ -33,6 +52,12 @@ final class NightLightsTileSet {
 
     convenience init(bundle: Bundle = .module) throws {
         let metadataURL = try Self.metadataURL(in: bundle)
+        let data = try Data(contentsOf: metadataURL)
+        let metadata = try JSONDecoder().decode(Metadata.self, from: data)
+        self.init(metadata: metadata, bundle: bundle)
+    }
+
+    convenience init(metadataURL: URL, bundle: Bundle = .module) throws {
         let data = try Data(contentsOf: metadataURL)
         let metadata = try JSONDecoder().decode(Metadata.self, from: data)
         self.init(metadata: metadata, bundle: bundle)
@@ -77,6 +102,14 @@ final class NightLightsTileSet {
 
     func url(for tile: Tile) -> URL? {
         let sourceTile = bestAvailableTile(for: tile)
+        if let tileURLTemplate = metadata.tileURLTemplate {
+            let urlString = tileURLTemplate
+                .replacingOccurrences(of: "{z}", with: String(sourceTile.z))
+                .replacingOccurrences(of: "{x}", with: String(sourceTile.x))
+                .replacingOccurrences(of: "{y}", with: String(sourceTile.y))
+            return URL(string: urlString)
+        }
+
         let resourceName = String(sourceTile.y)
         let flatResourceName = "night_lights_\(sourceTile.z)_\(sourceTile.x)_\(sourceTile.y)"
         let subdirectory = "NightLightsTiles/\(sourceTile.z)/\(sourceTile.x)"

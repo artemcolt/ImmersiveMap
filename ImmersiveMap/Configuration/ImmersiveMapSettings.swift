@@ -405,6 +405,8 @@ public struct ImmersiveMapSettings: Equatable {
             public var intensity: Float
             /// Positive normalized dot-product width used to fade across the terminator.
             public var terminatorFadeWidth: Float
+            /// Optional manifest URL for server-hosted night-light tiles.
+            public var tileManifestURL: URL?
 
             /// Creates night-lights settings.
             /// - Parameters:
@@ -412,10 +414,12 @@ public struct ImmersiveMapSettings: Equatable {
             ///   - terminatorFadeWidth: Positive normalized dot-product fade width.
             public init(isEnabled: Bool = true,
                         intensity: Float = 1.0,
-                        terminatorFadeWidth: Float = 0.18) {
+                        terminatorFadeWidth: Float = 0.18,
+                        tileManifestURL: URL? = nil) {
                 self.isEnabled = isEnabled
                 self.intensity = intensity
                 self.terminatorFadeWidth = terminatorFadeWidth
+                self.tileManifestURL = tileManifestURL
             }
         }
 
@@ -901,6 +905,12 @@ public extension ImmersiveMapSettings {
     func earthScene(isEnabled: Bool = true) -> ImmersiveMapSettings {
         var settings = self
         settings.scene.earth.isEnabled = isEnabled
+        return settings
+    }
+
+    func nightLightsTileManifestURL(_ url: URL?) -> ImmersiveMapSettings {
+        var settings = self
+        settings.scene.earth.nightLights.tileManifestURL = url
         return settings
     }
 

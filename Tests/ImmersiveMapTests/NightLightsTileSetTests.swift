@@ -14,7 +14,8 @@ final class NightLightsTileSetTests: XCTestCase {
             "minZoom": 4,
             "maxZoom": 6,
             "source": "NASA Black Marble 2016",
-            "attribution": "NASA Earth Observatory"
+            "attribution": "NASA Earth Observatory",
+            "tileURLTemplate": "http://localhost:9000/night-lights/v1/tiles/night_lights_{z}_{x}_{y}.jpg"
         }
         """
 
@@ -27,6 +28,8 @@ final class NightLightsTileSetTests: XCTestCase {
         XCTAssertEqual(metadata.maxZoom, 6)
         XCTAssertEqual(metadata.source, "NASA Black Marble 2016")
         XCTAssertEqual(metadata.attribution, "NASA Earth Observatory")
+        XCTAssertEqual(metadata.tileURLTemplate,
+                       "http://localhost:9000/night-lights/v1/tiles/night_lights_{z}_{x}_{y}.jpg")
     }
 
     func testBestAvailableTileClampsZoomToMetadataRange() {
@@ -107,6 +110,26 @@ final class NightLightsTileSetTests: XCTestCase {
         XCTAssertEqual(url.lastPathComponent, "night_lights_6_25_35.jpg")
     }
 
+    func testURLResolvesRemoteTileTemplateFromMetadata() throws {
+        let tileSet = NightLightsTileSet(
+            metadata: NightLightsTileSet.Metadata(
+                version: 1,
+                format: "jpg",
+                tileSize: 1024,
+                minZoom: 4,
+                maxZoom: 6,
+                source: "NASA Black Marble 2016",
+                attribution: "NASA Earth Observatory",
+                tileURLTemplate: "http://localhost:9000/night-lights/v1/tiles/night_lights_{z}_{x}_{y}.jpg"
+            )
+        )
+
+        let url = try XCTUnwrap(tileSet.url(for: Tile(x: 101, y: 142, z: 8)))
+
+        XCTAssertEqual(url.absoluteString,
+                       "http://localhost:9000/night-lights/v1/tiles/night_lights_6_25_35.jpg")
+    }
+
     private func makeTileSet() -> NightLightsTileSet {
         NightLightsTileSet(metadata: makeMetadata())
     }
@@ -118,7 +141,8 @@ final class NightLightsTileSetTests: XCTestCase {
                                     minZoom: 4,
                                     maxZoom: 6,
                                     source: "NASA Black Marble 2016",
-                                    attribution: "NASA Earth Observatory")
+                                    attribution: "NASA Earth Observatory",
+                                    tileURLTemplate: nil)
     }
 
     private func makeBundle(resourceRoot: String,

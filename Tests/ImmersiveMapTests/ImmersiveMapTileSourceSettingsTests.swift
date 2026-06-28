@@ -113,6 +113,14 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertTrue(settings.scene.earth.nightLights.isEnabled)
     }
 
+    func testNightLightsTileManifestURLModifierStoresRemoteManifestURL() {
+        let manifestURL = URL(string: "http://localhost:9000/night-lights/v1/night_lights_manifest.json")!
+
+        let settings = ImmersiveMapSettings.default.nightLightsTileManifestURL(manifestURL)
+
+        XCTAssertEqual(settings.scene.earth.nightLights.tileManifestURL, manifestURL)
+    }
+
     func testTileCacheSettingsModifierUpdatesOnlyProvidedCacheValues() {
         var baseTiles = ImmersiveMapSettings.default.tiles
         baseTiles.network.maxConcurrentFetches = 11
@@ -163,6 +171,15 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertFalse(settings?.scene.earth.isEnabled == true)
         XCTAssertTrue(settings?.scene.earth.sun.isEnabled == true)
         XCTAssertTrue(settings?.scene.earth.nightLights.isEnabled == true)
+    }
+
+    func testImmersiveMapViewNightLightsTileManifestURLModifierStoresRemoteManifestURL() {
+        let manifestURL = URL(string: "http://localhost:9000/night-lights/v1/night_lights_manifest.json")!
+        let view = ImmersiveMapView().nightLightsTileManifestURL(manifestURL)
+
+        let settings: ImmersiveMapSettings? = reflectedValue("settings", in: view)
+
+        XCTAssertEqual(settings?.scene.earth.nightLights.tileManifestURL, manifestURL)
     }
     #endif
 

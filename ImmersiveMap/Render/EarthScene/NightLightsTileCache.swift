@@ -115,7 +115,7 @@ final class NightLightsTileCache {
     }
 
     private static func decodeTile(_ tile: Tile, from url: URL) -> NightLightsTileData? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+        guard let source = imageSource(from: url),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             return nil
         }
@@ -163,5 +163,16 @@ final class NightLightsTileCache {
         }
 
         return NightLightsTileData(tile: tile, width: width, height: height, bytes: bytes)
+    }
+
+    private static func imageSource(from url: URL) -> CGImageSource? {
+        if url.isFileURL {
+            return CGImageSourceCreateWithURL(url as CFURL, nil)
+        }
+
+        guard let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return CGImageSourceCreateWithData(data as CFData, nil)
     }
 }

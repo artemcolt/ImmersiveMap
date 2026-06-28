@@ -1,0 +1,5 @@
+data/
+
+seed/night-lights/v*/tiles/**
+!seed/night-lights/v*/tiles/
+!seed/night-lights/v*/tiles/.gitkeep

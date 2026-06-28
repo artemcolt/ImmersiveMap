@@ -206,6 +206,12 @@ public extension ImmersiveMapView {
         return view
     }
 
+    public func nightLightsTileManifestURL(_ url: URL?) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.nightLightsTileManifestURL(url)
+        return view
+    }
+
     public func styleSettings(_ style: ImmersiveMapSettings.StyleSettings) -> ImmersiveMapView {
         var view = self
         view.settings = view.settings.styleSettings(style)

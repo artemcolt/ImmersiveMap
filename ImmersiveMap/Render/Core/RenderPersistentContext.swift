@@ -94,7 +94,7 @@ final class RenderPersistentContext {
                                                  maxLatitude: WebMercatorMath.maxLatitudeRadians,
                                                  mapBaseColors: mapBaseColors)
         self.nightLightsTexture = NightLightsTexture(device: metal.device)
-        let nightLightsTileSet = try? NightLightsTileSet()
+        let nightLightsTileSet = Self.makeNightLightsTileSet(settings: config.scene.earth.nightLights)
         self.nightLightsTileSet = nightLightsTileSet
         self.nightLightsTileCache = NightLightsTileCache { tile in
             nightLightsTileSet?.url(for: tile)
@@ -131,6 +131,16 @@ final class RenderPersistentContext {
 
     func applySettings(_ settings: ImmersiveMapSettings) {
         debugOverlayRenderer.apply(settings: settings.debug)
+    }
+
+    private static func makeNightLightsTileSet(
+        settings: ImmersiveMapSettings.EarthSceneSettings.NightLightsSettings
+    ) -> NightLightsTileSet? {
+        if let tileManifestURL = settings.tileManifestURL {
+            return try? NightLightsTileSet(metadataURL: tileManifestURL)
+        }
+
+        return try? NightLightsTileSet()
     }
 
     // MARK: - Depth States

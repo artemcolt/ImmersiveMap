@@ -82,6 +82,9 @@ public enum ImmersiveMapSettingsApplicationPlanner {
         if sceneLiveChanged {
             mark(.scene, actions: [.liveApply])
         }
+        if oldValue.scene.earth.nightLights.tileManifestURL != newValue.scene.earth.nightLights.tileManifestURL {
+            mark(.scene, actions: [.recreateRenderer])
+        }
         let sceneBootstrapChanged = oldValue.scene.starfield != newValue.scene.starfield
         if sceneBootstrapChanged {
             mark(.scene, actions: [.rebuildGPUResources, .recreateRenderer])
