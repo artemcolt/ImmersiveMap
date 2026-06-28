@@ -608,7 +608,7 @@ struct MapboxVectorTileLabelProviderProfile: VectorTileLabelProviderProfile {
         case 2:
             return 80
         case 3:
-            return 90
+            return 70
         case 4:
             return 95
         case 5:

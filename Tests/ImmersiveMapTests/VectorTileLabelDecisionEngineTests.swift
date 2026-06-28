@@ -449,6 +449,28 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
                                                       sortKey: 1))
     }
 
+    func testMapboxProfileKeepsZoomThreeCityLabelsSparse() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let cityProperties: [String: VectorTile_Tile.Value] = ["type": stringValue("city")]
+        let capitalProperties: [String: VectorTile_Tile.Value] = [
+            "type": stringValue("city"),
+            "capital": boolValue(true)
+        ]
+
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_label",
+                                                     properties: capitalProperties,
+                                                     tileZoom: 3,
+                                                     sortKey: 1_000))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_label",
+                                                     properties: cityProperties,
+                                                     tileZoom: 3,
+                                                     sortKey: 70))
+        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
+                                                      properties: cityProperties,
+                                                      tileZoom: 3,
+                                                      sortKey: 90))
+    }
+
     func testMapboxProfileIncludesDistrictLabelsByMinimumZoomAndThreshold() {
         let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
         let properties: [String: VectorTile_Tile.Value] = ["type": stringValue("suburb")]
