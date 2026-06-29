@@ -45,12 +45,6 @@ final class NightLightsTileSet {
         self.metadata = metadata
     }
 
-    convenience init(metadataURL: URL) throws {
-        let data = try Data(contentsOf: metadataURL)
-        let metadata = try JSONDecoder().decode(Metadata.self, from: data)
-        self.init(metadata: metadata)
-    }
-
     func bestAvailableTile(for tile: Tile) -> Tile {
         if tile.z < metadata.minZoom {
             let zoomDifference = metadata.minZoom - tile.z
@@ -99,5 +93,41 @@ final class NightLightsTileSet {
             .replacingOccurrences(of: "{x}", with: String(sourceTile.x))
             .replacingOccurrences(of: "{y}", with: String(sourceTile.y))
         return URL(string: urlString)
+    }
+}
+
+struct NightLightsTileSetMetadataLoader {
+    private let loadData: (URL) async throws -> Data
+
+    init(loadData: @escaping (URL) async throws -> Data = Self.loadData(from:)) {
+        self.loadData = loadData
+    }
+
+    func load(from metadataURL: URL) async throws -> NightLightsTileSet {
+        let data = try await loadData(metadataURL)
+        let metadata = try JSONDecoder().decode(NightLightsTileSet.Metadata.self, from: data)
+        return NightLightsTileSet(metadata: metadata)
+    }
+
+    private static func loadData(from url: URL) async throws -> Data {
+        let (data, _) = try await URLSession.shared.data(from: url)
+        return data
+    }
+}
+
+final class NightLightsTileSetStore {
+    private let stateQueue = DispatchQueue(label: "ImmersiveMap.NightLightsTileSetStore.state")
+    private var storedTileSet: NightLightsTileSet?
+
+    var tileSet: NightLightsTileSet? {
+        stateQueue.sync {
+            storedTileSet
+        }
+    }
+
+    func update(_ tileSet: NightLightsTileSet?) {
+        stateQueue.sync {
+            storedTileSet = tileSet
+        }
     }
 }

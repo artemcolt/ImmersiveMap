@@ -61,10 +61,14 @@ final class NightLightsTileSetTests: XCTestCase {
         XCTAssertEqual(mapping.uvScale.y, Float(0.25), accuracy: Float(0.0001))
     }
 
-    func testInitLoadsMetadataFromManifestURL() throws {
-        let metadataURL = try makeManifestURL(json: metadataJSON)
+    func testMetadataLoaderBuildsTileSetFromManifestDataAsynchronously() async throws {
+        let metadataURL = URL(string: "https://example.com/night-lights/v1/night_lights_manifest.json")!
+        let loader = NightLightsTileSetMetadataLoader { requestedURL in
+            XCTAssertEqual(requestedURL, metadataURL)
+            return Data(self.metadataJSON.utf8)
+        }
 
-        let tileSet = try NightLightsTileSet(metadataURL: metadataURL)
+        let tileSet = try await loader.load(from: metadataURL)
 
         XCTAssertEqual(tileSet.metadata, makeRemoteMetadata())
     }
@@ -119,16 +123,6 @@ final class NightLightsTileSetTests: XCTestCase {
                                     source: "NASA Black Marble 2016",
                                     attribution: "NASA Earth Observatory",
                                     tileURLTemplate: "http://localhost:9000/night-lights/v1/tiles/night_lights_{z}_{x}_{y}.jpg")
-    }
-
-    private func makeManifestURL(json: String) throws -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-
-        let url = directory.appendingPathComponent("night_lights_manifest.json")
-        try json.write(to: url, atomically: true, encoding: .utf8)
-        return url
     }
 
     private var metadataJSON: String {

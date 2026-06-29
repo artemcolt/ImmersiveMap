@@ -16,7 +16,7 @@ enum RenderGraphFactory {
         let tileProjectionIndexSubsystem = TileProjectionIndexSubsystem(flatTileOriginCalculator: context.flatTileOriginCalculator)
         let tileGlobeTextureSubsystem = TileGlobeTextureSubsystem(tilesTexture: context.tilesTexture,
                                                                   tileTraceRecorder: context.tileTraceRecorder)
-        let nightLightsGlobeTextureSubsystem = NightLightsGlobeTextureSubsystem(tileSet: context.nightLightsTileSet,
+        let nightLightsGlobeTextureSubsystem = NightLightsGlobeTextureSubsystem(tileSetStore: context.nightLightsTileSetStore,
                                                                                 tileCache: context.nightLightsTileCache,
                                                                                 atlasTexture: context.nightLightsAtlasTexture)
         let baseLabelSubsystem = BaseLabelPrepareSubsystem(baseLabelCache: context.baseLabelCache,

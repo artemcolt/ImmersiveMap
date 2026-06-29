@@ -6,7 +6,7 @@ import Metal
 final class NightLightsGlobeTextureSubsystem: RenderSubsystem {
     let name: String = "NightLights"
 
-    private let tileSet: NightLightsTileSet?
+    private let tileSetStore: NightLightsTileSetStore
     private let tileCache: NightLightsTileCache
     private let atlasTexture: NightLightsAtlasTexture
 
@@ -14,10 +14,10 @@ final class NightLightsGlobeTextureSubsystem: RenderSubsystem {
     private var previousReadyTiles: [Tile]?
     private var atlasState: NightLightsAtlasState = .empty
 
-    init(tileSet: NightLightsTileSet?,
+    init(tileSetStore: NightLightsTileSetStore,
          tileCache: NightLightsTileCache,
          atlasTexture: NightLightsAtlasTexture) {
-        self.tileSet = tileSet
+        self.tileSetStore = tileSetStore
         self.tileCache = tileCache
         self.atlasTexture = atlasTexture
     }
@@ -63,7 +63,7 @@ final class NightLightsGlobeTextureSubsystem: RenderSubsystem {
         guard frameContext.renderSurfaceMode == .spherical,
               frameContext.earthSceneUniform.isEnabled != 0,
               frameContext.earthSceneUniform.nightLightsEnabled != 0,
-              let tileSet else {
+              let tileSet = tileSetStore.tileSet else {
             publishEmptyState(frameContext: frameContext)
             return
         }
