@@ -27,6 +27,7 @@ struct StarVertexOut {
     float temperature;
     float twinklePhase;
     float halo;
+    float transition;
 };
 
 struct StarfieldParams {
@@ -39,6 +40,7 @@ struct BackgroundParams {
     float4 hazeColor;
     float4 nebulaColorA;
     float4 nebulaColorB;
+    float4 transitionTargetColor;
     float4 controls;
 };
 
@@ -149,6 +151,8 @@ fragment float4 starfieldBackgroundFragmentShader(BackgroundVertexOut in [[stage
     color += params.nebulaColorA.rgb * nebulaA * params.controls.z;
     color += params.nebulaColorB.rgb * nebulaB * params.controls.z * 0.85;
     color *= 1.0 - smoothstep(0.15, 0.98, abs(localDirection.y)) * params.controls.x * 0.22;
+    float transitionFade = smoothstep(0.0, 1.0, globe.transition);
+    color = mix(color, params.transitionTargetColor.rgb, transitionFade);
 
     return float4(color, 1.0);
 }
@@ -217,6 +221,7 @@ vertex StarVertexOut starfieldVertexShader(StarVertexIn in [[stage_in]],
     out.temperature = in.temperature;
     out.twinklePhase = in.twinklePhase;
     out.halo = in.halo;
+    out.transition = globe.transition;
     return out;
 }
 
@@ -243,7 +248,8 @@ fragment float4 starfieldFragmentShader(StarVertexOut in [[stage_in]],
         ? mix(warm, neutral, clampedTemperature * 2.0)
         : mix(neutral, cool, (clampedTemperature - 0.5) * 2.0);
 
-    float alpha = saturate(core * 0.95 + halo * 0.55 + crossGlow) * intensity;
-    float3 emissive = color * (core * 1.3 + halo * 0.75 + crossGlow * 1.6) * intensity;
+    float transitionAlpha = 1.0 - smoothstep(0.0, 1.0, in.transition);
+    float alpha = saturate(core * 0.95 + halo * 0.55 + crossGlow) * intensity * transitionAlpha;
+    float3 emissive = color * (core * 1.3 + halo * 0.75 + crossGlow * 1.6) * intensity * transitionAlpha;
     return float4(emissive, alpha);
 }

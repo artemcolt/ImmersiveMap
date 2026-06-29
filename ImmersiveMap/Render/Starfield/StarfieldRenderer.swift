@@ -31,6 +31,7 @@ final class StarfieldRenderer {
         let hazeColor: SIMD4<Float>
         let nebulaColorA: SIMD4<Float>
         let nebulaColorB: SIMD4<Float>
+        let transitionTargetColor: SIMD4<Float>
         let controls: SIMD4<Float>
     }
 
@@ -53,13 +54,15 @@ final class StarfieldRenderer {
          library: MTLLibrary,
          sampleCount: Int = 1,
          spaceColor: SIMD4<Double>,
+         transitionTargetColor: SIMD4<Double>,
          config: ImmersiveMapSettings.StarfieldSettings) {
         pipeline = StarfieldPipeline(metalDevice: metalDevice,
                                      layer: layer,
                                      library: library,
                                      sampleCount: sampleCount)
         self.config = config
-        backgroundParams = Self.makeBackgroundParams(spaceColor: spaceColor)
+        backgroundParams = Self.makeBackgroundParams(spaceColor: spaceColor,
+                                                     transitionTargetColor: transitionTargetColor)
 
         let stars = StarfieldModel.makeStars(config: config).map { star in
             StarVertex(position: star.position,
@@ -145,7 +148,8 @@ final class StarfieldRenderer {
         renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
     }
 
-    private static func makeBackgroundParams(spaceColor: SIMD4<Double>) -> BackgroundParams {
+    private static func makeBackgroundParams(spaceColor: SIMD4<Double>,
+                                             transitionTargetColor: SIMD4<Double>) -> BackgroundParams {
         let base = SIMD3<Float>(Float(spaceColor.x), Float(spaceColor.y), Float(spaceColor.z))
         let deep = simd_clamp(base * SIMD3<Float>(0.55, 0.58, 0.82) + SIMD3<Float>(0.002, 0.004, 0.018),
                               SIMD3<Float>(repeating: 0.0),
@@ -161,6 +165,10 @@ final class StarfieldRenderer {
             hazeColor: SIMD4<Float>(haze, 1.0),
             nebulaColorA: SIMD4<Float>(nebulaA, 1.0),
             nebulaColorB: SIMD4<Float>(nebulaB, 1.0),
+            transitionTargetColor: SIMD4<Float>(Float(transitionTargetColor.x),
+                                                Float(transitionTargetColor.y),
+                                                Float(transitionTargetColor.z),
+                                                Float(transitionTargetColor.w)),
             controls: SIMD4<Float>(0.33, 2.15, 0.22, 0.0)
         )
     }

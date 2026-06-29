@@ -62,6 +62,7 @@ final class RenderPipelineFactory {
                                                   library: library,
                                                   sampleCount: sampleCount,
                                                   spaceColor: config.scene.space.clearColor,
+                                                  transitionTargetColor: config.scene.mapClearColor,
                                                   config: config.scene.starfield)
 
         return RenderPipelineBundle(polygonPipeline: polygonPipeline,
