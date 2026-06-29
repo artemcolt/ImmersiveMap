@@ -10,9 +10,11 @@ final class RendererAvatarDrawer {
     static func drawAvatars(renderEncoder: MTLRenderCommandEncoder,
                             screenMatrix: matrix_float4x4,
                             time: Float,
+                            frameSlotIndex: Int,
                             avatarsRenderer: AvatarsRenderer) {
         avatarsRenderer.drawAvatars(renderEncoder: renderEncoder,
                                     screenMatrix: screenMatrix,
-                                    time: time)
+                                    time: time,
+                                    frameSlotIndex: frameSlotIndex)
     }
 }

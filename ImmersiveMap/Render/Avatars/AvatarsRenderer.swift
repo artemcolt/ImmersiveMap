@@ -33,12 +33,12 @@ final class AvatarsRenderer {
     private let clusterLayoutSolver = AvatarClusterLayoutSolver()
     private let visibilityFadeStateStore = AvatarVisibilityFadeStateStore()
 
-    private let instanceBufferStore: DynamicMetalBuffer<AvatarInstanceGPU>
-    private let screenPointBufferStore: DynamicMetalBuffer<ScreenPointOutput>
-    private let clusterInstanceBufferStore: DynamicMetalBuffer<AvatarInstanceGPU>
-    private let clusterScreenPointBufferStore: DynamicMetalBuffer<ScreenPointOutput>
-    private let batteryBadgeInstanceBufferStore: DynamicMetalBuffer<AvatarBatteryBadgeInstanceGPU>
-    private let speedBadgeInstanceBufferStore: DynamicMetalBuffer<AvatarSpeedBadgeInstanceGPU>
+    private let instanceBufferStore: FrameSlottedDynamicMetalBuffer<AvatarInstanceGPU>
+    private let screenPointBufferStore: FrameSlottedDynamicMetalBuffer<ScreenPointOutput>
+    private let clusterInstanceBufferStore: FrameSlottedDynamicMetalBuffer<AvatarInstanceGPU>
+    private let clusterScreenPointBufferStore: FrameSlottedDynamicMetalBuffer<ScreenPointOutput>
+    private let batteryBadgeInstanceBufferStore: FrameSlottedDynamicMetalBuffer<AvatarBatteryBadgeInstanceGPU>
+    private let speedBadgeInstanceBufferStore: FrameSlottedDynamicMetalBuffer<AvatarSpeedBadgeInstanceGPU>
     private let presentationStateStore: AvatarPresentationStateStore
     private var instances: [AvatarInstanceGPU] = []
     private var batteryBadgeInstances: [AvatarBatteryBadgeInstanceGPU] = []
@@ -78,12 +78,24 @@ final class AvatarsRenderer {
                                                            layer: layer,
                                                            library: library,
                                                            sampleCount: sampleCount)
-        self.instanceBufferStore = DynamicMetalBuffer(metalDevice: metalDevice)
-        self.screenPointBufferStore = DynamicMetalBuffer(metalDevice: metalDevice)
-        self.clusterInstanceBufferStore = DynamicMetalBuffer(metalDevice: metalDevice)
-        self.clusterScreenPointBufferStore = DynamicMetalBuffer(metalDevice: metalDevice)
-        self.batteryBadgeInstanceBufferStore = DynamicMetalBuffer(metalDevice: metalDevice)
-        self.speedBadgeInstanceBufferStore = DynamicMetalBuffer(metalDevice: metalDevice)
+        self.instanceBufferStore = FrameSlottedDynamicMetalBuffer(metalDevice: metalDevice,
+                                                                  slotsCount: InFlightFramePool.inFlightFramesCount,
+                                                                  options: [.storageModeShared])
+        self.screenPointBufferStore = FrameSlottedDynamicMetalBuffer(metalDevice: metalDevice,
+                                                                     slotsCount: InFlightFramePool.inFlightFramesCount,
+                                                                     options: [.storageModeShared])
+        self.clusterInstanceBufferStore = FrameSlottedDynamicMetalBuffer(metalDevice: metalDevice,
+                                                                         slotsCount: InFlightFramePool.inFlightFramesCount,
+                                                                         options: [.storageModeShared])
+        self.clusterScreenPointBufferStore = FrameSlottedDynamicMetalBuffer(metalDevice: metalDevice,
+                                                                            slotsCount: InFlightFramePool.inFlightFramesCount,
+                                                                            options: [.storageModeShared])
+        self.batteryBadgeInstanceBufferStore = FrameSlottedDynamicMetalBuffer(metalDevice: metalDevice,
+                                                                              slotsCount: InFlightFramePool.inFlightFramesCount,
+                                                                              options: [.storageModeShared])
+        self.speedBadgeInstanceBufferStore = FrameSlottedDynamicMetalBuffer(metalDevice: metalDevice,
+                                                                            slotsCount: InFlightFramePool.inFlightFramesCount,
+                                                                            options: [.storageModeShared])
         self.presentationStateStore = AvatarPresentationStateStore()
         self.atlas = AvatarTextureAtlas(device: metalDevice,
                                         atlasSize: config.atlasSizePx,
@@ -211,7 +223,8 @@ final class AvatarsRenderer {
                                            _padding: .zero)
     }
 
-    private func rebuildFrameBuffers(layout: AvatarClusterLayout) {
+    private func rebuildFrameBuffers(layout: AvatarClusterLayout,
+                                     frameSlotIndex: Int) {
         instances.removeAll(keepingCapacity: true)
         batteryBadgeInstances.removeAll(keepingCapacity: true)
         speedBadgeInstances.removeAll(keepingCapacity: true)
@@ -259,27 +272,29 @@ final class AvatarsRenderer {
         avatarCount = instances.count
         clusterCount = clusterInstances.count
         ensureFrameBufferCapacity(markerCount: avatarCount,
-                                  clusterCount: clusterCount)
-        uploadFrameBuffers()
+                                  clusterCount: clusterCount,
+                                  frameSlotIndex: frameSlotIndex)
+        uploadFrameBuffers(frameSlotIndex: frameSlotIndex)
     }
 
     private func ensureFrameBufferCapacity(markerCount: Int,
-                                           clusterCount: Int) {
-        _ = instanceBufferStore.ensureCapacity(count: max(1, markerCount))
-        _ = batteryBadgeInstanceBufferStore.ensureCapacity(count: max(1, markerCount))
-        _ = speedBadgeInstanceBufferStore.ensureCapacity(count: max(1, markerCount))
-        _ = screenPointBufferStore.ensureCapacity(count: max(1, markerCount))
-        _ = clusterInstanceBufferStore.ensureCapacity(count: max(1, clusterCount))
-        _ = clusterScreenPointBufferStore.ensureCapacity(count: max(1, clusterCount))
+                                           clusterCount: Int,
+                                           frameSlotIndex: Int) {
+        _ = instanceBufferStore.ensureCapacity(slot: frameSlotIndex, count: max(1, markerCount))
+        _ = batteryBadgeInstanceBufferStore.ensureCapacity(slot: frameSlotIndex, count: max(1, markerCount))
+        _ = speedBadgeInstanceBufferStore.ensureCapacity(slot: frameSlotIndex, count: max(1, markerCount))
+        _ = screenPointBufferStore.ensureCapacity(slot: frameSlotIndex, count: max(1, markerCount))
+        _ = clusterInstanceBufferStore.ensureCapacity(slot: frameSlotIndex, count: max(1, clusterCount))
+        _ = clusterScreenPointBufferStore.ensureCapacity(slot: frameSlotIndex, count: max(1, clusterCount))
     }
 
-    private func uploadFrameBuffers() {
-        upload(values: instances, to: instanceBufferStore.buffer)
-        upload(values: batteryBadgeInstances, to: batteryBadgeInstanceBufferStore.buffer)
-        upload(values: speedBadgeInstances, to: speedBadgeInstanceBufferStore.buffer)
-        upload(values: screenPoints, to: screenPointBufferStore.buffer)
-        upload(values: clusterInstances, to: clusterInstanceBufferStore.buffer)
-        upload(values: clusterScreenPoints, to: clusterScreenPointBufferStore.buffer)
+    private func uploadFrameBuffers(frameSlotIndex: Int) {
+        upload(values: instances, to: instanceBufferStore.buffer(for: frameSlotIndex))
+        upload(values: batteryBadgeInstances, to: batteryBadgeInstanceBufferStore.buffer(for: frameSlotIndex))
+        upload(values: speedBadgeInstances, to: speedBadgeInstanceBufferStore.buffer(for: frameSlotIndex))
+        upload(values: screenPoints, to: screenPointBufferStore.buffer(for: frameSlotIndex))
+        upload(values: clusterInstances, to: clusterInstanceBufferStore.buffer(for: frameSlotIndex))
+        upload(values: clusterScreenPoints, to: clusterScreenPointBufferStore.buffer(for: frameSlotIndex))
     }
 
     private func upload<T>(values: [T], to buffer: MTLBuffer) {
@@ -303,7 +318,8 @@ final class AvatarsRenderer {
                  cameraUniform: CameraUniform,
                  resolvedPresentation: ResolvedPresentationState,
                  time: TimeInterval,
-                 commandBuffer: MTLCommandBuffer) {
+                 commandBuffer: MTLCommandBuffer,
+                 frameSlotIndex: Int) {
         let rawProjectedMarkers = selectionProjector.project(markers: presentedEntries,
                                                              drawSize: drawSize,
                                                              cameraUniform: cameraUniform,
@@ -321,7 +337,8 @@ final class AvatarsRenderer {
         for staleClusterID in activeClusterIDs.subtracting(layout.activeClusterIDs) {
             clusterIconAtlas.freeSlot(for: staleClusterID)
         }
-        rebuildFrameBuffers(layout: layout)
+        rebuildFrameBuffers(layout: layout,
+                            frameSlotIndex: frameSlotIndex)
         selectionSnapshot = selectionProjector.makeSnapshot(markerItems: layout.markerItems,
                                                             clusterItems: layout.clusterItems,
                                                             drawSize: drawSize,
@@ -338,7 +355,8 @@ final class AvatarsRenderer {
 
     func drawAvatars(renderEncoder: MTLRenderCommandEncoder,
                      screenMatrix: matrix_float4x4,
-                     time: Float) {
+                     time: Float,
+                     frameSlotIndex: Int) {
         guard avatarCount > 0 || clusterCount > 0 else { return }
         var matrix = screenMatrix
         var style = markerStyle.gpu
@@ -349,8 +367,8 @@ final class AvatarsRenderer {
         if clusterCount > 0 {
             avatarPipeline.selectPipeline(renderEncoder: renderEncoder)
             renderEncoder.setVertexBytes(&matrix, length: MemoryLayout<matrix_float4x4>.stride, index: 0)
-            renderEncoder.setVertexBuffer(clusterScreenPointBufferStore.buffer, offset: 0, index: 1)
-            renderEncoder.setVertexBuffer(clusterInstanceBufferStore.buffer, offset: 0, index: 2)
+            renderEncoder.setVertexBuffer(clusterScreenPointBufferStore.buffer(for: frameSlotIndex), offset: 0, index: 1)
+            renderEncoder.setVertexBuffer(clusterInstanceBufferStore.buffer(for: frameSlotIndex), offset: 0, index: 2)
             renderEncoder.setVertexBytes(&style, length: MemoryLayout<AvatarMarkerStyleGPU>.stride, index: 3)
             renderEncoder.setFragmentBytes(&style, length: MemoryLayout<AvatarMarkerStyleGPU>.stride, index: 0)
             renderEncoder.setFragmentBytes(&sdfParams, length: MemoryLayout<AvatarMarkerSDFParams>.stride, index: 1)
@@ -366,8 +384,8 @@ final class AvatarsRenderer {
             case .avatarBody:
                 avatarPipeline.selectPipeline(renderEncoder: renderEncoder)
                 renderEncoder.setVertexBytes(&matrix, length: MemoryLayout<matrix_float4x4>.stride, index: 0)
-                renderEncoder.setVertexBuffer(screenPointBufferStore.buffer, offset: 0, index: 1)
-                renderEncoder.setVertexBuffer(instanceBufferStore.buffer, offset: 0, index: 2)
+                renderEncoder.setVertexBuffer(screenPointBufferStore.buffer(for: frameSlotIndex), offset: 0, index: 1)
+                renderEncoder.setVertexBuffer(instanceBufferStore.buffer(for: frameSlotIndex), offset: 0, index: 2)
                 renderEncoder.setVertexBytes(&style, length: MemoryLayout<AvatarMarkerStyleGPU>.stride, index: 3)
                 renderEncoder.setFragmentBytes(&style, length: MemoryLayout<AvatarMarkerStyleGPU>.stride, index: 0)
                 renderEncoder.setFragmentBytes(&sdfParams, length: MemoryLayout<AvatarMarkerSDFParams>.stride, index: 1)
@@ -378,8 +396,8 @@ final class AvatarsRenderer {
                 batteryBadgePipeline.selectPipeline(renderEncoder: renderEncoder)
                 var badgeStyle = batteryBadgeStyle.gpu
                 renderEncoder.setVertexBytes(&matrix, length: MemoryLayout<matrix_float4x4>.stride, index: 0)
-                renderEncoder.setVertexBuffer(screenPointBufferStore.buffer, offset: 0, index: 1)
-                renderEncoder.setVertexBuffer(batteryBadgeInstanceBufferStore.buffer, offset: 0, index: 2)
+                renderEncoder.setVertexBuffer(screenPointBufferStore.buffer(for: frameSlotIndex), offset: 0, index: 1)
+                renderEncoder.setVertexBuffer(batteryBadgeInstanceBufferStore.buffer(for: frameSlotIndex), offset: 0, index: 2)
                 renderEncoder.setVertexBytes(&badgeStyle, length: MemoryLayout<AvatarBatteryBadgeStyleGPU>.stride, index: 3)
                 renderEncoder.setFragmentBytes(&badgeStyle, length: MemoryLayout<AvatarBatteryBadgeStyleGPU>.stride, index: 0)
                 renderEncoder.setFragmentTexture(batteryBadgeAtlas.texture, index: 0)
@@ -388,8 +406,8 @@ final class AvatarsRenderer {
                 speedBadgePipeline.selectPipeline(renderEncoder: renderEncoder)
                 var speedStyle = speedBadgeStyle.gpu
                 renderEncoder.setVertexBytes(&matrix, length: MemoryLayout<matrix_float4x4>.stride, index: 0)
-                renderEncoder.setVertexBuffer(screenPointBufferStore.buffer, offset: 0, index: 1)
-                renderEncoder.setVertexBuffer(speedBadgeInstanceBufferStore.buffer, offset: 0, index: 2)
+                renderEncoder.setVertexBuffer(screenPointBufferStore.buffer(for: frameSlotIndex), offset: 0, index: 1)
+                renderEncoder.setVertexBuffer(speedBadgeInstanceBufferStore.buffer(for: frameSlotIndex), offset: 0, index: 2)
                 renderEncoder.setVertexBytes(&speedStyle, length: MemoryLayout<AvatarSpeedBadgeStyleGPU>.stride, index: 3)
                 renderEncoder.setFragmentTexture(speedBadgeAtlas.texture, index: 0)
                 renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: avatarCount)

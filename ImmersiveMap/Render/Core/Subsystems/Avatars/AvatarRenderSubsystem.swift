@@ -48,7 +48,8 @@ final class AvatarRenderSubsystem: RenderSubsystem, RenderPassAvailabilityProvid
                                 cameraUniform: frameContext.cameraUniform,
                                 resolvedPresentation: frameContext.resolvedPresentation,
                                 time: frameContext.time,
-                                commandBuffer: commandBuffer)
+                                commandBuffer: commandBuffer,
+                                frameSlotIndex: frameContext.frameSlotIndex)
         frameContext.sharedState.avatarState.hasActiveAnimations = avatarsRenderer.hasActiveAnimations
         frameContext.sharedState.avatarState.selectionSnapshot = avatarsRenderer.selectionSnapshot
             .withFrameIndex(frameContext.frameIndex)
@@ -60,6 +61,7 @@ final class AvatarRenderSubsystem: RenderSubsystem, RenderPassAvailabilityProvid
         RendererAvatarDrawer.drawAvatars(renderEncoder: encoder,
                                          screenMatrix: frameContext.cameraMatrices.screen,
                                          time: Float(frameContext.time),
+                                         frameSlotIndex: frameContext.frameSlotIndex,
                                          avatarsRenderer: avatarsRenderer)
     }
 
