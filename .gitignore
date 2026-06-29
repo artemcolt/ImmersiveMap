@@ -4,6 +4,7 @@ AGENTS.md
 /.swiftpm/
 /.worktrees/
 /DerivedData/
+/Traces/
 /ImmersiveMapMacDevelop/
 /ImmersiveMap.local.xcworkspace/
 Docs/
