@@ -22,20 +22,21 @@ import ImmersiveMap
 
 struct ContentView: View {
     @State private var camera = ImmersiveMapCameraController()
-    private let mapboxAccessToken = "your-mapbox-public-token"
+    private let tileProvider = MapboxTileProvider(accessToken: "your-mapbox-public-token")
+    private let mapStyle = MapboxMapStyle()
 
     var body: some View {
         ImmersiveMapView()
-            .cameraController(
+            .camera(
                 camera,
-                position: .init(
+                position: ImmersiveMapCameraPosition(
                     latitudeDegrees: 55.7558,
                     longitudeDegrees: 37.6173,
-                    zoom: 12
+                    zoom: 0
                 )
             )
-            .tileProvider(MapboxTileProvider(accessToken: mapboxAccessToken))
-            .mapStyle(MapboxMapStyle())
+            .tileProvider(tileProvider)
+            .mapStyle(mapStyle)
             .ignoresSafeArea()
     }
 }
