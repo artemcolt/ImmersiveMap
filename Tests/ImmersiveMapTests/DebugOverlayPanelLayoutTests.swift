@@ -24,4 +24,13 @@ final class DebugOverlayPanelLayoutTests: XCTestCase {
 
         XCTAssertEqual(height, 320)
     }
+
+    func testRowDrawRectUsesBoundsWidthInsteadOfDirtyRectWidth() {
+        let rowRect = DebugOverlayPanelLayout.rowDrawRect(bounds: CGRect(x: 0, y: 0, width: 360, height: 120),
+                                                          dirtyRect: CGRect(x: 0, y: 0, width: 24, height: 120),
+                                                          rowTop: 32,
+                                                          rowHeight: 28)
+
+        XCTAssertEqual(rowRect, CGRect(x: 0, y: 32, width: 360, height: 28))
+    }
 }

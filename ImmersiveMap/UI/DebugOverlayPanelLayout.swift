@@ -13,4 +13,14 @@ enum DebugOverlayPanelLayout {
         let maximumBodyHeight = max(minimumBodyHeight, availableHeight)
         return min(preferredBodyHeight, maximumBodyHeight)
     }
+
+    static func rowDrawRect(bounds: CGRect,
+                            dirtyRect _: CGRect,
+                            rowTop: CGFloat,
+                            rowHeight: CGFloat) -> CGRect {
+        CGRect(x: bounds.minX,
+               y: rowTop,
+               width: bounds.width,
+               height: rowHeight)
+    }
 }

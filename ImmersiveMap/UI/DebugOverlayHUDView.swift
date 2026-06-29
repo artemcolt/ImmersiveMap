@@ -943,7 +943,10 @@ private final class DebugOverlayTilesStatusListView: UIView {
         var rowTop: CGFloat = 0
         for row in visibleRows() {
             draw(row: row,
-                 rowRect: CGRect(x: 0, y: rowTop, width: rect.width, height: row.height),
+                 rowRect: DebugOverlayPanelLayout.rowDrawRect(bounds: bounds,
+                                                              dirtyRect: rect,
+                                                              rowTop: rowTop,
+                                                              rowHeight: row.height),
                  context: context)
             rowTop += row.height + Layout.rowSpacing
         }

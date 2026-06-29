@@ -255,6 +255,49 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(metrics.fontSize, 13)
     }
 
+    func testTilesStatusRowsUseFullBoundsWidthWhenRedrawnFromPartialDirtyRect() throws {
+        let view = DebugOverlayHUDView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: true,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: DebugOverlayHUDSnapshot(
+            coordinateLines: DebugOverlayCoordinateLines(zoom: "z: 1.00", latLon: "lat: 0.000 lon: 0.000"),
+            diagnosticsLines: [],
+            atlasPages: [],
+            tileLoadingStatusLines: [],
+            tileLoadingStatusTiles: [
+                TileLoadingStatusTileSnapshot(tile: Tile(x: 0, y: 0, z: 0),
+                                              status: .ready,
+                                              progress: 1,
+                                              detail: "displayed")
+            ],
+            coordinateScale: settings.coordinateScale,
+            diagnosticsScale: settings.diagnosticsScale,
+            leftPadding: settings.leftPadding,
+            topPadding: settings.topPadding,
+            sectionSpacing: settings.sectionSpacing,
+            textColor: settings.textColor
+        ))
+
+        view.simulateTilesTabSelectionForTesting()
+        view.layoutIfNeeded()
+
+        let listView = try XCTUnwrap(findTilesStatusListView(in: view))
+        let image = UIGraphicsImageRenderer(size: listView.bounds.size).image { _ in
+            listView.draw(CGRect(x: 0, y: 0, width: 24, height: listView.bounds.height))
+        }
+        let rightEdgeProbeRect = CGRect(x: listView.bounds.width - 24,
+                                        y: 2,
+                                        width: 20,
+                                        height: 24)
+
+        XCTAssertGreaterThan(image.greenPixelCountForTesting(in: rightEdgeProbeRect, scale: 1), 0)
+    }
+
     func testTilesTabDisplaysIdleMessageWhenStatusIsEmpty() {
         let view = DebugOverlayHUDView()
         var settings = ImmersiveMapSettings.default.debug
@@ -491,6 +534,19 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         }
         return nil
     }
+
+    private func findTilesStatusListView(in view: UIView) -> UIView? {
+        if String(describing: type(of: view)) == "DebugOverlayTilesStatusListView" {
+            return view
+        }
+
+        for subview in view.subviews {
+            if let match = findTilesStatusListView(in: subview) {
+                return match
+            }
+        }
+        return nil
+    }
 }
 
 private extension UIView {
@@ -507,7 +563,25 @@ private extension UIView {
 private extension UIImage {
     func brightPixelCountForTesting(in rect: CGRect, scale: CGFloat) -> Int {
         guard let cgImage else { return 0 }
+        return pixelCountForTesting(in: rect, scale: scale) { red, green, blue, alpha in
+            alpha > 180 && red > 210 && green > 210 && blue > 210
+        }
+    }
 
+    func greenPixelCountForTesting(in rect: CGRect, scale: CGFloat) -> Int {
+        guard let cgImage else { return 0 }
+        return pixelCountForTesting(in: rect, scale: scale) { red, green, blue, alpha in
+            alpha > 120
+                && green > 120
+                && Int(green) > Int(red) + 20
+                && Int(green) > Int(blue) + 20
+        }
+    }
+
+    private func pixelCountForTesting(in rect: CGRect,
+                                      scale: CGFloat,
+                                      predicate: (UInt8, UInt8, UInt8, UInt8) -> Bool) -> Int {
+        guard let cgImage else { return 0 }
         let imageRect = CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height)
         let pixelRect = CGRect(x: rect.minX * scale,
                                y: rect.minY * scale,
@@ -544,7 +618,7 @@ private extension UIImage {
                 let green = buffer[offset + 1]
                 let blue = buffer[offset + 2]
                 let alpha = buffer[offset + 3]
-                if alpha > 180, red > 210, green > 210, blue > 210 {
+                if predicate(red, green, blue, alpha) {
                     count += 1
                 }
             }
