@@ -21,12 +21,12 @@ final class TextShaderStrokeClampTests: XCTestCase {
         XCTAssertTrue(source.contains("float outer = smoothstep(-strokeWidthPx - 0.5, -strokeWidthPx + 0.5, distance.sdfPxDist);"))
     }
 
-    func testBaseTextFragmentAllowsFullMsdfStrokeRange() throws {
+    func testBaseTextFragmentCapsStrokeBeforeItFillsGlyphQuad() throws {
         let source = try textShaderSource()
         let baseFragmentSource = try XCTUnwrap(source.components(separatedBy: "fragment float4 roadTextFragment").first)
 
-        XCTAssertFalse(baseFragmentSource.contains("max(0.5 * screenPxRange - 0.5, 0.0)"))
-        XCTAssertTrue(baseFragmentSource.contains("max(distance.screenPxRange - 0.75, 0.75)"))
+        XCTAssertFalse(baseFragmentSource.contains("max(distance.screenPxRange - 0.75, 0.75)"))
+        XCTAssertTrue(baseFragmentSource.contains("max(0.5 * distance.screenPxRange - 0.5, 0.0)"))
     }
 
     private func textShaderSource() throws -> String {

@@ -66,9 +66,9 @@ fragment float4 textFragment(VertexOut in [[stage_in]],
 
     const float boldBiasPx = 0.75;
     float fill = smoothstep(-0.5, 0.5, distance.msdfPxDist + boldBiasPx);
-    // Base labels use the full MSDF support so wider configured outlines
-    // remain visible instead of being capped at half range.
-    float maxStrokePx = max(distance.screenPxRange - 0.75, 0.75);
+    // Point labels sit on textured terrain, so keep the halo narrow enough
+    // that large style values cannot fill the glyph quad.
+    float maxStrokePx = max(0.5 * distance.screenPxRange - 0.5, 0.0);
     float strokeWidthPx = min(style.strokeWidthPx, maxStrokePx);
     float outer = smoothstep(-strokeWidthPx - 0.5, -strokeWidthPx + 0.5, distance.sdfPxDist);
     float stroke = clamp(outer - fill, 0.0, 1.0);
