@@ -217,7 +217,7 @@ final class DebugOverlayHUDView: UIView {
         let tilesListHeight = tilesStatusListView.preferredHeight(forWidth: maxContentWidth)
         let atlasDetailsSize = atlasDetailsLabel.sizeThatFits(constrainedSize)
         let atlasPreviewHeight = atlasLayoutView.preferredHeight(forWidth: maxContentWidth)
-        let traceBlockHeight = selectedTab == .atlas
+        let traceBlockHeight = selectedTab == .tiles
             ? Layout.controlRowHeight + Layout.controlSpacing + Layout.traceStatusHeight + sectionSpacing
             : 0
         let contentWidth = max(Layout.expandedMinimumWidth, maxContentWidth)
@@ -228,9 +228,9 @@ final class DebugOverlayHUDView: UIView {
             + diagnosticsSize.height
         let atlasBodyHeight = atlasPreviewHeight
             + sectionSpacing
-            + traceBlockHeight
             + atlasDetailsSize.height
         let tilesBodyHeight = tilesStatusSize.height
+            + traceBlockHeight
             + (tilesListHeight > 0 ? sectionSpacing + tilesListHeight : 0)
         let panelY = top - zoomSize.height - Layout.contentInset
         let chromeHeight = Layout.headerHeight
@@ -364,10 +364,22 @@ final class DebugOverlayHUDView: UIView {
                                             y: tileTraceButton.frame.maxY + Layout.controlSpacing,
                                             width: contentWidth,
                                             height: Layout.traceStatusHeight)
-        let atlasScrollTop = selectedTab == .atlas
+        let tilesStatusTop = selectedTab == .tiles
             ? tileTraceStatusLabel.frame.maxY + sectionSpacing
             : textTop
-        let atlasScrollHeight = max(0, visibleAtlasBodyHeight - traceBlockHeight)
+        tilesStatusLabel.frame = CGRect(x: Layout.contentInset,
+                                        y: tilesStatusTop,
+                                        width: contentWidth,
+                                        height: tilesStatusSize.height)
+        let updatedTilesScrollTop = tilesStatusLabel.frame.maxY + tilesListSpacing
+        let updatedTilesScrollHeight = max(0, visibleTilesBodyHeight - traceBlockHeight - tilesStatusSize.height - tilesListSpacing)
+        tilesScrollView.frame = CGRect(x: Layout.contentInset,
+                                       y: updatedTilesScrollTop,
+                                       width: contentWidth,
+                                       height: updatedTilesScrollHeight)
+        tilesScrollView.isScrollEnabled = tilesScrollView.contentSize.height > updatedTilesScrollHeight + 0.5
+        let atlasScrollTop = textTop
+        let atlasScrollHeight = max(0, visibleAtlasBodyHeight)
         atlasScrollView.frame = CGRect(x: Layout.contentInset,
                                        y: atlasScrollTop,
                                        width: contentWidth,
@@ -548,8 +560,8 @@ final class DebugOverlayHUDView: UIView {
         }
         tilesStatusLabel.isHidden = isTilesVisible == false
         tilesScrollView.isHidden = isTilesVisible == false || tilesStatusListView.rowCount == 0
-        tileTraceButton.isHidden = isAtlasVisible == false
-        tileTraceStatusLabel.isHidden = isAtlasVisible == false
+        tileTraceButton.isHidden = isTilesVisible == false
+        tileTraceStatusLabel.isHidden = isTilesVisible == false
         atlasScrollView.isHidden = isAtlasVisible == false
     }
 
@@ -1221,13 +1233,16 @@ extension DebugOverlayHUDView {
     }
 
     var isAtlasContentVisibleForTesting: Bool {
-        tileTraceButton.isHidden == false
-            || tileTraceStatusLabel.isHidden == false
-            || atlasScrollView.isHidden == false
+        atlasScrollView.isHidden == false
     }
 
     var isTilesContentVisibleForTesting: Bool {
         tilesStatusLabel.isHidden == false
+    }
+
+    var isTileTraceControlVisibleForTesting: Bool {
+        tileTraceButton.isHidden == false
+            && tileTraceStatusLabel.isHidden == false
     }
 
     var tilesStatusTextForTesting: String? {

@@ -107,7 +107,7 @@ final class TileRenderStore {
         tileTraceRecorder.record(.tilePrepareStart(tile))
         do {
             let result = try preparedDataBuilder.build(tile: tile, data: data)
-            tileTraceRecorder.record(.tilePrepareSuccess(tile))
+            tileTraceRecorder.record(.tilePrepareSuccess(tile, layerTimings: result.parseLayerTimings))
             return result
         } catch {
             #if DEBUG
@@ -119,6 +119,7 @@ final class TileRenderStore {
     }
 
     func materializePreparedTile(_ preparedTile: PreparedTileCPU) async -> Bool {
+        tileTraceRecorder.record(.tileMaterializeStart(preparedTile.tile))
         let metalTile = metalTileFactory.makeTile(from: preparedTile)
 
         await MainActor.run {

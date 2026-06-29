@@ -51,8 +51,8 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         // multiple placement targets that share the same content tile (`Tile`).
         // Deduplicate before storage request to avoid repeated cache lookup/request
         // for identical source bytes.
-        let demandedSourceTiles = deduplicateSourceTiles(preprocessedVisibleTiles,
-                                                         parentFallbackDepth: frameContext.renderSurfaceMode == .spherical ? 2 : 0)
+        let demandedSourceTiles = TileDemandSourcePlanner.makeDemandedSourceTiles(targets: preprocessedVisibleTiles,
+                                                                                  parentFallbackDepth: 2)
         // Returns source-tile availability map for GPU rendering:
         // value contains Metal-ready tile buffers, or `nil` while still loading.
         let tileRequestResult = tileRenderStore.requestTiles(demandedSourceTiles,
@@ -138,49 +138,6 @@ final class TileDemandPlacementSubsystem: RenderSubsystem {
         globeTexturePlaceTilesContext = .empty
         preprocessedVisibleTilesHashTracker.invalidate()
         placementVersion &+= 1
-    }
-
-    private func deduplicateSourceTiles(_ targets: [VisibleTile],
-                                        parentFallbackDepth: Int = 0) -> [Tile] {
-        var uniqueTiles: [Tile] = []
-        uniqueTiles.reserveCapacity(targets.count)
-        var seenTiles: Set<Tile> = []
-        for target in targets {
-            let source = target.tile
-            appendUniqueTile(source, to: &uniqueTiles, seenTiles: &seenTiles)
-
-            guard parentFallbackDepth > 0, source.z > 0 else {
-                continue
-            }
-
-            let lowestParentZoom = max(0, source.z - parentFallbackDepth)
-            guard source.z > lowestParentZoom else {
-                continue
-            }
-
-            for parentZoom in stride(from: source.z - 1, through: lowestParentZoom, by: -1) {
-                guard let parent = source.findParentTile(atZoom: parentZoom) else {
-                    continue
-                }
-                appendUniqueTile(parent, to: &uniqueTiles, seenTiles: &seenTiles)
-            }
-        }
-        return uniqueTiles
-    }
-
-    private func appendUniqueSourceTiles(_ tiles: [Tile], to uniqueTiles: inout [Tile]) {
-        var seenTiles = Set(uniqueTiles)
-        for tile in tiles {
-            appendUniqueTile(tile, to: &uniqueTiles, seenTiles: &seenTiles)
-        }
-    }
-
-    private func appendUniqueTile(_ tile: Tile,
-                                  to uniqueTiles: inout [Tile],
-                                  seenTiles: inout Set<Tile>) {
-        if seenTiles.insert(tile).inserted {
-            uniqueTiles.append(tile)
-        }
     }
 
     private func summarizeLOD(_ placements: [PlaceTile]) -> (exact: Int, coarse: Int, retained: Int) {

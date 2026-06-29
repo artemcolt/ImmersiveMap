@@ -116,6 +116,68 @@ final class TileTraceRecorderTests: XCTestCase {
         XCTAssertEqual(lines[2]["trackedCount"] as? Int, 1)
     }
 
+    func testPrepareSuccessEventIncludesLayerTimings() throws {
+        let recorder = TileTraceRecorder(directoryURL: temporaryDirectory,
+                                         now: { Date(timeIntervalSince1970: 1_000) })
+        let fileURL = try XCTUnwrap(recorder.startRecording())
+
+        recorder.record(.tilePrepareSuccess(Tile(x: 8, y: 6, z: 4),
+                                            layerTimings: [
+                                                TileParseLayerTiming(layerName: "water", duration: 0.053),
+                                                TileParseLayerTiming(layerName: "landcover", duration: 0.027)
+                                            ]))
+        recorder.stopRecording()
+
+        let line = try XCTUnwrap(readJSONLines(fileURL).first)
+        XCTAssertEqual(line["event"] as? String, "tile_prepare_success")
+        XCTAssertEqual(line["tile"] as? String, "4/8/6")
+        XCTAssertEqual(line["parseLayerTimings"] as? String, "water:53ms,landcover:27ms")
+    }
+
+    func testTileLoadingStatusSnapshotEventRecordsPreparationState() throws {
+        let recorder = TileTraceRecorder(directoryURL: temporaryDirectory,
+                                         now: { Date(timeIntervalSince1970: 1_000) })
+        let fileURL = try XCTUnwrap(recorder.startRecording())
+
+        recorder.record(.tileLoadingStatusSnapshot(
+            frameIndex: 12,
+            snapshot: TileLoadingStatusSnapshot(
+                requested: 29,
+                deduplicated: 29,
+                activeLoads: 4,
+                scheduled: 21,
+                network: TileLoadingPhaseSnapshot(inFlight: 0, completed: 21, failed: 0),
+                parsing: TileLoadingPhaseSnapshot(inFlight: 3, completed: 18, failed: 0),
+                totalCompleted: 17,
+                totalFailed: 0,
+                networkBytes: 1_490_922,
+                latestNetworkTile: nil,
+                latestParsingTile: Tile(x: 8, y: 6, z: 4),
+                latestFailure: nil,
+                latestParseLayerTimingTile: Tile(x: 8, y: 6, z: 4),
+                latestParseLayerTimings: [
+                    TileParseLayerTiming(layerName: "water", duration: 0.053)
+                ],
+                tiles: [
+                    TileLoadingStatusTileSnapshot(tile: Tile(x: 8, y: 6, z: 4),
+                                                  status: .parsing,
+                                                  progress: 0.9,
+                                                  detail: "materialize")
+                ]
+            )
+        ))
+        recorder.stopRecording()
+
+        let line = try XCTUnwrap(readJSONLines(fileURL).first)
+        XCTAssertEqual(line["event"] as? String, "tile_loading_status_snapshot")
+        XCTAssertEqual(line["frame"] as? Int, 12)
+        XCTAssertEqual(line["activeLoads"] as? Int, 4)
+        XCTAssertEqual(line["scheduled"] as? Int, 21)
+        XCTAssertEqual(line["parseInFlight"] as? Int, 3)
+        XCTAssertEqual(line["latestParsingTile"] as? String, "4/8/6")
+        XCTAssertEqual(line["tiles"] as? String, "4/8/6:parsing:materialize")
+    }
+
     private func readJSONLines(_ fileURL: URL) throws -> [[String: Any]] {
         let content = try String(contentsOf: fileURL, encoding: .utf8)
         return try content

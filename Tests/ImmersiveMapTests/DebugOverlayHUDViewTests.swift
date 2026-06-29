@@ -37,6 +37,23 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertEqual(view.tileTraceStatusTextForTesting, "Recording: immersive-map-tile-trace.jsonl")
     }
 
+    func testTilesTabDisplaysTileTraceControl() {
+        let view = DebugOverlayHUDView()
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: false,
+                                                         wireframeEnabled: false),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: makeSnapshot(settings: settings, atlasPages: []))
+
+        view.simulateTilesTabSelectionForTesting()
+        view.layoutIfNeeded()
+
+        XCTAssertTrue(view.isTileTraceControlVisibleForTesting)
+    }
+
     func testAtlasTabDisplaysAtlasSnapshotPages() {
         let view = DebugOverlayHUDView()
         var settings = ImmersiveMapSettings.default.debug

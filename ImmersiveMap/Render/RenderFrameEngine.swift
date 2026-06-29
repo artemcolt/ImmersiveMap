@@ -223,11 +223,18 @@ final class RenderFrameEngine {
         #else
         let diagnosticsOverlay: FrameDiagnostics? = nil
         #endif
+        let tileLoadingStatus = persistentContext.tileLoadingStatusReporter?.snapshot()
+        if let tileLoadingStatus {
+            persistentContext.tileTraceRecorder.record(
+                .tileLoadingStatusSnapshot(frameIndex: frameContext.frameIndex,
+                                           snapshot: tileLoadingStatus)
+            )
+        }
         eventSink.updateDebugOverlayHUDSnapshot(
             DebugOverlayHUDSnapshot.make(settings: settings.debug,
                                          frameContext: frameContext,
                                          diagnostics: diagnosticsOverlay,
-                                         tileLoadingStatus: persistentContext.tileLoadingStatusReporter?.snapshot())
+                                         tileLoadingStatus: tileLoadingStatus)
         )
     }
 

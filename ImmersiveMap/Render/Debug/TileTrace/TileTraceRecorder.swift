@@ -66,8 +66,14 @@ extension TileTraceEvent {
         .event("tile_prepare_start", fields: ["tile": .tile(tile)])
     }
 
-    static func tilePrepareSuccess(_ tile: Tile) -> TileTraceEvent {
-        .event("tile_prepare_success", fields: ["tile": .tile(tile)])
+    static func tilePrepareSuccess(_ tile: Tile,
+                                   layerTimings: [TileParseLayerTiming] = []) -> TileTraceEvent {
+        var fields: [String: TileTraceValue] = ["tile": .tile(tile)]
+        let timings = parseLayerTimingsDescription(layerTimings)
+        if timings.isEmpty == false {
+            fields["parseLayerTimings"] = .string(timings)
+        }
+        return .event("tile_prepare_success", fields: fields)
     }
 
     static func tilePrepareFailed(_ tile: Tile, error: Error) -> TileTraceEvent {
@@ -80,6 +86,14 @@ extension TileTraceEvent {
 
     static func tileMaterializeSuccess(_ tile: Tile) -> TileTraceEvent {
         .event("tile_materialize_success", fields: ["tile": .tile(tile)])
+    }
+
+    static func tileMaterializeStart(_ tile: Tile) -> TileTraceEvent {
+        .event("tile_materialize_start", fields: ["tile": .tile(tile)])
+    }
+
+    static func tileMaterializeFailed(_ tile: Tile) -> TileTraceEvent {
+        .event("tile_materialize_failed", fields: ["tile": .tile(tile)])
     }
 
     static func tileMemoryCacheGet(_ tile: Tile,
@@ -295,6 +309,80 @@ extension TileTraceEvent {
                    "skipped": .int(plan.skippedAllocationCount),
                    "surface": .string(surface)
                ])
+    }
+
+    static func tileLoadingStatusSnapshot(frameIndex: UInt64,
+                                          snapshot: TileLoadingStatusSnapshot) -> TileTraceEvent {
+        var fields: [String: TileTraceValue] = [
+            "requested": .int(snapshot.requested),
+            "deduplicated": .int(snapshot.deduplicated),
+            "activeLoads": .int(snapshot.activeLoads),
+            "scheduled": .int(snapshot.scheduled),
+            "networkInFlight": .int(snapshot.network.inFlight),
+            "networkCompleted": .int(snapshot.network.completed),
+            "networkFailed": .int(snapshot.network.failed),
+            "parseInFlight": .int(snapshot.parsing.inFlight),
+            "parseCompleted": .int(snapshot.parsing.completed),
+            "parseFailed": .int(snapshot.parsing.failed),
+            "totalCompleted": .int(snapshot.totalCompleted),
+            "totalFailed": .int(snapshot.totalFailed),
+            "networkBytes": .int(snapshot.networkBytes)
+        ]
+        if let latestNetworkTile = snapshot.latestNetworkTile {
+            fields["latestNetworkTile"] = .tile(latestNetworkTile)
+        }
+        if let latestParsingTile = snapshot.latestParsingTile {
+            fields["latestParsingTile"] = .tile(latestParsingTile)
+        }
+        if let latestFailure = snapshot.latestFailure {
+            fields["latestFailure"] = .string(latestFailure)
+        }
+        let tiles = tileStatusDescription(snapshot.tiles)
+        if tiles.isEmpty == false {
+            fields["tiles"] = .string(tiles)
+        }
+        return .event("tile_loading_status_snapshot",
+                      frameIndex: frameIndex,
+                      fields: fields)
+    }
+
+    private static func parseLayerTimingsDescription(_ timings: [TileParseLayerTiming]) -> String {
+        timings
+            .filter { $0.duration > 0 }
+            .sorted { lhs, rhs in
+                if lhs.duration != rhs.duration {
+                    return lhs.duration > rhs.duration
+                }
+                return lhs.layerName < rhs.layerName
+            }
+            .map { timing in
+                let milliseconds = Int((timing.duration * 1000).rounded())
+                return "\(timing.layerName):\(milliseconds)ms"
+            }
+            .joined(separator: ",")
+    }
+
+    private static func tileStatusDescription(_ tiles: [TileLoadingStatusTileSnapshot]) -> String {
+        tiles
+            .map { tile in
+                "\(tile.tile.z)/\(tile.tile.x)/\(tile.tile.y):\(tileStatusDescription(tile.status)):\(tile.detail)"
+            }
+            .joined(separator: ";")
+    }
+
+    private static func tileStatusDescription(_ status: TileLoadingTileStatus) -> String {
+        switch status {
+        case .queued:
+            return "queued"
+        case .loading:
+            return "loading"
+        case .parsing:
+            return "parsing"
+        case .ready:
+            return "ready"
+        case .failed:
+            return "failed"
+        }
     }
 }
 
