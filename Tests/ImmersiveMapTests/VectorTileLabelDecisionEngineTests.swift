@@ -486,17 +486,27 @@ final class VectorTileLabelDecisionEngineTests: XCTestCase {
         XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
                                                       properties: properties,
                                                       tileZoom: 9,
-                                                      sortKey: 151))
+                                                      sortKey: 171))
+    }
+
+    func testMapboxProfileIncludesCommonDistrictLabelsAtZoomNine() {
+        let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
+        let properties: [String: VectorTile_Tile.Value] = ["type": stringValue("suburb")]
+
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_label",
+                                                     properties: properties,
+                                                     tileZoom: 9,
+                                                     sortKey: 166))
     }
 
     func testMapboxProfileIncludesSmallSettlementsByZoomRangeAndThreshold() {
         let profile = MapboxVectorTileLabelProviderProfile(settings: .default)
         let properties: [String: VectorTile_Tile.Value] = ["type": stringValue("town")]
 
-        XCTAssertFalse(profile.includesBasePointLabel(layerName: "place_label",
-                                                      properties: properties,
-                                                      tileZoom: 9,
-                                                      sortKey: 1))
+        XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_label",
+                                                     properties: properties,
+                                                     tileZoom: 9,
+                                                     sortKey: 160))
         XCTAssertTrue(profile.includesBasePointLabel(layerName: "place_label",
                                                      properties: properties,
                                                      tileZoom: 10,

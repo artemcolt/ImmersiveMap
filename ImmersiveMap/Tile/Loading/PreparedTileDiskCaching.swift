@@ -37,7 +37,7 @@ struct PreparedTileCacheIdentity {
 }
 
 final class PreparedTileDiskCaching {
-    static let preparedFormatVersion: UInt32 = 16
+    static let preparedFormatVersion: UInt32 = 17
 
     private let cacheRootDirectory: URL
     private let cacheDirectory: URL

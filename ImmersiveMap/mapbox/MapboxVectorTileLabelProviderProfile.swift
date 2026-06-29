@@ -154,7 +154,7 @@ struct MapboxVectorTileLabelProviderProfile: VectorTileLabelProviderProfile {
         }
 
         if isSmallSettlementPointLabel(typeValue: typeValue) {
-            guard tileZoom >= 10,
+            guard tileZoom >= 9,
                   tileZoom <= settings.labels.settlementVisibility.smallSettlementMaximumZoom else {
                 return false
             }
@@ -585,7 +585,7 @@ struct MapboxVectorTileLabelProviderProfile: VectorTileLabelProviderProfile {
     private func districtSortKeyThreshold(for tileZoom: Int) -> Int {
         switch tileZoom {
         case 9:
-            return 150
+            return 170
         case 10:
             return 160
         case 11:
@@ -640,6 +640,8 @@ struct MapboxVectorTileLabelProviderProfile: VectorTileLabelProviderProfile {
 
     private func smallSettlementSortKeyThreshold(for tileZoom: Int) -> Int {
         switch tileZoom {
+        case 9:
+            return 180
         case 10:
             return 180
         case 11:

@@ -5,6 +5,10 @@
 import XCTest
 
 final class PreparedTileDiskCodecTests: XCTestCase {
+    func testPreparedTileCacheFormatVersionIncludesLabelVisibilityPolicyRevision() {
+        XCTAssertEqual(PreparedTileDiskCaching.preparedFormatVersion, 17)
+    }
+
     func testPreparedTileCodecRoundTripsArbitraryLabelLanguageMetadata() throws {
         let tile = Tile(x: 1, y: 2, z: 3)
         let labelLanguage = ImmersiveMapSettings.LabelLanguage("pt-BR")
