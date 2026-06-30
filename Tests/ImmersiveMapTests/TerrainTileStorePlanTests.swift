@@ -164,6 +164,69 @@ final class TerrainTileStorePlanTests: XCTestCase {
         XCTAssertNotEqual(sphericalA, sphericalB)
     }
 
+    func testCacheKeyIncludesSourceMaterialFieldsEvenWhenIDMatches() {
+        let sourceA = ImmersiveMapTerrainSource(id: "same",
+                                                baseURL: URL(string: "https://example.com/a")!,
+                                                encoding: .mapboxTerrainRGB,
+                                                datum: .elevation,
+                                                maximumZoomLevel: 14)
+        let sourceB = ImmersiveMapTerrainSource(id: "same",
+                                                baseURL: URL(string: "https://example.com/b")!,
+                                                encoding: .terrarium,
+                                                datum: .ellipsoid,
+                                                maximumZoomLevel: 14)
+        let terrainA = ImmersiveMapSettings.default
+            .terrainSource(sourceA)
+            .terrainRendering(isEnabled: true)
+            .terrain
+        let terrainB = ImmersiveMapSettings.default
+            .terrainSource(sourceB)
+            .terrainRendering(isEnabled: true)
+            .terrain
+        let visibleTile = VisibleTile(x: 12, y: 5, z: 8)
+
+        let keyA = TerrainTileRequestPlanner.plan(visibleTile: visibleTile,
+                                                  terrain: terrainA,
+                                                  renderSurfaceMode: .flat,
+                                                  globeRadius: 128,
+                                                  heightScale: 1)?.cacheKey
+        let keyB = TerrainTileRequestPlanner.plan(visibleTile: visibleTile,
+                                                  terrain: terrainB,
+                                                  renderSurfaceMode: .flat,
+                                                  globeRadius: 128,
+                                                  heightScale: 1)?.cacheKey
+
+        XCTAssertNotEqual(keyA, keyB)
+    }
+
+    func testInFlightRegistryAllowsRetryWhenRequestFinishesBeforeTaskAttach() {
+        let registry = TerrainTileInFlightRegistry()
+        let key = cacheKey()
+        let token = tryReserve(registry, key: key)
+
+        XCTAssertTrue(registry.finish(key: key, token: token))
+        let task = Task<Void, Never> {}
+        XCTAssertFalse(registry.attach(task, for: key, token: token))
+        XCTAssertNotNil(registry.reserve(key: key))
+    }
+
+    func testMemoryCacheEvictsLeastRecentlyUsedMeshesByCost() {
+        let cache = TerrainMeshMemoryCache<String>(maxCost: 10)
+        let first = cacheKey(tile: Tile(x: 0, y: 0, z: 1))
+        let second = cacheKey(tile: Tile(x: 1, y: 0, z: 1))
+        let third = cacheKey(tile: Tile(x: 0, y: 1, z: 1))
+
+        cache.set("first", for: first, cost: 4)
+        cache.set("second", for: second, cost: 4)
+        XCTAssertEqual(cache.mesh(for: first), "first")
+        cache.set("third", for: third, cost: 4)
+
+        XCTAssertEqual(cache.mesh(for: first), "first")
+        XCTAssertNil(cache.mesh(for: second))
+        XCTAssertEqual(cache.mesh(for: third), "third")
+        XCTAssertLessThanOrEqual(cache.totalCost, 10)
+    }
+
     private func terrainSettings(sourceMaximumZoom: Int,
                                  settingsMaximumZoom: Int,
                                  meshResolution: Int,
@@ -182,6 +245,27 @@ final class TerrainTileStorePlanTests: XCTestCase {
                               exaggeration: exaggeration,
                               maximumZoomLevel: settingsMaximumZoom,
                               meshResolution: meshResolution)
+    }
+
+    private func cacheKey(tile: Tile = Tile(x: 0, y: 0, z: 1)) -> TerrainTileCacheKey {
+        TerrainTileCacheKey(source: ImmersiveMapTerrainSource.reEarth(),
+                            tile: tile,
+                            renderSurfaceMode: .flat,
+                            meshResolution: 17,
+                            exaggeration: 1,
+                            heightScale: 1,
+                            globeRadius: 128)
+    }
+
+    private func tryReserve(_ registry: TerrainTileInFlightRegistry,
+                            key: TerrainTileCacheKey,
+                            file: StaticString = #filePath,
+                            line: UInt = #line) -> TerrainTileInFlightToken {
+        guard let token = registry.reserve(key: key) else {
+            XCTFail("Expected reservation", file: file, line: line)
+            return TerrainTileInFlightToken()
+        }
+        return token
     }
 }
 

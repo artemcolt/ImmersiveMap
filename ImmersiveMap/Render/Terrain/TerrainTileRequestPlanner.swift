@@ -5,6 +5,9 @@ import Foundation
 
 struct TerrainTileCacheKey: Hashable {
     let sourceID: String
+    private let sourceBaseURL: String
+    private let sourceEncoding: ImmersiveMapTerrainSource.Encoding
+    private let sourceDatum: ImmersiveMapTerrainSource.Datum
     let tile: Tile
     let renderSurfaceMode: ViewMode
     let meshResolution: Int
@@ -12,14 +15,17 @@ struct TerrainTileCacheKey: Hashable {
     private let heightScale: UInt32
     private let globeRadius: UInt32?
 
-    init(sourceID: String,
+    init(source: ImmersiveMapTerrainSource,
          tile: Tile,
          renderSurfaceMode: ViewMode,
          meshResolution: Int,
          exaggeration: Float,
          heightScale: Float,
          globeRadius: Float) {
-        self.sourceID = sourceID
+        self.sourceID = source.id
+        self.sourceBaseURL = source.baseURL.absoluteString
+        self.sourceEncoding = source.encoding
+        self.sourceDatum = source.datum
         self.tile = tile
         self.renderSurfaceMode = renderSurfaceMode
         self.meshResolution = max(meshResolution, 2)
@@ -53,7 +59,7 @@ enum TerrainTileRequestPlanner {
             return nil
         }
 
-        let cacheKey = TerrainTileCacheKey(sourceID: source.id,
+        let cacheKey = TerrainTileCacheKey(source: source,
                                            tile: sourceTile,
                                            renderSurfaceMode: renderSurfaceMode,
                                            meshResolution: terrain.meshResolution,

@@ -12,11 +12,12 @@ struct TerrainTileDrawItem {
 
 final class TerrainTileStore {
     static let heightScale: Float = 1.0
+    private static let maxCachedMeshMemoryCost = 48 * 1024 * 1024
 
     private let metalDevice: MTLDevice
     private let lock = NSLock()
-    private var meshesByKey: [TerrainTileCacheKey: MetalTerrainMesh] = [:]
-    private var inFlightTasksByKey: [TerrainTileCacheKey: Task<Void, Never>] = [:]
+    private let meshCache = TerrainMeshMemoryCache<MetalTerrainMesh>(maxCost: maxCachedMeshMemoryCost)
+    private let inFlightRegistry = TerrainTileInFlightRegistry()
 
     weak var eventSink: RenderFrameEventSink?
 
@@ -57,7 +58,7 @@ final class TerrainTileStore {
         lock.lock()
         defer { lock.unlock() }
         for plan in plans {
-            guard let mesh = meshesByKey[plan.cacheKey] else {
+            guard let mesh = meshCache.mesh(for: plan.cacheKey) else {
                 continue
             }
             items.append(TerrainTileDrawItem(visibleTile: plan.visibleTile,
@@ -80,7 +81,11 @@ final class TerrainTileStore {
                          terrain: ImmersiveMapSettings.TerrainSettings,
                          globeRadius: Float) {
         lock.lock()
-        if meshesByKey[plan.cacheKey] != nil || inFlightTasksByKey[plan.cacheKey] != nil {
+        if meshCache.mesh(for: plan.cacheKey) != nil {
+            lock.unlock()
+            return
+        }
+        guard let token = inFlightRegistry.reserve(key: plan.cacheKey) else {
             lock.unlock()
             return
         }
@@ -93,25 +98,25 @@ final class TerrainTileStore {
             await self.load(plan: plan,
                             source: source,
                             terrain: terrain,
-                            globeRadius: globeRadius)
+                            globeRadius: globeRadius,
+                            token: token)
         }
 
         lock.lock()
-        if meshesByKey[plan.cacheKey] != nil || inFlightTasksByKey[plan.cacheKey] != nil {
-            lock.unlock()
-            task.cancel()
-            return
-        }
-        inFlightTasksByKey[plan.cacheKey] = task
+        let didAttach = inFlightRegistry.attach(task, for: plan.cacheKey, token: token)
         lock.unlock()
+        if didAttach == false {
+            task.cancel()
+        }
     }
 
     private func load(plan: TerrainTileRequestPlan,
                       source: ImmersiveMapTerrainSource,
                       terrain: ImmersiveMapSettings.TerrainSettings,
-                      globeRadius: Float) async {
+                      globeRadius: Float,
+                      token: TerrainTileInFlightToken) async {
         defer {
-            finishRequest(for: plan.cacheKey)
+            finishRequest(for: plan.cacheKey, token: token)
         }
 
         let url = TerrainTileURLProvider(source: source).url(for: plan.sourceTile)
@@ -131,7 +136,9 @@ final class TerrainTileStore {
         }
 
         await MainActor.run {
-            self.store(metalMesh, for: plan.cacheKey)
+            guard self.store(metalMesh, for: plan.cacheKey, token: token) else {
+                return
+            }
             self.eventSink?.invalidate(.tileAvailable)
         }
     }
@@ -162,27 +169,31 @@ final class TerrainTileStore {
         }
     }
 
-    private func store(_ mesh: MetalTerrainMesh, for key: TerrainTileCacheKey) {
+    @discardableResult
+    private func store(_ mesh: MetalTerrainMesh,
+                       for key: TerrainTileCacheKey,
+                       token: TerrainTileInFlightToken) -> Bool {
         lock.lock()
-        meshesByKey[key] = mesh
+        guard inFlightRegistry.contains(key: key, token: token) else {
+            lock.unlock()
+            return false
+        }
+        meshCache.set(mesh, for: key, cost: mesh.estimatedMemoryCost)
         lock.unlock()
+        return true
     }
 
-    private func finishRequest(for key: TerrainTileCacheKey) {
+    private func finishRequest(for key: TerrainTileCacheKey,
+                               token: TerrainTileInFlightToken) {
         lock.lock()
-        inFlightTasksByKey[key] = nil
+        inFlightRegistry.finish(key: key, token: token)
         lock.unlock()
     }
 
     private func clear() {
         lock.lock()
-        let tasks = Array(inFlightTasksByKey.values)
-        inFlightTasksByKey.removeAll()
-        meshesByKey.removeAll()
+        inFlightRegistry.cancelAll()
+        meshCache.removeAll()
         lock.unlock()
-
-        for task in tasks {
-            task.cancel()
-        }
     }
 }

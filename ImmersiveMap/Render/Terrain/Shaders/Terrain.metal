@@ -35,8 +35,25 @@ vertex TerrainVertexOut terrainVertexShader(TerrainVertexIn vertexIn [[stage_in]
     if (terrain.renderMode == 1) {
         float panLatitude = globeVisibilityPanLatitude(globe);
         float panLongitude = globeVisibilityPanLongitude(globe);
+        float mapSize = globeVisibilityMapSize(globe, panLatitude);
+        float panMercatorY = globeTransitionPanMercatorY(panLatitude);
         float4x4 rotation = globeVisibilityRotationMatrix(panLatitude, panLongitude);
-        worldPosition = float4(vertexIn.position, 1.0) * rotation - float4(0.0, 0.0, globe.radius, 0.0);
+        float height = length(vertexIn.position) - globe.radius;
+        float3 sphereBasePosition = vertexIn.normal * globe.radius;
+        float3 terrainOffset = vertexIn.normal * height;
+        float3 sphereWorldPosition = (float4(sphereBasePosition, 1.0) * rotation
+            - float4(0.0, 0.0, globe.radius, 0.0)).xyz
+            + (float4(terrainOffset, 0.0) * rotation).xyz;
+
+        float latitude = asin(clamp(vertexIn.normal.y, -1.0, 1.0));
+        float longitude = atan2(vertexIn.normal.x, vertexIn.normal.z);
+        float3 flatWorldPosition = globeFlatWorldPosition(latitude,
+                                                          longitude,
+                                                          globe,
+                                                          mapSize,
+                                                          panMercatorY)
+            + float3(0.0, 0.0, height);
+        worldPosition = float4(mix(sphereWorldPosition, flatWorldPosition, globe.transition), 1.0);
         worldNormal = normalize((float4(vertexIn.normal, 0.0) * rotation).xyz);
     } else {
         worldPosition = terrain.modelMatrix * float4(vertexIn.position, 1.0);
