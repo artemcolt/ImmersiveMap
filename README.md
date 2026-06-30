@@ -4,6 +4,10 @@
 
 Swift + Metal map engine for SwiftUI.
 
+Contact: [@BobkinArtem](https://x.com/BobkinArtem)
+
+I am open to adapting ImmersiveMap for specific business use cases.
+
 ## Add To Xcode
 
 In Xcode, select `File` -> `Add Package Dependencies...` and add:
