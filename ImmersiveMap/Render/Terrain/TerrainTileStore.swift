@@ -46,11 +46,11 @@ final class TerrainTileStore {
                    terrain: ImmersiveMapSettings.TerrainSettings,
                    renderSurfaceMode: ViewMode,
                    globeRadius: Float) -> [TerrainTileDrawItem] {
-        let plans = TerrainTileRequestPlanner.uniquePlans(visibleTiles: visibleTiles,
-                                                          terrain: terrain,
-                                                          renderSurfaceMode: renderSurfaceMode,
-                                                          globeRadius: globeRadius,
-                                                          heightScale: Self.heightScale)
+        let plans = TerrainTileRequestPlanner.drawPlans(visibleTiles: visibleTiles,
+                                                        terrain: terrain,
+                                                        renderSurfaceMode: renderSurfaceMode,
+                                                        globeRadius: globeRadius,
+                                                        heightScale: Self.heightScale)
         var items: [TerrainTileDrawItem] = []
         items.reserveCapacity(plans.count)
 
