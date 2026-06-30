@@ -8,6 +8,7 @@ final class RenderLayerPlannerTests: XCTestCase {
     func testFlatModePlansWorldLayersBeforeEnabledOverlays() {
         let plan = RenderLayerPlanner.plan(
             availability: RenderPassAvailability(renderSurfaceMode: .flat,
+                                                 terrainEnabled: true,
                                                  labelsEnabled: true,
                                                  avatarsEnabled: true,
                                                  debugOverlayEnabled: true)
@@ -15,6 +16,7 @@ final class RenderLayerPlannerTests: XCTestCase {
 
         XCTAssertEqual(plan.map(\.layer), [
             .flatMapSurface,
+            .terrain,
             .buildingExtrusion,
             .labels,
             .avatars,
@@ -27,6 +29,7 @@ final class RenderLayerPlannerTests: XCTestCase {
     func testFlatModeKeepsOverlayPlanItemsDisabledWhenUnavailable() {
         let plan = RenderLayerPlanner.plan(
             availability: RenderPassAvailability(renderSurfaceMode: .flat,
+                                                 terrainEnabled: false,
                                                  labelsEnabled: false,
                                                  avatarsEnabled: false,
                                                  debugOverlayEnabled: false)
@@ -34,12 +37,14 @@ final class RenderLayerPlannerTests: XCTestCase {
 
         XCTAssertEqual(plan.map(\.layer), [
             .flatMapSurface,
+            .terrain,
             .buildingExtrusion,
             .labels,
             .avatars,
             .debugOverlay
         ])
         XCTAssertEqual(enabledLayers(in: plan), [.flatMapSurface, .buildingExtrusion])
+        XCTAssertEqual(skipReason(for: .terrain, in: plan), .terrainDisabled)
         XCTAssertEqual(skipReason(for: .labels, in: plan), .noLabelContent)
         XCTAssertEqual(skipReason(for: .avatars, in: plan), .noAvatarContent)
         XCTAssertEqual(skipReason(for: .debugOverlay, in: plan), .debugOverlayDisabled)
@@ -48,6 +53,7 @@ final class RenderLayerPlannerTests: XCTestCase {
     func testGlobeModePlansWorldLayersBeforeEnabledOverlays() {
         let plan = RenderLayerPlanner.plan(
             availability: RenderPassAvailability(renderSurfaceMode: .spherical,
+                                                 terrainEnabled: true,
                                                  labelsEnabled: true,
                                                  avatarsEnabled: true,
                                                  debugOverlayEnabled: true)
@@ -56,6 +62,7 @@ final class RenderLayerPlannerTests: XCTestCase {
         XCTAssertEqual(plan.map(\.layer), [
             .starfield,
             .globeSurface,
+            .terrain,
             .globeCap,
             .labels,
             .avatars,
@@ -68,6 +75,7 @@ final class RenderLayerPlannerTests: XCTestCase {
     func testGlobeModeKeepsOverlayPlanItemsDisabledWhenUnavailable() {
         let plan = RenderLayerPlanner.plan(
             availability: RenderPassAvailability(renderSurfaceMode: .spherical,
+                                                 terrainEnabled: false,
                                                  labelsEnabled: false,
                                                  avatarsEnabled: false,
                                                  debugOverlayEnabled: false)
@@ -76,12 +84,14 @@ final class RenderLayerPlannerTests: XCTestCase {
         XCTAssertEqual(plan.map(\.layer), [
             .starfield,
             .globeSurface,
+            .terrain,
             .globeCap,
             .labels,
             .avatars,
             .debugOverlay
         ])
         XCTAssertEqual(enabledLayers(in: plan), [.starfield, .globeSurface, .globeCap])
+        XCTAssertEqual(skipReason(for: .terrain, in: plan), .terrainDisabled)
         XCTAssertEqual(skipReason(for: .labels, in: plan), .noLabelContent)
         XCTAssertEqual(skipReason(for: .avatars, in: plan), .noAvatarContent)
         XCTAssertEqual(skipReason(for: .debugOverlay, in: plan), .debugOverlayDisabled)

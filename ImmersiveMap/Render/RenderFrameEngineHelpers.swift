@@ -31,6 +31,13 @@ enum RenderDebugOverlayPolicy {
     }
 }
 
+enum RenderTerrainAvailabilityPolicy {
+    static func shouldRender(settings: ImmersiveMapSettings,
+                             controls: DebugOverlayControlSnapshot) -> Bool {
+        settings.terrain.isEnabled && settings.terrain.source != nil && controls.terrainEnabled
+    }
+}
+
 enum RenderFrameClearColor {
     static func make(transition: Float,
                      settings: ImmersiveMapSettings) -> MTLClearColor {

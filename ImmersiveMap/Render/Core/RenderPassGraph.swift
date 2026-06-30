@@ -5,6 +5,25 @@ import Metal
 import QuartzCore
 
 final class RenderPassGraph {
+    static func isWorldLayer(_ layer: RenderLayer) -> Bool {
+        switch layer {
+        case .starfield, .globeSurface, .terrain, .globeCap, .flatMapSurface, .buildingExtrusion:
+            return true
+        case .buildingWinner, .postProcessing, .labels, .avatars, .debugOverlay:
+            return false
+        }
+    }
+
+    static func isOverlayLayer(_ layer: RenderLayer) -> Bool {
+        switch layer {
+        case .labels, .avatars, .debugOverlay:
+            return true
+        case .buildingWinner, .starfield, .globeSurface, .terrain, .globeCap, .flatMapSurface, .buildingExtrusion,
+             .postProcessing:
+            return false
+        }
+    }
+
     private final class BuildingWinnerDescriptorProvider: RenderPassDescriptorProvider {
         func makeRenderPassDescriptor(frameContext: FrameContext,
                                       attachments: FrameAttachmentStore,
@@ -137,22 +156,8 @@ final class RenderPassGraph {
                                         descriptorProvider: BuildingWinnerDescriptorProvider(),
                                         layers: [.buildingWinner]))
         }
-        let worldLayers = layerPlan.filter { layer in
-            switch layer {
-            case .starfield, .globeSurface, .globeCap, .flatMapSurface, .buildingExtrusion:
-                return true
-            case .buildingWinner, .postProcessing, .labels, .avatars, .debugOverlay:
-                return false
-            }
-        }
-        let overlayLayers = layerPlan.filter { layer in
-            switch layer {
-            case .labels, .avatars, .debugOverlay:
-                return true
-            case .buildingWinner, .starfield, .globeSurface, .globeCap, .flatMapSurface, .buildingExtrusion, .postProcessing:
-                return false
-            }
-        }
+        let worldLayers = layerPlan.filter(Self.isWorldLayer)
+        let overlayLayers = layerPlan.filter(Self.isOverlayLayer)
 
         nodes.append(RenderPassNode(name: .world,
                                     descriptorProvider: WorldDescriptorProvider(clearColor: clearColor,

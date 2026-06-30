@@ -14,6 +14,7 @@ enum RenderLayer: String, CaseIterable {
     case globeSurface
     case globeCap
     case flatMapSurface
+    case terrain
     case buildingExtrusion
     case postProcessing
     case labels
@@ -29,6 +30,7 @@ enum RenderSkipReason: String, CaseIterable, Hashable {
     case missingDrawable
     case missingCommandBuffer
     case flatTileOriginUnavailable
+    case terrainDisabled
     case noLabelContent
     case noAvatarContent
     case debugOverlayDisabled
@@ -36,6 +38,7 @@ enum RenderSkipReason: String, CaseIterable, Hashable {
 
 struct RenderPassAvailability {
     let renderSurfaceMode: ViewMode
+    let terrainEnabled: Bool
     let labelsEnabled: Bool
     let avatarsEnabled: Bool
     let debugOverlayEnabled: Bool
@@ -51,13 +54,18 @@ struct RenderLayerPlanner {
     static func plan(availability: RenderPassAvailability) -> [RenderLayerPlanItem] {
         let worldLayers: [RenderLayer] = switch availability.renderSurfaceMode {
         case .flat:
-            [.flatMapSurface, .buildingExtrusion]
+            [.flatMapSurface, .terrain, .buildingExtrusion]
         case .spherical:
-            [.starfield, .globeSurface, .globeCap]
+            [.starfield, .globeSurface, .terrain, .globeCap]
         }
 
-        return worldLayers.map {
-            RenderLayerPlanItem(layer: $0, enabled: true, skipReason: nil)
+        return worldLayers.map { layer in
+            if layer == .terrain {
+                return RenderLayerPlanItem(layer: layer,
+                                           enabled: availability.terrainEnabled,
+                                           skipReason: availability.terrainEnabled ? nil : .terrainDisabled)
+            }
+            return RenderLayerPlanItem(layer: layer, enabled: true, skipReason: nil)
         } + [
             RenderLayerPlanItem(layer: .labels,
                                 enabled: availability.labelsEnabled,
