@@ -19,6 +19,7 @@ final class RenderPersistentContext {
     let globeTileTexturePipeline: TilePipeline
     let extrudedTilePipeline: ExtrudedTilePipeline
     let globePipeline: GlobePipeline
+    let terrainPipeline: TerrainPipeline
     let fxaaPipeline: FXAAPipeline
 
     // MARK: - Scene Resources
@@ -38,6 +39,7 @@ final class RenderPersistentContext {
     // MARK: - Tile and Label Resources
 
     let tileRenderStore: TileRenderStore
+    let terrainTileStore: TerrainTileStore
     let tilesTexture: GlobeTilesTexture
     let textRenderer: TextRenderer
     let poiSpriteAtlas: PoiSpriteAtlas
@@ -83,6 +85,7 @@ final class RenderPersistentContext {
         self.globeTileTexturePipeline = pipelines.globeTileTexturePipeline
         self.extrudedTilePipeline = pipelines.extrudedTilePipeline
         self.globePipeline = pipelines.globePipeline
+        self.terrainPipeline = pipelines.terrainPipeline
         self.fxaaPipeline = pipelines.fxaaPipeline
         self.starfieldRenderer = pipelines.starfieldRenderer
 
@@ -114,6 +117,8 @@ final class RenderPersistentContext {
                                                tileTraceRecorder: tileTraceRecorder,
                                                tileLoadingStatusReporter: tileLoadingStatusReporter)
         self.tileRenderStore.eventSink = eventSink
+        self.terrainTileStore = TerrainTileStore(metalDevice: metal.device)
+        self.terrainTileStore.eventSink = eventSink
         self.baseLabelCache = BaseLabelCache(metalDevice: metal.device)
         self.roadLabelCache = RoadLabelCache(metalDevice: metal.device,
                                              textRenderer: textRenderer)

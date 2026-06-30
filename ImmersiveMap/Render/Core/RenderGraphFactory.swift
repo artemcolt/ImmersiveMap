@@ -50,6 +50,10 @@ enum RenderGraphFactory {
                                                                 mapSurfaceGridBuffers: context.mapSurfaceGridBuffers,
                                                                 tilesTexture: context.tilesTexture,
                                                                 debugOverlayControls: debugOverlayControls)
+        let terrainSubsystem = TerrainRenderSubsystem(terrainPipeline: context.terrainPipeline,
+                                                      terrainTileStore: context.terrainTileStore,
+                                                      terrainDepthState: context.extrudedDepthState,
+                                                      debugOverlayControls: debugOverlayControls)
         let globeCapSubsystem = GlobeCapRenderSubsystem(globeCapDepthState: context.globeCapDepthState,
                                                         depthDisabledState: context.depthDisabledState,
                                                         globeCapRenderer: context.globeCapRenderer,
@@ -73,6 +77,7 @@ enum RenderGraphFactory {
             buildingExtrusionSubsystem,
             starfieldSubsystem,
             globeSurfaceSubsystem,
+            terrainSubsystem,
             globeCapSubsystem,
             postProcessingSubsystem,
             debugSubsystem
@@ -81,6 +86,7 @@ enum RenderGraphFactory {
             baseLabelDrawSubsystem,
             roadLabelDrawSubsystem,
             avatarSubsystem,
+            terrainSubsystem,
             debugSubsystem
         ]
         return RenderGraph(registry: RenderSubsystemRegistry(subsystems: subsystems),

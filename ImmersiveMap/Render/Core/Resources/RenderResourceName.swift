@@ -27,4 +27,5 @@ enum RenderResourceName: String {
     case extrudedTilePipeline = "ExtrudedTilePipeline"
     case extrudedTileWinnerPipeline = "ExtrudedTileWinnerPipeline"
     case globePipeline = "GlobePipeline"
+    case terrainPipeline = "TerrainPipeline"
 }
