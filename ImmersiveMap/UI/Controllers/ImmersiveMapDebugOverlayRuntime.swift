@@ -39,6 +39,10 @@ final class ImmersiveMapDebugOverlayRuntime {
             controls?.setWireframeEnabled(isEnabled)
             renderRuntime?.requestFrame(reason: .externalStateChanged)
         }
+        hudView.onTerrainEnabledChanged = { [weak controls, weak renderRuntime] isEnabled in
+            controls?.setTerrainEnabled(isEnabled)
+            renderRuntime?.requestFrame(reason: .externalStateChanged)
+        }
         hudView.onEarthSceneEnabledChanged = { [weak mapView] isEnabled in
             mapView?.setEarthSceneEnabledFromDebugOverlay(isEnabled)
         }
