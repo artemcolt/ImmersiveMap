@@ -188,6 +188,30 @@ public extension ImmersiveMapView {
         return view
     }
 
+    public func terrainSettings(_ terrain: ImmersiveMapSettings.TerrainSettings) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.terrainSettings(terrain)
+        return view
+    }
+
+    public func terrainSource(_ source: ImmersiveMapTerrainSource?) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.terrainSource(source)
+        return view
+    }
+
+    public func terrainRendering(isEnabled: Bool = true,
+                                 exaggeration: Float? = nil,
+                                 maximumZoomLevel: Int? = nil,
+                                 meshResolution: Int? = nil) -> ImmersiveMapView {
+        var view = self
+        view.settings = view.settings.terrainRendering(isEnabled: isEnabled,
+                                                       exaggeration: exaggeration,
+                                                       maximumZoomLevel: maximumZoomLevel,
+                                                       meshResolution: meshResolution)
+        return view
+    }
+
     public func labelSettings(_ labels: ImmersiveMapSettings.LabelSettings) -> ImmersiveMapView {
         var view = self
         view.settings = view.settings.labelSettings(labels)

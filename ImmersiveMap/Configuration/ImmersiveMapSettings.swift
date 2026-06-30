@@ -274,6 +274,26 @@ public struct ImmersiveMapSettings: Equatable {
         }
     }
 
+    public struct TerrainSettings: Equatable {
+        public var isEnabled: Bool
+        public var source: ImmersiveMapTerrainSource?
+        public var exaggeration: Float
+        public var maximumZoomLevel: Int
+        public var meshResolution: Int
+
+        public init(isEnabled: Bool = false,
+                    source: ImmersiveMapTerrainSource? = nil,
+                    exaggeration: Float = 1.0,
+                    maximumZoomLevel: Int = 14,
+                    meshResolution: Int = 65) {
+            self.isEnabled = isEnabled
+            self.source = source
+            self.exaggeration = exaggeration
+            self.maximumZoomLevel = maximumZoomLevel
+            self.meshResolution = meshResolution
+        }
+    }
+
     public struct LabelSettings: Equatable {
         public struct HouseNumberSettings: Equatable {
             public var enabled: Bool
@@ -679,6 +699,7 @@ public struct ImmersiveMapSettings: Equatable {
     public var tileProvider: AnyImmersiveMapTileProvider
     public var mapStyle: AnyImmersiveMapMapStyle
     public var tiles: TileSettings
+    public var terrain: TerrainSettings
     public var labels: LabelSettings
     public var scene: SceneSettings
     public var style: StyleSettings
@@ -693,6 +714,7 @@ public struct ImmersiveMapSettings: Equatable {
                 tileProvider: AnyImmersiveMapTileProvider = AnyImmersiveMapTileProvider(MapboxTileProvider(accessToken: nil)),
                 mapStyle: AnyImmersiveMapMapStyle = AnyImmersiveMapMapStyle(MapboxMapStyle()),
                 tiles: TileSettings,
+                terrain: TerrainSettings = TerrainSettings(),
                 labels: LabelSettings,
                 scene: SceneSettings,
                 style: StyleSettings,
@@ -706,6 +728,7 @@ public struct ImmersiveMapSettings: Equatable {
         self.tileProvider = tileProvider
         self.mapStyle = mapStyle
         self.tiles = tiles
+        self.terrain = terrain
         self.labels = labels
         self.scene = scene
         self.style = style
@@ -761,6 +784,7 @@ public struct ImmersiveMapSettings: Equatable {
                                                               preparedDiskTimeToLive: 7 * 24 * 60 * 60,
                                                               memoryCacheSizeInBytes: 512 * 1024 * 1024),
                             parsing: TileSettings.ParsingSettings(addTestBorders: false)),
+        terrain: TerrainSettings(),
         labels: LabelSettings(language: .english,
                               fallbackPolicy: .international,
                               houseNumbers: LabelSettings.HouseNumberSettings(enabled: true,
@@ -892,6 +916,39 @@ public extension ImmersiveMapSettings {
             settings.tiles.cache.memoryCacheSizeInBytes = memoryCacheSizeInBytes
         }
         return settings
+    }
+
+    func terrainSettings(_ terrain: TerrainSettings) -> ImmersiveMapSettings {
+        var settings = self
+        settings.terrain = terrain
+        return settings
+    }
+
+    func terrainSource(_ source: ImmersiveMapTerrainSource?) -> ImmersiveMapSettings {
+        var terrain = self.terrain
+        terrain.source = source
+        if let source {
+            terrain.maximumZoomLevel = source.maximumZoomLevel
+        }
+        return terrainSettings(terrain)
+    }
+
+    func terrainRendering(isEnabled: Bool = true,
+                          exaggeration: Float? = nil,
+                          maximumZoomLevel: Int? = nil,
+                          meshResolution: Int? = nil) -> ImmersiveMapSettings {
+        var terrain = self.terrain
+        terrain.isEnabled = isEnabled
+        if let exaggeration {
+            terrain.exaggeration = exaggeration
+        }
+        if let maximumZoomLevel {
+            terrain.maximumZoomLevel = maximumZoomLevel
+        }
+        if let meshResolution {
+            terrain.meshResolution = meshResolution
+        }
+        return terrainSettings(terrain)
     }
 
     func labelSettings(_ labels: LabelSettings) -> ImmersiveMapSettings {

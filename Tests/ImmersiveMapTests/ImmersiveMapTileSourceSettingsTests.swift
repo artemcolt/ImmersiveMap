@@ -246,6 +246,11 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
                                                                      automaticTransitionSpan: 2,
                                                                      globeRadiusScale: 3)
         let tiles = ImmersiveMapSettings.default.tiles
+        let terrain = ImmersiveMapSettings.TerrainSettings(isEnabled: true,
+                                                           source: .reEarth(),
+                                                           exaggeration: 1.5,
+                                                           maximumZoomLevel: 13,
+                                                           meshResolution: 33)
         let labels = ImmersiveMapSettings.default.labels
         let scene = ImmersiveMapSettings.default.scene
         let style = ImmersiveMapSettings.default.style
@@ -268,6 +273,7 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
             .cameraSettings(camera)
             .presentationSettings(presentation)
             .tileSettings(tiles)
+            .terrainSettings(terrain)
             .labelSettings(labels)
             .sceneSettings(scene)
             .styleSettings(style)
@@ -280,6 +286,7 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertEqual(settings.camera, camera)
         XCTAssertEqual(settings.presentation, presentation)
         XCTAssertEqual(settings.tiles, tiles)
+        XCTAssertEqual(settings.terrain, terrain)
         XCTAssertEqual(settings.labels, labels)
         XCTAssertEqual(settings.scene, scene)
         XCTAssertEqual(settings.style, style)
@@ -344,6 +351,59 @@ final class ImmersiveMapTileSourceSettingsTests: XCTestCase {
         XCTAssertEqual(settings.tiles.network.authorizationToken, "mapbox-token")
         XCTAssertEqual(settings.tiles.network.authorizationMode, .accessTokenQuery(parameterName: "access_token"))
     }
+
+    func testTerrainDefaultsAreDisabledWithoutSource() {
+        let terrain = ImmersiveMapSettings.default.terrain
+
+        XCTAssertFalse(terrain.isEnabled)
+        XCTAssertNil(terrain.source)
+        XCTAssertEqual(terrain.exaggeration, 1.0)
+        XCTAssertEqual(terrain.maximumZoomLevel, 14)
+        XCTAssertEqual(terrain.meshResolution, 65)
+    }
+
+    func testReEarthTerrainSourceDefaultsToMapboxElevation() {
+        let source = ImmersiveMapTerrainSource.reEarth()
+
+        XCTAssertEqual(source.id, "reearth-mapboxTerrainRGB-elevation")
+        XCTAssertEqual(source.baseURL.absoluteString, "https://terrain.reearth.land")
+        XCTAssertEqual(source.encoding, .mapboxTerrainRGB)
+        XCTAssertEqual(source.datum, .elevation)
+        XCTAssertEqual(source.maximumZoomLevel, 14)
+    }
+
+    func testTerrainSourceAndRenderingSettingsModifiersStoreValues() {
+        let source = ImmersiveMapTerrainSource.reEarth(datum: .ellipsoid, maximumZoomLevel: 12)
+
+        let settings = ImmersiveMapSettings.default
+            .terrainSource(source)
+            .terrainRendering(isEnabled: true,
+                              exaggeration: 1.75,
+                              maximumZoomLevel: 12,
+                              meshResolution: 33)
+
+        XCTAssertEqual(settings.terrain.source, source)
+        XCTAssertTrue(settings.terrain.isEnabled)
+        XCTAssertEqual(settings.terrain.exaggeration, 1.75)
+        XCTAssertEqual(settings.terrain.maximumZoomLevel, 12)
+        XCTAssertEqual(settings.terrain.meshResolution, 33)
+    }
+
+    #if canImport(UIKit)
+    func testImmersiveMapViewTerrainModifiersStoreValues() throws {
+        let source = ImmersiveMapTerrainSource.reEarth(datum: .elevation)
+
+        let view = ImmersiveMapView()
+            .terrainSource(source)
+            .terrainRendering(isEnabled: true, exaggeration: 2.0)
+
+        let settings: ImmersiveMapSettings? = reflectedValue("settings", in: view)
+        let terrain = try XCTUnwrap(settings?.terrain)
+        XCTAssertEqual(terrain.source, source)
+        XCTAssertTrue(terrain.isEnabled)
+        XCTAssertEqual(terrain.exaggeration, 2.0)
+    }
+    #endif
 
     private func reflectedValue<T>(_ label: String, in value: Any) -> T? {
         Mirror(reflecting: value).children.first { $0.label == label }?.value as? T
