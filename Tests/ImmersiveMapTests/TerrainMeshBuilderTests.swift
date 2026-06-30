@@ -72,6 +72,21 @@ final class TerrainMeshBuilderTests: XCTestCase {
         XCTAssertEqual(mesh.vertices.first?.position.z ?? 0, expectedPosition.z, accuracy: 0.000001)
     }
 
+    func testGlobeMeshKeepsEquatorPrimeMeridianInUnplacedSphereSpace() {
+        let grid = TerrainHeightGrid(width: 1, height: 1, heightsMeters: [0])
+
+        let mesh = TerrainMeshBuilder.buildGlobeMesh(tile: Tile(x: 1, y: 1, z: 1),
+                                                     heightGrid: grid,
+                                                     resolution: 2,
+                                                     globeRadius: 10,
+                                                     exaggeration: 1,
+                                                     heightScale: 1)
+
+        XCTAssertEqual(mesh.vertices.first?.position.x ?? 0, 0, accuracy: 0.000001)
+        XCTAssertEqual(mesh.vertices.first?.position.y ?? 0, 0, accuracy: 0.000001)
+        XCTAssertEqual(mesh.vertices.first?.position.z ?? 0, 10, accuracy: 0.000001)
+    }
+
     private func establishedGlobePosition(tile: Tile,
                                           u: Double,
                                           v: Double,

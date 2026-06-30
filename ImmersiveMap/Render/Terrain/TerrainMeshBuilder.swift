@@ -38,6 +38,8 @@ enum TerrainMeshBuilder {
                            indices: gridIndices(resolution: count))
     }
 
+    // Builds unrotated sphere-space terrain. Current globe pan, transition, and center translation
+    // are frame-dependent and belong to the draw path, matching the existing globe surface shader.
     static func buildGlobeMesh(tile: Tile,
                                heightGrid: TerrainHeightGrid,
                                resolution: Int,
