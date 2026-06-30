@@ -24,8 +24,8 @@ enum TerrainMeshBuilder {
                                           v: v,
                                           exaggeration: exaggeration,
                                           heightScale: heightScale)
-                let position = SIMD3<Float>((u - 0.5) * 4096.0,
-                                            (0.5 - v) * 4096.0,
+                let position = SIMD3<Float>(u * 4096.0,
+                                            (1.0 - v) * 4096.0,
                                             height)
                 vertices.append(TerrainMesh.Vertex(position: position,
                                                    normal: SIMD3<Float>(0, 0, 1),
@@ -82,10 +82,7 @@ enum TerrainMeshBuilder {
                                      v: Float,
                                      exaggeration: Float,
                                      heightScale: Float) -> Float {
-        let scaled = Double(sampleNearest(grid: grid, u: u, v: v)) *
-                     Double(exaggeration) *
-                     Double(heightScale)
-        return Float((scaled * 1_000_000).rounded() / 1_000_000)
+        sampleNearest(grid: grid, u: u, v: v) * exaggeration * heightScale
     }
 
     private static func gridIndices(resolution: Int) -> [UInt32] {
@@ -97,7 +94,12 @@ enum TerrainMeshBuilder {
                 let topRight = topLeft + 1
                 let bottomLeft = UInt32((row + 1) * resolution + column)
                 let bottomRight = bottomLeft + 1
-                indices += [topLeft, bottomLeft, topRight, topRight, bottomLeft, bottomRight]
+                indices.append(topLeft)
+                indices.append(bottomLeft)
+                indices.append(topRight)
+                indices.append(topRight)
+                indices.append(bottomLeft)
+                indices.append(bottomRight)
             }
         }
         return indices
@@ -109,7 +111,7 @@ enum TerrainMeshBuilder {
         let normalizedY = (Double(tile.y) + v) / tilesCount
         let longitude = ImmersiveMapProjection.longitude(fromNormalizedWorldX: normalizedX)
         let latitude = ImmersiveMapProjection.latitude(fromNormalizedWorldY: normalizedY)
-        let phi = -Float(latitude)
+        let phi = Float(latitude) - (.pi * 0.5)
         let theta = Float(longitude + Double.pi)
         return simd_normalize(SIMD3<Float>(sin(phi) * sin(theta),
                                            cos(phi),
