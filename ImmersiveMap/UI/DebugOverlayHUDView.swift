@@ -723,6 +723,8 @@ private final class DebugOverlayAtlasLayoutView: UIView {
     private enum Layout {
         static let pageLabelHeight: CGFloat = 16
         static let pageSpacing: CGFloat = 10
+        static let minimumPageSide: CGFloat = 180
+        static let maximumPageSide: CGFloat = 260
         static let borderWidth: CGFloat = 1
     }
 
@@ -752,9 +754,7 @@ private final class DebugOverlayAtlasLayoutView: UIView {
             return 48
         }
 
-        let pageSide = Self.pageSide(forWidth: width)
-        return CGFloat(pages.count) * (Layout.pageLabelHeight + pageSide)
-            + CGFloat(max(0, pages.count - 1)) * Layout.pageSpacing
+        return atlasGridLayout(forWidth: width).height
     }
 
     override func draw(_ rect: CGRect) {
@@ -764,22 +764,21 @@ private final class DebugOverlayAtlasLayoutView: UIView {
             return
         }
 
-        let pageSide = Self.pageSide(forWidth: bounds.width)
-        var y = bounds.minY
-        for page in pages {
-            drawPageLabel(page: page, y: y)
-            y += Layout.pageLabelHeight
-            let pageRect = CGRect(x: bounds.minX,
-                                  y: y,
-                                  width: pageSide,
-                                  height: pageSide)
-            drawPage(page, in: pageRect, context: context)
-            y += pageSide + Layout.pageSpacing
+        let gridLayout = atlasGridLayout(forWidth: bounds.width)
+        for (index, page) in pages.enumerated() {
+            let frame = gridLayout.pageFrames[index]
+            drawPageLabel(page: page, in: frame.labelRect)
+            drawPage(page, in: frame.pageRect, context: context)
         }
     }
 
-    private static func pageSide(forWidth width: CGFloat) -> CGFloat {
-        min(max(width, 1), 260)
+    private func atlasGridLayout(forWidth width: CGFloat) -> DebugOverlayAtlasGridLayout {
+        DebugOverlayPanelLayout.atlasGridLayout(pageCount: pages.count,
+                                                width: width,
+                                                pageLabelHeight: Layout.pageLabelHeight,
+                                                pageSpacing: Layout.pageSpacing,
+                                                minimumPageSide: Layout.minimumPageSide,
+                                                maximumPageSide: Layout.maximumPageSide)
     }
 
     private func drawEmptyState(in rect: CGRect) {
@@ -791,14 +790,13 @@ private final class DebugOverlayAtlasLayoutView: UIView {
         text.draw(in: rect.insetBy(dx: 2, dy: 14), withAttributes: attributes)
     }
 
-    private func drawPageLabel(page: GlobeAtlasDebugPage, y: CGFloat) {
+    private func drawPageLabel(page: GlobeAtlasDebugPage, in rect: CGRect) {
         let text = "page \(page.pageIndex) slots \(page.allocations.count)"
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
             .foregroundColor: UIColor.white.withAlphaComponent(0.9)
         ]
-        text.draw(in: CGRect(x: bounds.minX, y: y, width: bounds.width, height: Layout.pageLabelHeight),
-                  withAttributes: attributes)
+        text.draw(in: rect, withAttributes: attributes)
     }
 
     private func drawPage(_ page: GlobeAtlasDebugPage,
