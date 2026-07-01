@@ -880,6 +880,10 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
 
         let roadPreparation = prepareRoadInstances(frameContext: frameContext,
                                                    projectionIndexState: frameContext.sharedState.tileProjectionIndexState)
+        let seededBaseGroups = Self.makeSeededBaseCollisionGroups(candidates: baseCollisionCandidates,
+                                                                  visibility: publishedBaseCollisionVisibility)
+        let seededRoadGroups = makeSeededRoadCollisionGroups(roadInstances: roadPreparation.instances,
+                                                             visibility: publishedRoadInstanceVisibility)
         let collisionGroups = makeCollisionGroups(baseCandidates: baseCollisionCandidates,
                                                   roadInstances: roadPreparation.instances)
         return VisibilityCycle(topologyGeneration: visibilityTopologyGeneration,
@@ -890,7 +894,58 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                baseCount: baseLabelCache.activeLabelSpanCount,
                                roadCount: roadLabelCache?.instanceKeys.count ?? 0,
                                groups: collisionGroups,
+                               seededGroups: seededBaseGroups + seededRoadGroups,
                                cellSizePx: collisionGridCellSizePx)
+    }
+
+    static func makeSeededBaseCollisionGroups(candidates: [ScreenCollisionCandidate],
+                                              visibility: [BaseLabelCollisionVisibility]) -> [VisibilityCollisionGroup] {
+        let count = min(candidates.count, visibility.count)
+        guard count > 0 else {
+            return []
+        }
+
+        var groups: [VisibilityCollisionGroup] = []
+        groups.reserveCapacity(count)
+        for index in 0..<count {
+            let candidate = candidates[index]
+            guard visibility[index] == .visible,
+                  candidate.isEnabled else {
+                continue
+            }
+            groups.append(VisibilityCollisionGroup(target: .base(index),
+                                                  members: [candidate],
+                                                  priority: candidate.priority,
+                                                  secondaryPriority: candidate.secondaryPriority,
+                                                  sortPriority: candidate.sortPriority,
+                                                  stableOrderKey: candidate.stableOrderKey))
+        }
+        return groups
+    }
+
+    private func makeSeededRoadCollisionGroups(roadInstances: [RoadPreparedInstance],
+                                               visibility: [Bool]) -> [VisibilityCollisionGroup] {
+        guard roadInstances.isEmpty == false,
+              visibility.isEmpty == false else {
+            return []
+        }
+
+        var groups: [VisibilityCollisionGroup] = []
+        groups.reserveCapacity(roadInstances.count)
+        for instance in roadInstances {
+            guard instance.targetIndex < visibility.count,
+                  visibility[instance.targetIndex],
+                  let firstCandidate = instance.collisionCandidates.first else {
+                continue
+            }
+            groups.append(VisibilityCollisionGroup(target: .road(instance.targetIndex),
+                                                  members: instance.collisionCandidates,
+                                                  priority: firstCandidate.priority,
+                                                  secondaryPriority: firstCandidate.secondaryPriority,
+                                                  sortPriority: firstCandidate.sortPriority,
+                                                  stableOrderKey: firstCandidate.stableOrderKey))
+        }
+        return groups
     }
 
     private func makeCollisionGroups(baseCandidates: [ScreenCollisionCandidate],

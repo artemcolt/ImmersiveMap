@@ -238,6 +238,43 @@ final class VisibilityCycleTests: XCTestCase {
         XCTAssertEqual(cycle.baseCollisionVisibility, [.hidden, .visible])
     }
 
+    func testSeedGroupsIncludeOnlyPublishedVisibleEnabledBaseCandidates() {
+        let candidates = [
+            ScreenCollisionCandidate(position: SIMD2<Float>(50, 50),
+                                     halfSize: SIMD2<Float>(10, 10),
+                                     priority: 1,
+                                     secondaryPriority: 2,
+                                     sortPriority: 3,
+                                     stableOrderKey: 10,
+                                     groupId: 10,
+                                     isEnabled: true),
+            ScreenCollisionCandidate(position: SIMD2<Float>(80, 50),
+                                     halfSize: SIMD2<Float>(10, 10),
+                                     priority: 1,
+                                     secondaryPriority: 2,
+                                     sortPriority: 3,
+                                     stableOrderKey: 11,
+                                     groupId: 11,
+                                     isEnabled: false),
+            ScreenCollisionCandidate(position: SIMD2<Float>(110, 50),
+                                     halfSize: SIMD2<Float>(10, 10),
+                                     priority: 1,
+                                     secondaryPriority: 2,
+                                     sortPriority: 3,
+                                     stableOrderKey: 12,
+                                     groupId: 12,
+                                     isEnabled: true)
+        ]
+
+        let groups = BaseLabelPrepareSubsystem.makeSeededBaseCollisionGroups(
+            candidates: candidates,
+            visibility: [.visible, .visible, .hidden]
+        )
+
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups.first?.stableOrderKey, 10)
+    }
+
     private func makeBaseGroup(index: Int,
                                position: SIMD2<Float>,
                                priority: Int,
