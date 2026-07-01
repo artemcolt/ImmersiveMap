@@ -238,7 +238,35 @@ final class VisibilityCycleTests: XCTestCase {
         XCTAssertEqual(cycle.baseCollisionVisibility, [.hidden, .visible])
     }
 
-    func testSeedGroupsIncludeOnlyPublishedVisibleEnabledBaseCandidates() {
+    func testOverlappingSeededEqualRankGroupsResolveToOneDeterministicWinner() {
+        let first = makeBaseGroup(index: 0,
+                                  position: SIMD2<Float>(50, 50),
+                                  priority: 10,
+                                  sortPriority: 10,
+                                  stableOrderKey: 100,
+                                  groupId: 100)
+        let second = makeBaseGroup(index: 1,
+                                   position: SIMD2<Float>(54, 50),
+                                   priority: 10,
+                                   sortPriority: 10,
+                                   stableOrderKey: 200,
+                                   groupId: 200)
+        var cycle = VisibilityCycle(topologyGeneration: 0,
+                                    cameraFingerprint: 10,
+                                    horizonReservationSignature: [],
+                                    viewportSize: SIMD2<Float>(200, 200),
+                                    baseCount: 2,
+                                    roadCount: 0,
+                                    groups: [first, second],
+                                    seededGroups: [second, first],
+                                    cellSizePx: 32)
+
+        cycle.processNextGroups(maxGroupCount: 2)
+
+        XCTAssertEqual(cycle.baseCollisionVisibility, [.visible, .hidden])
+    }
+
+    func testSeedGroupsIncludeOnlyPublishedVisibleEnabledBaseCandidates() throws {
         let candidates = [
             ScreenCollisionCandidate(position: SIMD2<Float>(50, 50),
                                      halfSize: SIMD2<Float>(10, 10),
@@ -272,7 +300,16 @@ final class VisibilityCycleTests: XCTestCase {
         )
 
         XCTAssertEqual(groups.count, 1)
-        XCTAssertEqual(groups.first?.stableOrderKey, 10)
+        let group = try XCTUnwrap(groups.first)
+        XCTAssertEqual(group.target, .base(0))
+        XCTAssertEqual(group.priority, 1)
+        XCTAssertEqual(group.secondaryPriority, 2)
+        XCTAssertEqual(group.sortPriority, 3)
+        XCTAssertEqual(group.stableOrderKey, 10)
+        XCTAssertEqual(group.members.count, 1)
+        XCTAssertEqual(group.members.first?.sortPriority, 3)
+        XCTAssertEqual(group.members.first?.stableOrderKey, 10)
+        XCTAssertEqual(group.members.first?.groupId, 10)
     }
 
     private func makeBaseGroup(index: Int,

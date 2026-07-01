@@ -1524,9 +1524,7 @@ struct VisibilityCycle {
         self.roadInstanceVisibility = Array(repeating: false, count: roadCount)
         self.roadInstanceVisibilityResolved = Array(repeating: false, count: roadCount)
         self.gridBuckets = Array(repeating: [], count: max(1, self.gridWidth * self.gridHeight))
-        for group in seededGroups {
-            seedGroup(group)
-        }
+        seedGroups(seededGroups)
     }
 
     var isComplete: Bool {
@@ -1585,7 +1583,16 @@ struct VisibilityCycle {
         applyAccepted(group.target)
     }
 
-    private mutating func seedGroup(_ group: VisibilityCollisionGroup) {
+    private mutating func seedGroups(_ groups: [VisibilityCollisionGroup]) {
+        for group in groups.sorted(by: VisibilityCollisionGroup.sortForCollisionOrder) {
+            seedGroupIfUnblocked(group)
+        }
+    }
+
+    private mutating func seedGroupIfUnblocked(_ group: VisibilityCollisionGroup) {
+        var covered: [(candidate: VisibilityPlacedCandidate, cells: CoveredCellRange)] = []
+        covered.reserveCapacity(group.members.count)
+
         for member in group.members {
             guard member.isEnabled,
                   let cells = makeCoveredCellRange(for: member) else {
@@ -1596,7 +1603,15 @@ struct VisibilityCycle {
                                                    groupId: member.groupId,
                                                    target: group.target,
                                                    rank: group.rank)
-            insert(placed, cells: cells)
+            if collidingCandidates(candidate: placed, cells: cells).isEmpty == false {
+                applyRejected(group.target)
+                return
+            }
+            covered.append((placed, cells))
+        }
+
+        for item in covered {
+            insert(item.candidate, cells: item.cells)
         }
     }
 
