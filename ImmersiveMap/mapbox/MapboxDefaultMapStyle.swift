@@ -1258,11 +1258,11 @@ class MapboxDefaultMapStyle: ImmersiveMapStyle {
     private func houseNumberLabelSize(for tileZoom: Int) -> Float {
         switch tileZoom {
         case ...16:
-            return 36.0
+            return 24.0
         case 17:
-            return 39.0
+            return 26.0
         default:
-            return 42.0
+            return 28.0
         }
     }
     

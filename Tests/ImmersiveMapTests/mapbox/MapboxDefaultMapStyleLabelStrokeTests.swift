@@ -26,6 +26,18 @@ final class MapboxDefaultMapStyleLabelStrokeTests: XCTestCase {
                        accuracy: 0.0001)
     }
 
+    func testHouseNumberLabelsUseReducedFontSize() {
+        XCTAssertEqual(baseLabelSize(layerName: "housenum_label", zoom: 16),
+                       24.0,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelSize(layerName: "housenum_label", zoom: 17),
+                       26.0,
+                       accuracy: 0.0001)
+        XCTAssertEqual(baseLabelSize(layerName: "housenum_label", zoom: 18),
+                       28.0,
+                       accuracy: 0.0001)
+    }
+
     func testDistrictLabelsUseSubtleWhiteStroke() {
         XCTAssertEqual(baseLabelStroke(layerName: "place_label",
                                        properties: ["class": stringValue("settlement_subdivision")]),
@@ -100,6 +112,17 @@ final class MapboxDefaultMapStyleLabelStrokeTests: XCTestCase {
             return -1
         }
         return labelTextStyle.strokeWidthPx
+    }
+
+    private func baseLabelSize(layerName: String,
+                               properties: [String: VectorTile_Tile.Value] = [:],
+                               zoom: Int = 10) -> Float {
+        let style = makeStyle(layerName: layerName, properties: properties, zoom: zoom)
+        guard let labelTextStyle = style.labelTextStyle else {
+            XCTFail("Expected base label style for \(layerName)")
+            return -1
+        }
+        return labelTextStyle.sizePx
     }
 
     private func makeStyle(layerName: String,
