@@ -210,6 +210,34 @@ final class VisibilityCycleTests: XCTestCase {
         XCTAssertEqual(cycle.baseCollisionVisibility, [.unknown, .hidden])
     }
 
+    func testHigherRankGroupEvictsSeededLowerRankWinner() {
+        let seeded = makeBaseGroup(index: 0,
+                                   position: SIMD2<Float>(50, 50),
+                                   priority: 20,
+                                   sortPriority: 10,
+                                   stableOrderKey: 100,
+                                   groupId: 100)
+        let newGroup = makeBaseGroup(index: 1,
+                                     position: SIMD2<Float>(54, 50),
+                                     priority: 10,
+                                     sortPriority: 10,
+                                     stableOrderKey: 200,
+                                     groupId: 200)
+        var cycle = VisibilityCycle(topologyGeneration: 0,
+                                    cameraFingerprint: 10,
+                                    horizonReservationSignature: [],
+                                    viewportSize: SIMD2<Float>(200, 200),
+                                    baseCount: 2,
+                                    roadCount: 0,
+                                    groups: [newGroup],
+                                    seededGroups: [seeded],
+                                    cellSizePx: 32)
+
+        cycle.processNextGroups(maxGroupCount: 1)
+
+        XCTAssertEqual(cycle.baseCollisionVisibility, [.hidden, .visible])
+    }
+
     private func makeBaseGroup(index: Int,
                                position: SIMD2<Float>,
                                priority: Int,

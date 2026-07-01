@@ -1365,7 +1365,7 @@ private struct RoadPreparation {
     let instances: [RoadPreparedInstance]
 }
 
-enum VisibilityCollisionTarget {
+enum VisibilityCollisionTarget: Hashable {
     case base(Int)
     case road(Int)
 }
@@ -1497,7 +1497,7 @@ struct VisibilityCycle {
     private mutating func processGroup(_ group: VisibilityCollisionGroup) {
         var covered: [(candidate: VisibilityPlacedCandidate, cells: CoveredCellRange)] = []
         covered.reserveCapacity(group.members.count)
-        var hasCollision = false
+        var targetsToEvict: Set<VisibilityCollisionTarget> = []
 
         for member in group.members {
             guard member.isEnabled,
@@ -1509,18 +1509,21 @@ struct VisibilityCycle {
                                                    groupId: member.groupId,
                                                    target: group.target,
                                                    rank: group.rank)
-            if intersectsExisting(candidate: placed, cells: cells) {
-                hasCollision = true
-                break
+            let collisions = collidingCandidates(candidate: placed, cells: cells)
+            for collision in collisions {
+                guard group.rank.strictlyOutranks(collision.rank) else {
+                    applyRejected(group.target)
+                    return
+                }
+                targetsToEvict.insert(collision.target)
             }
             covered.append((placed, cells))
         }
 
-        if hasCollision {
-            applyRejected(group.target)
-            return
+        remove(targets: targetsToEvict)
+        for target in targetsToEvict {
+            applyRejected(target)
         }
-
         for item in covered {
             insert(item.candidate, cells: item.cells)
         }
@@ -1566,8 +1569,9 @@ struct VisibilityCycle {
         }
     }
 
-    private func intersectsExisting(candidate: VisibilityPlacedCandidate,
-                                    cells: CoveredCellRange) -> Bool {
+    private func collidingCandidates(candidate: VisibilityPlacedCandidate,
+                                     cells: CoveredCellRange) -> [VisibilityPlacedCandidate] {
+        var collisions: [VisibilityPlacedCandidate] = []
         for cellY in cells.minY...cells.maxY {
             for cellX in cells.minX...cells.maxX {
                 let bucketIndex = cellY * gridWidth + cellX
@@ -1579,12 +1583,24 @@ struct VisibilityCycle {
                     let delta = simd_abs(candidate.position - other.position)
                     let overlap = candidate.halfSize + other.halfSize
                     if delta.x < overlap.x && delta.y < overlap.y {
-                        return true
+                        collisions.append(other)
                     }
                 }
             }
         }
-        return false
+        return collisions
+    }
+
+    private mutating func remove(targets: Set<VisibilityCollisionTarget>) {
+        guard targets.isEmpty == false else {
+            return
+        }
+
+        for bucketIndex in gridBuckets.indices {
+            gridBuckets[bucketIndex].removeAll { placed in
+                targets.contains(placed.target)
+            }
+        }
     }
 
     private mutating func insert(_ candidate: VisibilityPlacedCandidate,
