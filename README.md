@@ -8,14 +8,6 @@ Contact: [@BobkinArtem](https://x.com/BobkinArtem)
 
 I am open to adapting ImmersiveMap for specific business use cases.
 
-## Screenshots
-
-![ImmersiveMap terrain view](Documentation/Assets/immersive-map-terrain.png)
-
-![ImmersiveMap globe Europe view](Documentation/Assets/immersive-map-globe-europe.png)
-
-![ImmersiveMap globe overview](Documentation/Assets/immersive-map-globe-overview.png)
-
 ## Add To Xcode
 
 In Xcode, select `File` -> `Add Package Dependencies...` and add:
@@ -53,3 +45,11 @@ struct ContentView: View {
     }
 }
 ```
+
+## Screenshots
+
+![ImmersiveMap terrain view](Documentation/Assets/immersive-map-terrain.png)
+
+![ImmersiveMap globe Europe view](Documentation/Assets/immersive-map-globe-europe.png)
+
+![ImmersiveMap globe overview](Documentation/Assets/immersive-map-globe-overview.png)
