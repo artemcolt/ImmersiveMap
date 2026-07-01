@@ -1456,6 +1456,7 @@ struct VisibilityCycle {
          baseCount: Int,
          roadCount: Int,
          groups: [VisibilityCollisionGroup],
+         seededGroups: [VisibilityCollisionGroup] = [],
          cellSizePx: Float) {
         self.topologyGeneration = topologyGeneration
         self.cameraFingerprint = cameraFingerprint
@@ -1468,6 +1469,9 @@ struct VisibilityCycle {
         self.roadInstanceVisibility = Array(repeating: false, count: roadCount)
         self.roadInstanceVisibilityResolved = Array(repeating: false, count: roadCount)
         self.gridBuckets = Array(repeating: [], count: max(1, self.gridWidth * self.gridHeight))
+        for group in seededGroups {
+            seedGroup(group)
+        }
     }
 
     var isComplete: Bool {
@@ -1502,7 +1506,9 @@ struct VisibilityCycle {
             }
             let placed = VisibilityPlacedCandidate(position: member.position,
                                                    halfSize: member.halfSize,
-                                                   groupId: member.groupId)
+                                                   groupId: member.groupId,
+                                                   target: group.target,
+                                                   rank: group.rank)
             if intersectsExisting(candidate: placed, cells: cells) {
                 hasCollision = true
                 break
@@ -1519,6 +1525,21 @@ struct VisibilityCycle {
             insert(item.candidate, cells: item.cells)
         }
         applyAccepted(group.target)
+    }
+
+    private mutating func seedGroup(_ group: VisibilityCollisionGroup) {
+        for member in group.members {
+            guard member.isEnabled,
+                  let cells = makeCoveredCellRange(for: member) else {
+                continue
+            }
+            let placed = VisibilityPlacedCandidate(position: member.position,
+                                                   halfSize: member.halfSize,
+                                                   groupId: member.groupId,
+                                                   target: group.target,
+                                                   rank: group.rank)
+            insert(placed, cells: cells)
+        }
     }
 
     private mutating func applyAccepted(_ target: VisibilityCollisionTarget) {
@@ -1608,6 +1629,8 @@ private struct VisibilityPlacedCandidate {
     let position: SIMD2<Float>
     let halfSize: SIMD2<Float>
     let groupId: UInt64
+    let target: VisibilityCollisionTarget
+    let rank: VisibilityCollisionRank
 }
 
 private struct CoveredCellRange {
