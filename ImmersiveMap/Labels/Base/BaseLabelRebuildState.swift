@@ -13,8 +13,14 @@ final class BaseLabelRebuildState {
     }
 
     func buildSnapshot(trackedPlaceTiles: [PlaceTileRetantionTracker.TrackedPlaceTile],
-                       tileIndexAllocator: VisibleTileIndexAllocator) -> Snapshot {
-        let sourceEntries = BaseLabelSourceEntry.build(from: trackedPlaceTiles)
+                       tileIndexAllocator: VisibleTileIndexAllocator,
+                       center: Center,
+                       centerZoom: Int,
+                       renderSurfaceMode: ViewMode) -> Snapshot {
+        let sourceEntries = BaseLabelSourceEntry.build(from: trackedPlaceTiles,
+                                                       center: center,
+                                                       centerZoom: centerZoom,
+                                                       renderSurfaceMode: renderSurfaceMode)
         var tilePointInputs: [TilePointInput] = []
         var baseLabelsDrawBatches: [LabelsDrawBatch] = []
         // Per-label runtime flags used by collision and draw passes.
@@ -23,17 +29,17 @@ final class BaseLabelRebuildState {
 
         for sourceEntry in sourceEntries {
             let metalTile = sourceEntry.metalTile
-            let textLabels = metalTile.tileBuffers.textLabels
-            guard textLabels.labelsCount > 0 else {
+            let selectedTextLabelSet = metalTile.tileBuffers.textLabels.set(for: sourceEntry.labelDetailTier)
+            guard selectedTextLabelSet.labelsCount > 0 else {
                 continue
             }
             let tileSlotIndex = tileIndexAllocator.tileIndex(for: sourceEntry.ownerKey)
             let retainedFlag: UInt8 = sourceEntry.isRetained ? 1 : 0
             // Each input is a tile point where a label is anchored.
             // Collect one large contiguous array of these points across all tracked tiles for GPU passes.
-            tilePointInputs.reserveCapacity(tilePointInputs.count + textLabels.placementInputs.count)
-            runtimeMeta.reserveCapacity(runtimeMeta.count + textLabels.placementInputs.count)
-            for label in textLabels.placementInputs {
+            tilePointInputs.reserveCapacity(tilePointInputs.count + selectedTextLabelSet.placementInputs.count)
+            runtimeMeta.reserveCapacity(runtimeMeta.count + selectedTextLabelSet.placementInputs.count)
+            for label in selectedTextLabelSet.placementInputs {
                 var input = label.pointInput
                 input.tileSlotIndex = tileSlotIndex
                 tilePointInputs.append(input)
@@ -47,9 +53,9 @@ final class BaseLabelRebuildState {
                 seenLabelKeys.insert(meta.key)
             }
 
-            baseLabelsDrawBatches.append(LabelsDrawBatch(labelsByStyleRuns: textLabels.labelsByStyleRuns,
-                                                         poiIconRuns: textLabels.poiIconRuns,
-                                                         labelInstanceCount: textLabels.labelsCount))
+            baseLabelsDrawBatches.append(LabelsDrawBatch(labelsByStyleRuns: selectedTextLabelSet.labelsByStyleRuns,
+                                                         poiIconRuns: selectedTextLabelSet.poiIconRuns,
+                                                         labelInstanceCount: selectedTextLabelSet.labelsCount))
         }
 
         return Snapshot(tilePointInputs: tilePointInputs,

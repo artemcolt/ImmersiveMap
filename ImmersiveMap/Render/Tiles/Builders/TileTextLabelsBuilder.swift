@@ -4,6 +4,13 @@
 import simd
 
 final class TileTextLabelsBuilder {
+    struct BuiltBaseLabel {
+        let placementInput: TextLabelPlacementInput
+        let style: LabelTextStyle
+        let textVertices: [LabelVertex]
+        let iconVertices: [LabelVertex]
+    }
+
     private let textRenderer: TextRenderer
     private let poiAtlasLayout: PoiSpriteAtlasLayout
 
@@ -17,11 +24,8 @@ final class TileTextLabelsBuilder {
 
     func build(textLabels: [TileMvtParser.TextLabel], tile: Tile) -> PreparedTileCPU.TextLabels {
         let tileIndices = SIMD3<Int32>(Int32(tile.x), Int32(tile.y), Int32(tile.z))
-        var verticesByStyleKey: [Int: [LabelVertex]] = [:]
-        var iconVerticesByStyleKey: [Int: [LabelVertex]] = [:]
-        var styleByKey: [Int: LabelTextStyle] = [:]
-        var placementInputs: [TextLabelPlacementInput] = []
-        placementInputs.reserveCapacity(textLabels.count)
+        var builtLabels: [BuiltBaseLabel] = []
+        builtLabels.reserveCapacity(textLabels.count)
 
         let sortedLabels = textLabels.enumerated().sorted { lhs, rhs in
             if lhs.element.collisionPriority != rhs.element.collisionPriority {
@@ -41,7 +45,6 @@ final class TileTextLabelsBuilder {
             let uv = SIMD2<Float>(Float(uvX), Float(uvY))
 
             let style = label.textStyle
-            styleByKey[style.key] = style
             let weight = style.weight
             let labelIndex = simd_int1(sortedIndex)
             let contentScale = label.poiIcon == nil ? 1.0 : Self.poiCombinedLabelScale
@@ -59,12 +62,8 @@ final class TileTextLabelsBuilder {
                                                                            textStyle: style,
                                                                            labelIndex: labelIndex,
                                                                            contentScale: contentScale)
-            verticesByStyleKey[style.key, default: []].append(contentsOf: vertices)
-            if iconVertices.isEmpty == false {
-                iconVerticesByStyleKey[style.key, default: []].append(contentsOf: iconVertices)
-            }
 
-            placementInputs.append(TextLabelPlacementInput(
+            let placementInput = TextLabelPlacementInput(
                 pointInput: TilePointInput(uv: uv,
                                            tile: tileIndices,
                                            tileSlotIndex: 0),
@@ -72,7 +71,45 @@ final class TileTextLabelsBuilder {
                                                   sortKey: label.sortKey,
                                                   collisionPriority: label.collisionPriority,
                                                   labelSizePx: size)
-            ))
+            )
+            builtLabels.append(BuiltBaseLabel(placementInput: placementInput,
+                                             style: style,
+                                             textVertices: vertices,
+                                             iconVertices: iconVertices))
+        }
+
+        return Self.makeTextLabels(from: builtLabels)
+    }
+
+    static func makeTextLabels(from builtLabels: [BuiltBaseLabel]) -> PreparedTileCPU.TextLabels {
+        return PreparedTileCPU.TextLabels(
+            full: makeTextLabelSet(from: builtLabels, tier: .full),
+            reduced: makeTextLabelSet(from: builtLabels, tier: .reduced),
+            minimal: makeTextLabelSet(from: builtLabels, tier: .minimal)
+        )
+    }
+
+    private static func makeTextLabelSet(from builtLabels: [BuiltBaseLabel],
+                                         tier: BaseLabelDetailTier) -> PreparedTileCPU.TextLabelSet {
+        let retainedCount = BaseLabelDetailTier.retainedLabelCount(labelCount: builtLabels.count, tier: tier)
+        let retainedLabels = builtLabels.prefix(retainedCount)
+
+        var verticesByStyleKey: [Int: [LabelVertex]] = [:]
+        var iconVerticesByStyleKey: [Int: [LabelVertex]] = [:]
+        var styleByKey: [Int: LabelTextStyle] = [:]
+        var placementInputs: [TextLabelPlacementInput] = []
+        placementInputs.reserveCapacity(retainedCount)
+
+        for (compactIndex, builtLabel) in retainedLabels.enumerated() {
+            let labelIndex = simd_int1(compactIndex)
+            styleByKey[builtLabel.style.key] = builtLabel.style
+            placementInputs.append(builtLabel.placementInput)
+            verticesByStyleKey[builtLabel.style.key, default: []].append(contentsOf: remappedVertices(builtLabel.textVertices,
+                                                                                                       labelIndex: labelIndex))
+            if builtLabel.iconVertices.isEmpty == false {
+                iconVerticesByStyleKey[builtLabel.style.key, default: []].append(contentsOf: remappedVertices(builtLabel.iconVertices,
+                                                                                                               labelIndex: labelIndex))
+            }
         }
 
         var glyphRuns: [PreparedTileCPU.TextGlyphRun] = []
@@ -90,9 +127,17 @@ final class TileTextLabelsBuilder {
             }
         }
 
-        return PreparedTileCPU.TextLabels(placementInputs: placementInputs,
-                                          glyphRuns: glyphRuns,
-                                          poiIconRuns: poiIconRuns)
+        return PreparedTileCPU.TextLabelSet(placementInputs: placementInputs,
+                                            glyphRuns: glyphRuns,
+                                            poiIconRuns: poiIconRuns)
+    }
+
+    private static func remappedVertices(_ vertices: [LabelVertex], labelIndex: simd_int1) -> [LabelVertex] {
+        vertices.map { vertex in
+            var updated = vertex
+            updated.labelIndex = labelIndex
+            return updated
+        }
     }
 
     private func makeCombinedLabelGeometry(textMetrics: TextMetrics,

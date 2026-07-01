@@ -13,6 +13,7 @@ final class BaseLabelCache {
     private struct TileRecord {
         let ownerKey: VisibleTile
         var metalTileIdentity: ObjectIdentifier
+        var labelDetailTier: BaseLabelDetailTier
         var isRetained: Bool
         var tileSlotIndex: UInt32
         var allocation: BaseLabelTileArena.Allocation
@@ -49,8 +50,14 @@ final class BaseLabelCache {
     }
 
     func rebuild(trackedPlaceTiles: [PlaceTileRetantionTracker.TrackedPlaceTile],
-                 tileIndexAllocator: VisibleTileIndexAllocator) {
-        synchronize(sourceEntries: BaseLabelSourceEntry.build(from: trackedPlaceTiles),
+                 tileIndexAllocator: VisibleTileIndexAllocator,
+                 center: Center,
+                 centerZoom: Int,
+                 renderSurfaceMode: ViewMode) {
+        synchronize(sourceEntries: BaseLabelSourceEntry.build(from: trackedPlaceTiles,
+                                                              center: center,
+                                                              centerZoom: centerZoom,
+                                                              renderSurfaceMode: renderSurfaceMode),
                     tileIndexAllocator: tileIndexAllocator,
                     trackedTilesChanged: true,
                     projectionChanged: true)
@@ -272,30 +279,32 @@ final class BaseLabelCache {
     private func upsertTileRecord(_ sourceEntry: BaseLabelSourceEntry) {
         let ownerKey = sourceEntry.ownerKey
         let metalTile = sourceEntry.metalTile
-        let textLabels = metalTile.tileBuffers.textLabels
+        let selectedTextLabelSet = metalTile.tileBuffers.textLabels.set(for: sourceEntry.labelDetailTier)
         let metalTileIdentity = sourceEntry.metalTileIdentity
 
         if var existingRecord = tileRecordsByOwnerKey[ownerKey] {
-            let payloadChanged = existingRecord.metalTileIdentity != metalTileIdentity
-            let requiresReallocation = textLabels.labelsCount > existingRecord.allocation.capacity
+            let payloadChanged = existingRecord.metalTileIdentity != metalTileIdentity ||
+                existingRecord.labelDetailTier != sourceEntry.labelDetailTier
+            let requiresReallocation = selectedTextLabelSet.labelsCount > existingRecord.allocation.capacity
             if payloadChanged || requiresReallocation {
                 if requiresReallocation {
                     releaseAllocation(existingRecord.allocation)
-                    existingRecord.allocation = arena.allocateRange(requiredCount: textLabels.labelsCount)
+                    existingRecord.allocation = arena.allocateRange(requiredCount: selectedTextLabelSet.labelsCount)
                 }
 
-                let pointInputs = makeTilePointInputs(for: textLabels, tileSlotIndex: existingRecord.tileSlotIndex)
+                let pointInputs = makeTilePointInputs(for: selectedTextLabelSet, tileSlotIndex: existingRecord.tileSlotIndex)
                 resizeTilePointInputs(to: arena.activeRangeSpanCount)
                 tilePointInputByOwnerKey[ownerKey] = pointInputs
                 writePointInputs(pointInputs, at: existingRecord.allocation.start)
                 existingRecord.metalTileIdentity = metalTileIdentity
-                existingRecord.labelsCount = textLabels.labelsCount
-                existingRecord.labelKeys = textLabels.placementInputs.map(\.placementMeta.key)
-                existingRecord.labelSortKeys = textLabels.placementInputs.map(\.placementMeta.sortKey)
-                existingRecord.labelCollisionPriorities = textLabels.placementInputs.map(\.placementMeta.collisionPriority)
-                existingRecord.labelSizes = textLabels.placementInputs.map(\.placementMeta.labelSizePx)
-                existingRecord.labelsByStyleRuns = textLabels.labelsByStyleRuns
-                existingRecord.poiIconRuns = textLabels.poiIconRuns
+                existingRecord.labelDetailTier = sourceEntry.labelDetailTier
+                existingRecord.labelsCount = selectedTextLabelSet.labelsCount
+                existingRecord.labelKeys = selectedTextLabelSet.placementInputs.map(\.placementMeta.key)
+                existingRecord.labelSortKeys = selectedTextLabelSet.placementInputs.map(\.placementMeta.sortKey)
+                existingRecord.labelCollisionPriorities = selectedTextLabelSet.placementInputs.map(\.placementMeta.collisionPriority)
+                existingRecord.labelSizes = selectedTextLabelSet.placementInputs.map(\.placementMeta.labelSizePx)
+                existingRecord.labelsByStyleRuns = selectedTextLabelSet.labelsByStyleRuns
+                existingRecord.poiIconRuns = selectedTextLabelSet.poiIconRuns
             }
 
             existingRecord.isRetained = sourceEntry.isRetained
@@ -304,23 +313,24 @@ final class BaseLabelCache {
         }
 
         let tileSlotIndex = arena.allocateTileSlot()
-        let allocation = arena.allocateRange(requiredCount: textLabels.labelsCount)
-        let pointInputs = makeTilePointInputs(for: textLabels, tileSlotIndex: tileSlotIndex)
+        let allocation = arena.allocateRange(requiredCount: selectedTextLabelSet.labelsCount)
+        let pointInputs = makeTilePointInputs(for: selectedTextLabelSet, tileSlotIndex: tileSlotIndex)
         resizeTilePointInputs(to: arena.activeRangeSpanCount)
         tilePointInputByOwnerKey[ownerKey] = pointInputs
         writePointInputs(pointInputs, at: allocation.start)
         tileRecordsByOwnerKey[ownerKey] = TileRecord(ownerKey: ownerKey,
                                                            metalTileIdentity: metalTileIdentity,
+                                                           labelDetailTier: sourceEntry.labelDetailTier,
                                                            isRetained: sourceEntry.isRetained,
                                                            tileSlotIndex: tileSlotIndex,
                                                            allocation: allocation,
-                                                           labelsCount: textLabels.labelsCount,
-                                                           labelKeys: textLabels.placementInputs.map(\.placementMeta.key),
-                                                           labelSortKeys: textLabels.placementInputs.map(\.placementMeta.sortKey),
-                                                           labelCollisionPriorities: textLabels.placementInputs.map(\.placementMeta.collisionPriority),
-                                                           labelSizes: textLabels.placementInputs.map(\.placementMeta.labelSizePx),
-                                                           labelsByStyleRuns: textLabels.labelsByStyleRuns,
-                                                           poiIconRuns: textLabels.poiIconRuns)
+                                                           labelsCount: selectedTextLabelSet.labelsCount,
+                                                           labelKeys: selectedTextLabelSet.placementInputs.map(\.placementMeta.key),
+                                                           labelSortKeys: selectedTextLabelSet.placementInputs.map(\.placementMeta.sortKey),
+                                                           labelCollisionPriorities: selectedTextLabelSet.placementInputs.map(\.placementMeta.collisionPriority),
+                                                           labelSizes: selectedTextLabelSet.placementInputs.map(\.placementMeta.labelSizePx),
+                                                           labelsByStyleRuns: selectedTextLabelSet.labelsByStyleRuns,
+                                                           poiIconRuns: selectedTextLabelSet.poiIconRuns)
     }
 
     private func removeTileRecord(for ownerKey: VisibleTile) {
@@ -339,11 +349,11 @@ final class BaseLabelCache {
         arena.releaseRange(allocation)
     }
 
-    private func makeTilePointInputs(for textLabels: TileBuffers.TextLabels,
+    private func makeTilePointInputs(for selectedTextLabelSet: TileBuffers.TextLabelSet,
                                      tileSlotIndex: UInt32) -> [TilePointInput] {
         var pointInputs: [TilePointInput] = []
-        pointInputs.reserveCapacity(textLabels.placementInputs.count)
-        for label in textLabels.placementInputs {
+        pointInputs.reserveCapacity(selectedTextLabelSet.placementInputs.count)
+        for label in selectedTextLabelSet.placementInputs {
             var pointInput = label.pointInput
             pointInput.tileSlotIndex = tileSlotIndex
             pointInputs.append(pointInput)

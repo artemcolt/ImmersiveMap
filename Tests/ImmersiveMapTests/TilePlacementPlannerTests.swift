@@ -90,9 +90,9 @@ final class TilePlacementPlannerTests: XCTestCase {
                            roads: roads,
                            bridgeOverlay: ground,
                            extruded: extruded,
-                           textLabels: TileBuffers.TextLabels(placementInputs: [],
-                                                               labelsByStyleRuns: [],
-                                                               poiIconRuns: []),
+                           textLabels: TileBuffers.TextLabels(full: emptyTextLabelSet(),
+                                                               reduced: emptyTextLabelSet(),
+                                                               minimal: emptyTextLabelSet()),
                            roadLabels: TileBuffers.RoadLabels(pathInputs: [],
                                                               pathRanges: [],
                                                               pathLabels: [],
@@ -104,5 +104,11 @@ final class TilePlacementPlannerTests: XCTestCase {
                                                               sizes: [],
                                                               anchorRanges: [],
                                                               anchors: []))
+    }
+
+    private func emptyTextLabelSet() -> TileBuffers.TextLabelSet {
+        TileBuffers.TextLabelSet(placementInputs: [],
+                                 labelsByStyleRuns: [],
+                                 poiIconRuns: [])
     }
 }

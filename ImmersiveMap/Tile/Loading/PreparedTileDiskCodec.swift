@@ -48,9 +48,9 @@ enum PreparedTileDiskCodec {
         let extrudedIndexCount: UInt32
         let extrudedStyles: Data
         let extrudedStyleCount: UInt32
-        let textPlacementInputs: [TextPlacementInputValue]
-        let textGlyphRuns: [TextGlyphRunValue]
-        let textPoiIconRuns: [TextPoiIconRunValue]
+        let textFull: TextLabelSetValue
+        let textReduced: TextLabelSetValue
+        let textMinimal: TextLabelSetValue
         let roadPathInputs: Data
         let roadPathInputCount: UInt32
         let roadPathRanges: [RoadPathRangeValue]
@@ -318,6 +318,24 @@ enum PreparedTileDiskCodec {
         }
     }
 
+    struct TextLabelSetValue: Codable {
+        let placementInputs: [TextPlacementInputValue]
+        let glyphRuns: [TextGlyphRunValue]
+        let poiIconRuns: [TextPoiIconRunValue]
+
+        init(_ set: PreparedTileCPU.TextLabelSet) throws {
+            placementInputs = try set.placementInputs.map(TextPlacementInputValue.init)
+            glyphRuns = try set.glyphRuns.map(TextGlyphRunValue.init)
+            poiIconRuns = try set.poiIconRuns.map(TextPoiIconRunValue.init)
+        }
+
+        func runtimeValue() throws -> PreparedTileCPU.TextLabelSet {
+            PreparedTileCPU.TextLabelSet(placementInputs: placementInputs.map { $0.runtimeValue() },
+                                         glyphRuns: try glyphRuns.map { try $0.runtimeValue() },
+                                         poiIconRuns: try poiIconRuns.map { try $0.runtimeValue() })
+        }
+    }
+
     struct RoadPathRangeValue: Codable {
         let start: UInt32
         let count: UInt32
@@ -441,9 +459,9 @@ enum PreparedTileDiskCodec {
             extrudedIndexCount: encodeUInt32(preparedTile.extruded.indices.count, field: "Extruded.indices.count"),
             extrudedStyles: encodePODArray(preparedTile.extruded.styles),
             extrudedStyleCount: encodeUInt32(preparedTile.extruded.styles.count, field: "Extruded.styles.count"),
-            textPlacementInputs: try preparedTile.textLabels.placementInputs.map(TextPlacementInputValue.init),
-            textGlyphRuns: try preparedTile.textLabels.glyphRuns.map(TextGlyphRunValue.init),
-            textPoiIconRuns: try preparedTile.textLabels.poiIconRuns.map(TextPoiIconRunValue.init),
+            textFull: try TextLabelSetValue(preparedTile.textLabels.full),
+            textReduced: try TextLabelSetValue(preparedTile.textLabels.reduced),
+            textMinimal: try TextLabelSetValue(preparedTile.textLabels.minimal),
             roadPathInputs: encodePODArray(preparedTile.roadLabels.pathInputs),
             roadPathInputCount: encodeUInt32(preparedTile.roadLabels.pathInputs.count, field: "RoadLabels.pathInputs.count"),
             roadPathRanges: try preparedTile.roadLabels.pathRanges.map(RoadPathRangeValue.init),
@@ -522,11 +540,9 @@ enum PreparedTileDiskCodec {
                                            as: TilePolygonStyle.self,
                                            field: "Entry.extrudedStyles")
             ),
-            textLabels: PreparedTileCPU.TextLabels(
-                placementInputs: entry.textPlacementInputs.map { $0.runtimeValue() },
-                glyphRuns: try entry.textGlyphRuns.map { try $0.runtimeValue() },
-                poiIconRuns: try entry.textPoiIconRuns.map { try $0.runtimeValue() }
-            ),
+            textLabels: PreparedTileCPU.TextLabels(full: try entry.textFull.runtimeValue(),
+                                                   reduced: try entry.textReduced.runtimeValue(),
+                                                   minimal: try entry.textMinimal.runtimeValue()),
             roadLabels: PreparedTileCPU.RoadLabels(
                 pathInputs: try decodePODArray(entry.roadPathInputs,
                                                count: Int(entry.roadPathInputCount),

@@ -229,6 +229,9 @@ final class DebugOverlayRenderer {
         appendSection(title: "Tiles", body: [tileLine], into: &lines)
 
         let labelLine = "base:\(diagnostics.counterValue(.baseLabelCount)) " +
+            "bT:\(diagnostics.counterValue(.baseLabelFullTileCount))/" +
+            "\(diagnostics.counterValue(.baseLabelReducedTileCount))/" +
+            "\(diagnostics.counterValue(.baseLabelMinimalTileCount)) " +
             "roadG:\(diagnostics.counterValue(.roadLabelGlyphCount)) " +
             "roadI:\(diagnostics.counterValue(.roadLabelInstanceCount))"
         appendSection(title: "Labels", body: [labelLine], into: &lines)

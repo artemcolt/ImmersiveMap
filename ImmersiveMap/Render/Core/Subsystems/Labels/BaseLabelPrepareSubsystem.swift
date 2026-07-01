@@ -33,7 +33,8 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
     private let visibilityRefreshInterval: TimeInterval = 0.2
     private let collisionGroupBudgetPerFrame: Int = 256
 
-    private var sourceEntriesVersionTracker = StagedHashChangeTracker()
+    private var baseSourceEntriesVersionTracker = StagedHashChangeTracker()
+    private var roadSourceEntriesVersionTracker = StagedHashChangeTracker()
     private var projectionVersionTracker = StagedHashChangeTracker()
     private var roadOrientationByInstanceKey: [UInt64: Bool] = [:]
     private var roadDrawLabels: [DrawRoadLabels] = []
@@ -138,30 +139,42 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
     func update(frameContext: FrameContext) {
         let placeTileTrackingState = frameContext.sharedState.placeTileTrackingState
         let projectionIndexState = frameContext.sharedState.tileProjectionIndexState
-        let sourceEntries = BaseLabelSourceEntry.build(from: placeTileTrackingState.placeTiles)
+        let sourceEntries = BaseLabelSourceEntry.build(from: placeTileTrackingState.placeTiles,
+                                                       center: frameContext.visibleContent.center,
+                                                       centerZoom: frameContext.visibleContent.tileZoomLevel,
+                                                       renderSurfaceMode: frameContext.renderSurfaceMode)
+        let baseLabelTierCounts = Self.countLabelDetailTiers(sourceEntries)
+        frameContext.services.diagnostics.setCounter(.baseLabelFullTileCount, value: baseLabelTierCounts.full)
+        frameContext.services.diagnostics.setCounter(.baseLabelReducedTileCount, value: baseLabelTierCounts.reduced)
+        frameContext.services.diagnostics.setCounter(.baseLabelMinimalTileCount, value: baseLabelTierCounts.minimal)
         latestCameraFingerprint = makeVisibilityCameraFingerprint(frameContext: frameContext)
 
-        let trackedTilesChanged = sourceEntriesVersionTracker.stage(BaseLabelSourceEntry.makeHash(sourceEntries))
+        let baseTrackedTilesChanged = baseSourceEntriesVersionTracker.stage(BaseLabelSourceEntry.makeBaseLabelHash(sourceEntries))
+        let roadTrackedTilesChanged = roadSourceEntriesVersionTracker.stage(BaseLabelSourceEntry.makeRoadLabelHash(sourceEntries))
         let projectionChanged = projectionVersionTracker.stage(Int(truncatingIfNeeded: projectionIndexState.sourceIndexVersion))
-        if trackedTilesChanged || projectionChanged {
+        let sourceTilesChanged = baseTrackedTilesChanged || roadTrackedTilesChanged
+        if sourceTilesChanged || projectionChanged {
             let previousBaseVisibilityByKey = makePublishedBaseVisibilityByKey()
             let previousRoadVisibilityByKey = makePublishedRoadVisibilityByKey()
             baseLabelCache.synchronize(sourceEntries: sourceEntries,
                                        tileIndexAllocator: projectionIndexState.tileIndexAllocator,
-                                       trackedTilesChanged: trackedTilesChanged,
+                                       trackedTilesChanged: baseTrackedTilesChanged,
                                        projectionChanged: projectionChanged)
             roadLabelCache?.synchronize(sourceEntries: sourceEntries,
                                         tileIndexAllocator: projectionIndexState.tileIndexAllocator,
-                                        trackedTilesChanged: trackedTilesChanged,
+                                        trackedTilesChanged: roadTrackedTilesChanged,
                                         projectionChanged: projectionChanged)
-            refreshGpuTopology(trackedTilesChanged: trackedTilesChanged,
+            refreshGpuTopology(trackedTilesChanged: baseTrackedTilesChanged,
                                projectionChanged: projectionChanged)
             visibilityTopologyGeneration &+= 1
             reseedPublishedVisibilityState(baseVisibilityByKey: previousBaseVisibilityByKey,
                                           roadVisibilityByKey: previousRoadVisibilityByKey)
             visibilityCycle = nil
-            if trackedTilesChanged {
-                sourceEntriesVersionTracker.commitPending()
+            if baseTrackedTilesChanged {
+                baseSourceEntriesVersionTracker.commitPending()
+            }
+            if roadTrackedTilesChanged {
+                roadSourceEntriesVersionTracker.commitPending()
             }
             if projectionChanged {
                 projectionVersionTracker.commitPending()
@@ -184,7 +197,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                       baseProjection: baseProjection,
                                       currentBaseAlphas: currentBaseAlphas,
                                       horizonReservationSignature: horizonReservationSignature,
-                                      forceRestart: trackedTilesChanged || projectionChanged)
+                                      forceRestart: sourceTilesChanged || projectionChanged)
             advanceVisibilityCycleIfNeeded(frameContext: frameContext)
         } else {
             visibilityCycle = nil
@@ -234,6 +247,25 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         frameContext.services.diagnostics.setCounter(.baseLabelCount, value: baseLabelCache.labelInputsCount)
         frameContext.services.diagnostics.setCounter(.roadLabelGlyphCount, value: roadState.glyphCount)
         frameContext.services.diagnostics.setCounter(.roadLabelInstanceCount, value: roadState.instanceCount)
+    }
+
+    private static func countLabelDetailTiers(_ sourceEntries: [BaseLabelSourceEntry]) -> (full: Int, reduced: Int, minimal: Int) {
+        var fullCount = 0
+        var reducedCount = 0
+        var minimalCount = 0
+
+        for sourceEntry in sourceEntries {
+            switch sourceEntry.labelDetailTier {
+            case .full:
+                fullCount += 1
+            case .reduced:
+                reducedCount += 1
+            case .minimal:
+                minimalCount += 1
+            }
+        }
+
+        return (full: fullCount, reduced: reducedCount, minimal: minimalCount)
     }
 
     func prepareGPU(frameContext: FrameContext, resourceRegistry _: RenderResourceRegistry) {
@@ -331,7 +363,8 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         roadPresentationStateStore.reset()
         roadOrientationByInstanceKey.removeAll(keepingCapacity: false)
         roadDrawLabels.removeAll(keepingCapacity: false)
-        sourceEntriesVersionTracker.invalidate()
+        baseSourceEntriesVersionTracker.invalidate()
+        roadSourceEntriesVersionTracker.invalidate()
         projectionVersionTracker.invalidate()
     }
 

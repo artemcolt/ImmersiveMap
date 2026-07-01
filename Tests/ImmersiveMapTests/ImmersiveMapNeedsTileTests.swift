@@ -460,6 +460,9 @@ private final class ControlledTileLoadPipeline: TileLoadPipeline {
                                                  detail: emptyGeometry,
                                                  overlay: emptyGeometry)
 
+        let emptyTextLabelSet = PreparedTileCPU.TextLabelSet(placementInputs: [],
+                                                             glyphRuns: [],
+                                                             poiIconRuns: [])
         return PreparedTileCPU(tile: tile,
                                ground: emptyGeometry,
                                roads: RoadStructureBuckets(tunnel: emptyRoadPhases,
@@ -469,9 +472,9 @@ private final class ControlledTileLoadPipeline: TileLoadPipeline {
                                extruded: PreparedTileCPU.Extruded(vertices: [],
                                                                   indices: [],
                                                                   styles: []),
-                               textLabels: PreparedTileCPU.TextLabels(placementInputs: [],
-                                                                       glyphRuns: [],
-                                                                       poiIconRuns: []),
+                               textLabels: PreparedTileCPU.TextLabels(full: emptyTextLabelSet,
+                                                                       reduced: emptyTextLabelSet,
+                                                                       minimal: emptyTextLabelSet),
                                roadLabels: PreparedTileCPU.RoadLabels(pathInputs: [],
                                                                       pathRanges: [],
                                                                       pathLabels: [],

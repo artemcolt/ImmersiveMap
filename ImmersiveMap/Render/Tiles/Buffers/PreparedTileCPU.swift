@@ -31,10 +31,27 @@ struct PreparedTileCPU {
         let localIconVertices: [LabelVertex]
     }
 
-    struct TextLabels {
+    struct TextLabelSet {
         let placementInputs: [TextLabelPlacementInput]
         let glyphRuns: [TextGlyphRun]
         let poiIconRuns: [PoiIconRun]
+    }
+
+    struct TextLabels {
+        let full: TextLabelSet
+        let reduced: TextLabelSet
+        let minimal: TextLabelSet
+
+        func set(for tier: BaseLabelDetailTier) -> TextLabelSet {
+            switch tier {
+            case .full:
+                return full
+            case .reduced:
+                return reduced
+            case .minimal:
+                return minimal
+            }
+        }
     }
 
     struct RoadLabels {

@@ -35,7 +35,13 @@ final class MetalTileFactory {
     }
 
     private func makeTextLabels(from preparedTextLabels: PreparedTileCPU.TextLabels) -> TileBuffers.TextLabels {
-        let glyphRuns = preparedTextLabels.glyphRuns.map { run in
+        return TileBuffers.TextLabels(full: makeTextLabelSet(from: preparedTextLabels.full),
+                                      reduced: makeTextLabelSet(from: preparedTextLabels.reduced),
+                                      minimal: makeTextLabelSet(from: preparedTextLabels.minimal))
+    }
+
+    private func makeTextLabelSet(from preparedSet: PreparedTileCPU.TextLabelSet) -> TileBuffers.TextLabelSet {
+        let glyphRuns = preparedSet.glyphRuns.map { run in
             let buffer: MTLBuffer?
             if run.localGlyphVertices.isEmpty {
                 buffer = nil
@@ -48,7 +54,7 @@ final class MetalTileFactory {
                                     localGlyphVertexCount: run.localGlyphVertices.count)
         }
 
-        let poiIconRuns = preparedTextLabels.poiIconRuns.map { run in
+        let poiIconRuns = preparedSet.poiIconRuns.map { run in
             let buffer: MTLBuffer?
             if run.localIconVertices.isEmpty {
                 buffer = nil
@@ -61,9 +67,9 @@ final class MetalTileFactory {
                                     localVertexCount: run.localIconVertices.count)
         }
 
-        return TileBuffers.TextLabels(placementInputs: preparedTextLabels.placementInputs,
-                                      labelsByStyleRuns: glyphRuns,
-                                      poiIconRuns: poiIconRuns)
+        return TileBuffers.TextLabelSet(placementInputs: preparedSet.placementInputs,
+                                        labelsByStyleRuns: glyphRuns,
+                                        poiIconRuns: poiIconRuns)
     }
 
     private func makeRoadLabels(from preparedRoadLabels: PreparedTileCPU.RoadLabels) -> TileBuffers.RoadLabels {

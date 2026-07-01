@@ -16,6 +16,9 @@ final class FrameDiagnostics: FrameDiagnosticsService {
         case renderedTiles
         case retainedTiles
         case baseLabelCount
+        case baseLabelFullTileCount
+        case baseLabelReducedTileCount
+        case baseLabelMinimalTileCount
         case roadLabelGlyphCount
         case roadLabelInstanceCount
         case resourceBufferCount
