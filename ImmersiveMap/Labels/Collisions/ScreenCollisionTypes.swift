@@ -13,6 +13,8 @@ struct ScreenCollisionCandidate {
     var halfSize: SIMD2<Float>
     var priority: Int
     var secondaryPriority: Int
+    var sortPriority: Int
+    var stableOrderKey: UInt64
     var groupId: UInt64
     var isEnabled: Bool
 
@@ -20,12 +22,16 @@ struct ScreenCollisionCandidate {
          halfSize: SIMD2<Float>,
          priority: Int = .max,
          secondaryPriority: Int = .max,
+         sortPriority: Int = .max,
+         stableOrderKey: UInt64 = UInt64.max,
          groupId: UInt64 = 0,
          isEnabled: Bool) {
         self.position = position
         self.halfSize = halfSize
         self.priority = priority
         self.secondaryPriority = secondaryPriority
+        self.sortPriority = sortPriority
+        self.stableOrderKey = stableOrderKey
         self.groupId = groupId
         self.isEnabled = isEnabled
     }

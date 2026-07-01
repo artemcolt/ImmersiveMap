@@ -903,20 +903,28 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
 
         for index in baseCandidates.indices {
             let candidate = baseCandidates[index]
+            let stableOrderKey = candidate.stableOrderKey == UInt64.max ? UInt64(index) : candidate.stableOrderKey
             groups.append(VisibilityCollisionGroup(target: .base(index),
                                                   members: [candidate],
                                                   priority: candidate.priority,
-                                                  secondaryPriority: candidate.secondaryPriority))
+                                                  secondaryPriority: candidate.secondaryPriority,
+                                                  sortPriority: candidate.sortPriority,
+                                                  stableOrderKey: stableOrderKey))
         }
 
         for instance in roadInstances {
             guard let firstCandidate = instance.collisionCandidates.first else {
                 continue
             }
+            let stableOrderKey = firstCandidate.stableOrderKey == UInt64.max
+                ? UInt64(instance.targetIndex) | (1 << 63)
+                : firstCandidate.stableOrderKey
             groups.append(VisibilityCollisionGroup(target: .road(instance.targetIndex),
                                                   members: instance.collisionCandidates,
                                                   priority: firstCandidate.priority,
-                                                  secondaryPriority: firstCandidate.secondaryPriority))
+                                                  secondaryPriority: firstCandidate.secondaryPriority,
+                                                  sortPriority: firstCandidate.sortPriority,
+                                                  stableOrderKey: stableOrderKey))
         }
 
         return groups.sorted(by: VisibilityCollisionGroup.sortForCollisionOrder)
@@ -1367,30 +1375,61 @@ enum VisibilityCollisionTarget {
     case road(Int)
 }
 
+struct VisibilityCollisionRank: Equatable {
+    let priority: Int
+    let secondaryPriority: Int
+    let sortPriority: Int
+
+    func strictlyOutranks(_ other: VisibilityCollisionRank) -> Bool {
+        if priority != other.priority {
+            return priority < other.priority
+        }
+        if secondaryPriority != other.secondaryPriority {
+            return secondaryPriority < other.secondaryPriority
+        }
+        if sortPriority != other.sortPriority {
+            return sortPriority < other.sortPriority
+        }
+        return false
+    }
+}
+
 struct VisibilityCollisionGroup {
     let target: VisibilityCollisionTarget
     let members: [ScreenCollisionCandidate]
-    let priority: Int
-    let secondaryPriority: Int
+    let rank: VisibilityCollisionRank
+    let stableOrderKey: UInt64
+
+    init(target: VisibilityCollisionTarget,
+         members: [ScreenCollisionCandidate],
+         priority: Int,
+         secondaryPriority: Int,
+         sortPriority: Int = .max,
+         stableOrderKey: UInt64 = UInt64.max) {
+        self.target = target
+        self.members = members
+        self.rank = VisibilityCollisionRank(priority: priority,
+                                            secondaryPriority: secondaryPriority,
+                                            sortPriority: sortPriority)
+        self.stableOrderKey = stableOrderKey
+    }
+
+    var priority: Int { rank.priority }
+    var secondaryPriority: Int { rank.secondaryPriority }
+    var sortPriority: Int { rank.sortPriority }
 
     static func sortForCollisionOrder(lhs: VisibilityCollisionGroup,
                                       rhs: VisibilityCollisionGroup) -> Bool {
-        if lhs.priority != rhs.priority {
-            return lhs.priority < rhs.priority
+        if lhs.rank.priority != rhs.rank.priority {
+            return lhs.rank.priority < rhs.rank.priority
         }
-        if lhs.secondaryPriority != rhs.secondaryPriority {
-            return lhs.secondaryPriority < rhs.secondaryPriority
+        if lhs.rank.secondaryPriority != rhs.rank.secondaryPriority {
+            return lhs.rank.secondaryPriority < rhs.rank.secondaryPriority
+        }
+        if lhs.rank.sortPriority != rhs.rank.sortPriority {
+            return lhs.rank.sortPriority < rhs.rank.sortPriority
         }
         return lhs.stableOrderKey < rhs.stableOrderKey
-    }
-
-    private var stableOrderKey: UInt64 {
-        switch target {
-        case let .base(index):
-            return UInt64(index)
-        case let .road(index):
-            return UInt64(index) | (1 << 63)
-        }
     }
 }
 

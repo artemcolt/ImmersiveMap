@@ -123,33 +123,87 @@ final class VisibilityCycleTests: XCTestCase {
         XCTAssertTrue(shouldPublish)
     }
 
+    func testCollisionOrderUsesSortPriorityBeforeStableKey() {
+        let lowerSort = VisibilityCollisionGroup(target: .base(0),
+                                                 members: [],
+                                                 priority: 10,
+                                                 secondaryPriority: 0,
+                                                 sortPriority: 20,
+                                                 stableOrderKey: 500)
+        let higherSort = VisibilityCollisionGroup(target: .base(1),
+                                                  members: [],
+                                                  priority: 10,
+                                                  secondaryPriority: 0,
+                                                  sortPriority: 30,
+                                                  stableOrderKey: 1)
+
+        XCTAssertTrue(VisibilityCollisionGroup.sortForCollisionOrder(lhs: lowerSort, rhs: higherSort))
+        XCTAssertFalse(VisibilityCollisionGroup.sortForCollisionOrder(lhs: higherSort, rhs: lowerSort))
+    }
+
+    func testCollisionOrderUsesStableKeyOnlyAfterEqualRank() {
+        let first = VisibilityCollisionGroup(target: .base(10),
+                                             members: [],
+                                             priority: 10,
+                                             secondaryPriority: 0,
+                                             sortPriority: 20,
+                                             stableOrderKey: 100)
+        let second = VisibilityCollisionGroup(target: .base(1),
+                                              members: [],
+                                              priority: 10,
+                                              secondaryPriority: 0,
+                                              sortPriority: 20,
+                                              stableOrderKey: 200)
+
+        XCTAssertTrue(VisibilityCollisionGroup.sortForCollisionOrder(lhs: first, rhs: second))
+        XCTAssertFalse(VisibilityCollisionGroup.sortForCollisionOrder(lhs: second, rhs: first))
+    }
+
     private func makeBaseGroup(index: Int,
                                position: SIMD2<Float>,
-                               priority: Int) -> VisibilityCollisionGroup {
+                               priority: Int,
+                               secondaryPriority: Int = 0,
+                               sortPriority: Int = 0,
+                               stableOrderKey: UInt64? = nil,
+                               groupId: UInt64? = nil) -> VisibilityCollisionGroup {
+        let resolvedStableOrderKey = stableOrderKey ?? UInt64(index)
+        let resolvedGroupId = groupId ?? resolvedStableOrderKey
         let candidate = ScreenCollisionCandidate(position: position,
                                                  halfSize: SIMD2<Float>(10, 10),
                                                  priority: priority,
-                                                 secondaryPriority: 0,
-                                                 groupId: 0,
+                                                 secondaryPriority: secondaryPriority,
+                                                 sortPriority: sortPriority,
+                                                 stableOrderKey: resolvedStableOrderKey,
+                                                 groupId: resolvedGroupId,
                                                  isEnabled: true)
         return VisibilityCollisionGroup(target: .base(index),
                                         members: [candidate],
                                         priority: priority,
-                                        secondaryPriority: 0)
+                                        secondaryPriority: secondaryPriority,
+                                        sortPriority: sortPriority,
+                                        stableOrderKey: resolvedStableOrderKey)
     }
 
     private func makeRoadGroup(index: Int,
                                position: SIMD2<Float>,
-                               priority: Int) -> VisibilityCollisionGroup {
+                               priority: Int,
+                               secondaryPriority: Int = 0,
+                               sortPriority: Int = 0,
+                               stableOrderKey: UInt64? = nil) -> VisibilityCollisionGroup {
+        let resolvedStableOrderKey = stableOrderKey ?? (UInt64(index) | (1 << 63))
         let candidate = ScreenCollisionCandidate(position: position,
                                                  halfSize: SIMD2<Float>(10, 10),
                                                  priority: priority,
-                                                 secondaryPriority: 0,
-                                                 groupId: UInt64(index + 1),
+                                                 secondaryPriority: secondaryPriority,
+                                                 sortPriority: sortPriority,
+                                                 stableOrderKey: resolvedStableOrderKey,
+                                                 groupId: UInt64(index + 1) | (1 << 62),
                                                  isEnabled: true)
         return VisibilityCollisionGroup(target: .road(index),
                                         members: [candidate],
                                         priority: priority,
-                                        secondaryPriority: 0)
+                                        secondaryPriority: secondaryPriority,
+                                        sortPriority: sortPriority,
+                                        stableOrderKey: resolvedStableOrderKey)
     }
 }
