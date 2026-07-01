@@ -228,6 +228,7 @@ final class BaseLabelCache {
                 let duplicateFlag: UInt8 = seenLabelKeys.contains(labelKey) ? 1 : 0
                 let labelSize = record.labelSizes[index]
                 let labelCollisionPriority = record.labelCollisionPriorities[index]
+                let labelSortKey = record.labelSortKeys[index]
                 runtimeMeta[index] = LabelRuntimeMeta(duplicate: duplicateFlag,
                                                       isRetained: sourceEntry.isRetained ? 1 : 0,
                                                       visibleTileIndex: 0,
@@ -238,6 +239,9 @@ final class BaseLabelCache {
                                                                                labelSize.y * 0.5),
                                                         priority: labelCollisionPriority,
                                                         secondaryPriority: sourcePriorityRank,
+                                                        sortPriority: labelSortKey,
+                                                        stableOrderKey: labelKey,
+                                                        groupId: labelKey,
                                                         isEnabled: duplicateFlag == 0)
                 presentationInputs[index] = BaseLabelPresentationInput(labelKey: labelKey,
                                                                        duplicate: duplicateFlag,

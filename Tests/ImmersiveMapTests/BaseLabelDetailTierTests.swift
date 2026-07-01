@@ -152,6 +152,36 @@ final class BaseLabelDetailTierTests: XCTestCase {
         XCTAssertEqual(cache.presentationInputs.prefix(1).map(\.labelKey), [30])
     }
 
+    func testBaseLabelCacheWritesStableCollisionMetadata() throws {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            throw XCTSkip("Metal device is required for BaseLabelCache test fixture.")
+        }
+
+        let ownerKey = VisibleTile(x: 8, y: 8, z: 4)
+        let metalTile = MetalTile(tile: ownerKey.tile,
+                                  tileBuffers: try makeTileBuffers(textLabels: TileBuffers.TextLabels(
+                                      full: makeTextLabelSet(keys: [10, 11]),
+                                      reduced: makeTextLabelSet(keys: [20]),
+                                      minimal: makeTextLabelSet(keys: [30])
+                                  )))
+        let cache = BaseLabelCache(metalDevice: device)
+        cache.rebuild(sourceEntries: [
+            BaseLabelSourceEntry(ownerKey: ownerKey,
+                                 metalTile: metalTile,
+                                 isRetained: false,
+                                 lodKind: .exact,
+                                 labelDetailTier: .full)
+        ], tileIndexAllocator: VisibleTileIndexAllocator(indexedTiles: [ownerKey]))
+
+        let candidates = cache.labelCollisionAABBInputs
+
+        XCTAssertEqual(candidates[0].stableOrderKey, 10)
+        XCTAssertEqual(candidates[0].groupId, 10)
+        XCTAssertNotEqual(candidates[0].sortPriority, Int.max)
+        XCTAssertEqual(candidates[1].stableOrderKey, 11)
+        XCTAssertEqual(candidates[1].groupId, 11)
+    }
+
     func testSourceEntryHashesKeepTierChangesScopedToBaseLabels() throws {
         let ownerKey = VisibleTile(x: 8, y: 8, z: 4)
         let metalTile = MetalTile(tile: ownerKey.tile,

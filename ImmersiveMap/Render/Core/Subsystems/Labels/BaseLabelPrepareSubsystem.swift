@@ -908,7 +908,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                                   priority: candidate.priority,
                                                   secondaryPriority: candidate.secondaryPriority,
                                                   sortPriority: candidate.sortPriority,
-                                                  stableOrderKey: candidate.stableOrderKey == UInt64.max ? nil : candidate.stableOrderKey))
+                                                  stableOrderKey: candidate.stableOrderKey))
         }
 
         for instance in roadInstances {
@@ -920,7 +920,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                                   priority: firstCandidate.priority,
                                                   secondaryPriority: firstCandidate.secondaryPriority,
                                                   sortPriority: firstCandidate.sortPriority,
-                                                  stableOrderKey: firstCandidate.stableOrderKey == UInt64.max ? nil : firstCandidate.stableOrderKey))
+                                                  stableOrderKey: firstCandidate.stableOrderKey))
         }
 
         return groups.sorted(by: VisibilityCollisionGroup.sortForCollisionOrder)
@@ -1030,6 +1030,8 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                                                 halfSize: glyphHalfSize,
                                                                 priority: roadPriorityBase,
                                                                 secondaryPriority: secondaryPriority,
+                                                                sortPriority: Int(anchor.anchorOrdinal),
+                                                                stableOrderKey: instanceKey,
                                                                 groupId: instanceKey,
                                                                 isEnabled: true))
             glyphCenters.append(glyphCenter)
