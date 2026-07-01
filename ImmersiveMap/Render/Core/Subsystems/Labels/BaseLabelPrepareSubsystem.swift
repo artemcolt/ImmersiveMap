@@ -903,28 +903,24 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
 
         for index in baseCandidates.indices {
             let candidate = baseCandidates[index]
-            let stableOrderKey = candidate.stableOrderKey == UInt64.max ? UInt64(index) : candidate.stableOrderKey
             groups.append(VisibilityCollisionGroup(target: .base(index),
                                                   members: [candidate],
                                                   priority: candidate.priority,
                                                   secondaryPriority: candidate.secondaryPriority,
                                                   sortPriority: candidate.sortPriority,
-                                                  stableOrderKey: stableOrderKey))
+                                                  stableOrderKey: candidate.stableOrderKey == UInt64.max ? nil : candidate.stableOrderKey))
         }
 
         for instance in roadInstances {
             guard let firstCandidate = instance.collisionCandidates.first else {
                 continue
             }
-            let stableOrderKey = firstCandidate.stableOrderKey == UInt64.max
-                ? UInt64(instance.targetIndex) | (1 << 63)
-                : firstCandidate.stableOrderKey
             groups.append(VisibilityCollisionGroup(target: .road(instance.targetIndex),
                                                   members: instance.collisionCandidates,
                                                   priority: firstCandidate.priority,
                                                   secondaryPriority: firstCandidate.secondaryPriority,
                                                   sortPriority: firstCandidate.sortPriority,
-                                                  stableOrderKey: stableOrderKey))
+                                                  stableOrderKey: firstCandidate.stableOrderKey == UInt64.max ? nil : firstCandidate.stableOrderKey))
         }
 
         return groups.sorted(by: VisibilityCollisionGroup.sortForCollisionOrder)
@@ -1405,13 +1401,13 @@ struct VisibilityCollisionGroup {
          priority: Int,
          secondaryPriority: Int,
          sortPriority: Int = .max,
-         stableOrderKey: UInt64 = UInt64.max) {
+         stableOrderKey: UInt64? = nil) {
         self.target = target
         self.members = members
         self.rank = VisibilityCollisionRank(priority: priority,
                                             secondaryPriority: secondaryPriority,
                                             sortPriority: sortPriority)
-        self.stableOrderKey = stableOrderKey
+        self.stableOrderKey = stableOrderKey ?? Self.stableOrderKey(for: target)
     }
 
     var priority: Int { rank.priority }
@@ -1420,16 +1416,22 @@ struct VisibilityCollisionGroup {
 
     static func sortForCollisionOrder(lhs: VisibilityCollisionGroup,
                                       rhs: VisibilityCollisionGroup) -> Bool {
-        if lhs.rank.priority != rhs.rank.priority {
-            return lhs.rank.priority < rhs.rank.priority
+        if lhs.rank.strictlyOutranks(rhs.rank) {
+            return true
         }
-        if lhs.rank.secondaryPriority != rhs.rank.secondaryPriority {
-            return lhs.rank.secondaryPriority < rhs.rank.secondaryPriority
-        }
-        if lhs.rank.sortPriority != rhs.rank.sortPriority {
-            return lhs.rank.sortPriority < rhs.rank.sortPriority
+        if rhs.rank.strictlyOutranks(lhs.rank) {
+            return false
         }
         return lhs.stableOrderKey < rhs.stableOrderKey
+    }
+
+    private static func stableOrderKey(for target: VisibilityCollisionTarget) -> UInt64 {
+        switch target {
+        case let .base(index):
+            return UInt64(index)
+        case let .road(index):
+            return UInt64(index) | (1 << 63)
+        }
     }
 }
 

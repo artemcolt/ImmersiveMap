@@ -159,6 +159,29 @@ final class VisibilityCycleTests: XCTestCase {
         XCTAssertFalse(VisibilityCollisionGroup.sortForCollisionOrder(lhs: second, rhs: first))
     }
 
+    func testCollisionOrderFallsBackToTargetOrderWhenStableKeyIsOmitted() {
+        let laterBase = VisibilityCollisionGroup(target: .base(10),
+                                                 members: [],
+                                                 priority: 10,
+                                                 secondaryPriority: 0,
+                                                 sortPriority: 20)
+        let earlierBase = VisibilityCollisionGroup(target: .base(1),
+                                                   members: [],
+                                                   priority: 10,
+                                                   secondaryPriority: 0,
+                                                   sortPriority: 20)
+        let firstRoad = VisibilityCollisionGroup(target: .road(0),
+                                                 members: [],
+                                                 priority: 10,
+                                                 secondaryPriority: 0,
+                                                 sortPriority: 20)
+
+        XCTAssertTrue(VisibilityCollisionGroup.sortForCollisionOrder(lhs: earlierBase, rhs: laterBase))
+        XCTAssertFalse(VisibilityCollisionGroup.sortForCollisionOrder(lhs: laterBase, rhs: earlierBase))
+        XCTAssertTrue(VisibilityCollisionGroup.sortForCollisionOrder(lhs: laterBase, rhs: firstRoad))
+        XCTAssertFalse(VisibilityCollisionGroup.sortForCollisionOrder(lhs: firstRoad, rhs: laterBase))
+    }
+
     private func makeBaseGroup(index: Int,
                                position: SIMD2<Float>,
                                priority: Int,
