@@ -34,7 +34,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
 
         XCTAssertTrue(didToggleRecording)
         XCTAssertEqual(view.tileTraceButtonTitleForTesting, "Остановить запись")
-        XCTAssertEqual(view.tileTraceStatusTextForTesting, "Recording: immersive-map-tile-trace.jsonl")
+        XCTAssertEqual(view.tileTraceStatusTextForTesting, "Recording: /tmp/immersive-map-tile-trace.jsonl")
     }
 
     func testTilesTabDisplaysTileTraceControl() {
@@ -68,7 +68,9 @@ final class DebugOverlayHUDViewTests: XCTestCase {
 
         XCTAssertTrue(didToggleRecording)
         XCTAssertEqual(view.baseLabelTraceButtonTitleForTesting, "Остановить запись")
-        XCTAssertEqual(view.baseLabelTraceStatusTextForTesting, "Recording: immersive-map-base-label-trace.jsonl")
+        XCTAssertEqual(view.baseLabelTraceStatusTextForTesting, "Recording: /tmp/immersive-map-base-label-trace.jsonl")
+        XCTAssertEqual(view.baseLabelTraceStatusTextColorForTesting, .white)
+        XCTAssertEqual(view.baseLabelTraceStatusFontPointSizeForTesting, 15)
     }
 
     func testBaseLabelsTabDisplaysBaseLabelTraceControl() {

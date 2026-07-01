@@ -21,7 +21,7 @@ final class DebugOverlayHUDView: UIView {
         static let headerHeight: CGFloat = 30.0
         static let controlRowHeight: CGFloat = 30.0
         static let controlSpacing: CGFloat = 6.0
-        static let traceStatusHeight: CGFloat = 18.0
+        static let traceStatusHeight: CGFloat = 24.0
         static let cornerRadius: CGFloat = 8.0
         static let backgroundAlpha: CGFloat = 0.46
         static let expandedMinimumWidth: CGFloat = 260.0
@@ -125,15 +125,15 @@ final class DebugOverlayHUDView: UIView {
         containerView.addSubview(tabControl)
         configureTileTraceButton()
         containerView.addSubview(tileTraceButton)
-        tileTraceStatusLabel.textColor = UIColor.white.withAlphaComponent(0.78)
-        tileTraceStatusLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+        tileTraceStatusLabel.textColor = .white
+        tileTraceStatusLabel.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
         tileTraceStatusLabel.lineBreakMode = .byTruncatingMiddle
         containerView.addSubview(tileTraceStatusLabel)
 
         configureBaseLabelTraceButton()
         containerView.addSubview(baseLabelTraceButton)
-        baseLabelTraceStatusLabel.textColor = UIColor.white.withAlphaComponent(0.78)
-        baseLabelTraceStatusLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+        baseLabelTraceStatusLabel.textColor = .white
+        baseLabelTraceStatusLabel.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
         baseLabelTraceStatusLabel.lineBreakMode = .byTruncatingMiddle
         containerView.addSubview(baseLabelTraceStatusLabel)
 
@@ -597,7 +597,7 @@ final class DebugOverlayHUDView: UIView {
 
         if let fileURL = tileTraceSnapshot.fileURL {
             let prefix = tileTraceSnapshot.isRecording ? "Recording" : "Last trace"
-            tileTraceStatusLabel.text = "\(prefix): \(fileURL.lastPathComponent)"
+            tileTraceStatusLabel.text = "\(prefix): \(fileURL.path)"
         } else {
             tileTraceStatusLabel.text = "Trace recording is off"
         }
@@ -626,7 +626,7 @@ final class DebugOverlayHUDView: UIView {
 
         if let fileURL = baseLabelTraceSnapshot.fileURL {
             let prefix = baseLabelTraceSnapshot.isRecording ? "Recording" : "Last trace"
-            baseLabelTraceStatusLabel.text = "\(prefix): \(fileURL.lastPathComponent)"
+            baseLabelTraceStatusLabel.text = "\(prefix): \(fileURL.path)"
         } else {
             baseLabelTraceStatusLabel.text = "Base label trace recording is off"
         }
@@ -1386,6 +1386,14 @@ extension DebugOverlayHUDView {
 
     var baseLabelTraceStatusTextForTesting: String? {
         baseLabelTraceStatusLabel.text
+    }
+
+    var baseLabelTraceStatusTextColorForTesting: UIColor? {
+        baseLabelTraceStatusLabel.textColor
+    }
+
+    var baseLabelTraceStatusFontPointSizeForTesting: CGFloat {
+        baseLabelTraceStatusLabel.font.pointSize
     }
 
     var tilesStatusTextForTesting: String? {
