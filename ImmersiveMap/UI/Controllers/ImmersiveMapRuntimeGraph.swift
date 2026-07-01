@@ -52,10 +52,12 @@ final class ImmersiveMapRuntimeGraph {
         let debugOverlayControls = DebugOverlayControlState()
         let debugOverlayHUDSnapshotStore = DebugOverlayHUDSnapshotStore()
         let tileTraceRecorder = TileTraceRecorder()
+        let baseLabelTraceRecorder = BaseLabelTraceRecorder()
         let debugOverlayRuntime = ImmersiveMapDebugOverlayRuntime(mapView: mapView,
                                                                   controls: debugOverlayControls,
                                                                   hudSnapshotStore: debugOverlayHUDSnapshotStore,
                                                                   tileTraceRecorder: tileTraceRecorder,
+                                                                  baseLabelTraceRecorder: baseLabelTraceRecorder,
                                                                   renderRuntime: renderRuntime,
                                                                   cameraRuntime: cameraRuntime,
                                                                   cameraAnimationRuntime: cameraAnimationRuntime)
@@ -68,7 +70,8 @@ final class ImmersiveMapRuntimeGraph {
                                                           selectionHandler: selectionHandler,
                                                           debugOverlayControls: debugOverlayControls,
                                                           debugOverlayHUDSnapshotStore: debugOverlayHUDSnapshotStore,
-                                                          tileTraceRecorder: tileTraceRecorder)
+                                                          tileTraceRecorder: tileTraceRecorder,
+                                                          baseLabelTraceRecorder: baseLabelTraceRecorder)
         let frameRenderDelegate = ImmersiveMapFrameRenderDelegate(layer: layer,
                                                                   renderRuntime: renderRuntime,
                                                                   viewportRuntime: viewportRuntime,

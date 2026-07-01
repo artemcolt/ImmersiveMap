@@ -12,6 +12,7 @@ final class ImmersiveMapDebugOverlayRuntime {
     private let controls: DebugOverlayControlState
     private let hudSnapshotStore: DebugOverlayHUDSnapshotStore
     private let tileTraceRecorder: TileTraceRecorder
+    private let baseLabelTraceRecorder: BaseLabelTraceRecorder
     private weak var renderRuntime: ImmersiveMapRenderRuntime?
     private var hudSnapshotTimer: Timer?
     private var consumedHUDSnapshotVersion: UInt64 = 0
@@ -20,12 +21,14 @@ final class ImmersiveMapDebugOverlayRuntime {
          controls: DebugOverlayControlState,
          hudSnapshotStore: DebugOverlayHUDSnapshotStore,
          tileTraceRecorder: TileTraceRecorder,
+         baseLabelTraceRecorder: BaseLabelTraceRecorder,
          renderRuntime: ImmersiveMapRenderRuntime,
          cameraRuntime: ImmersiveMapCameraRuntime,
          cameraAnimationRuntime: ImmersiveMapCameraAnimationRuntime) {
         self.controls = controls
         self.hudSnapshotStore = hudSnapshotStore
         self.tileTraceRecorder = tileTraceRecorder
+        self.baseLabelTraceRecorder = baseLabelTraceRecorder
         self.renderRuntime = renderRuntime
         hudView.onAxesEnabledChanged = { [weak controls, weak renderRuntime] isEnabled in
             controls?.setAxesEnabled(isEnabled)
@@ -60,7 +63,18 @@ final class ImmersiveMapDebugOverlayRuntime {
             hudView.apply(tileTraceSnapshot: tileTraceRecorder.snapshot())
             renderRuntime?.requestFrame(reason: .externalStateChanged)
         }
+        hudView.onBaseLabelTraceRecordingToggle = { [weak self, weak renderRuntime] in
+            guard let self else { return }
+            if baseLabelTraceRecorder.snapshot().isRecording {
+                baseLabelTraceRecorder.stopRecording()
+            } else {
+                _ = baseLabelTraceRecorder.startRecording()
+            }
+            hudView.apply(baseLabelTraceSnapshot: baseLabelTraceRecorder.snapshot())
+            renderRuntime?.requestFrame(reason: .externalStateChanged)
+        }
         hudView.apply(tileTraceSnapshot: tileTraceRecorder.snapshot())
+        hudView.apply(baseLabelTraceSnapshot: baseLabelTraceRecorder.snapshot())
         mapView.addSubview(hudView)
     }
 
@@ -82,6 +96,7 @@ final class ImmersiveMapDebugOverlayRuntime {
                       controls: controls.snapshot(),
                       earthSceneEnabled: settings.scene.earth.isEnabled)
         hudView.apply(tileTraceSnapshot: tileTraceRecorder.snapshot())
+        hudView.apply(baseLabelTraceSnapshot: baseLabelTraceRecorder.snapshot())
         if settings.debug.enableDebugPanel {
             startHUDSnapshotTimer()
             flushPendingHUDSnapshot()

@@ -12,9 +12,11 @@ import simd
 
 final class BaseLabelPrepareSubsystem: RenderSubsystem {
     let name: String = "BaseLabels"
+    private static let traceLocale = Locale(identifier: "en_US_POSIX")
 
     private let baseLabelCache: BaseLabelCache
     private let roadLabelCache: RoadLabelCache?
+    private let baseLabelTraceRecorder: BaseLabelTraceRecorder
     private let tilePointScreenProjector = TilePointScreenProjector()
     private let baseScreenCompute: TilePointScreenCompute
     private let roadPathScreenCompute: TilePointScreenCompute
@@ -51,11 +53,13 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
 
     init(baseLabelCache: BaseLabelCache,
          roadLabelCache: RoadLabelCache? = nil,
+         baseLabelTraceRecorder: BaseLabelTraceRecorder = BaseLabelTraceRecorder(),
          metalDevice: MTLDevice,
          library: MTLLibrary,
          settings: ImmersiveMapSettings.LabelSettings = ImmersiveMapSettings.default.labels) {
         self.baseLabelCache = baseLabelCache
         self.roadLabelCache = roadLabelCache
+        self.baseLabelTraceRecorder = baseLabelTraceRecorder
         self.baseScreenCompute = TilePointScreenCompute(metalDevice: metalDevice, library: library)
         self.roadPathScreenCompute = TilePointScreenCompute(metalDevice: metalDevice, library: library)
         self.roadPlacementCalculator = RoadLabelPlacementCalculator(pipeline: RoadLabelPlacementPipeline(metalDevice: metalDevice,
@@ -229,6 +233,18 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                                                   frameIndex: frameContext.frameIndex,
                                                                   fadeInSeconds: fadeInSeconds,
                                                                   fadeOutSeconds: fadeOutSeconds)
+        if baseLabelTraceRecorder.isRecordingActive {
+            recordBaseLabelTraceFrame(frameContext: frameContext,
+                                      sourceTileCount: sourceEntries.count,
+                                      baseLabelTierCounts: baseLabelTierCounts,
+                                      baseTrackedTilesChanged: baseTrackedTilesChanged,
+                                      roadTrackedTilesChanged: roadTrackedTilesChanged,
+                                      projectionChanged: projectionChanged,
+                                      baseProjection: baseProjection,
+                                      targetVisibility: targetVisibility,
+                                      fadeResolution: fadeResolution,
+                                      overviewFadeAlpha: overviewFadeAlpha)
+        }
         baseLabelCache.updateFadeAlphas(fadeResolution.fadeAlphas,
                                         multiplier: overviewFadeAlpha)
         let hasPendingVisibilityRefresh = collisionsEnabled &&
@@ -426,6 +442,232 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                          byteCount: tileOriginData.count * MemoryLayout<FlatTileOriginData>.stride)
         }
         return buffer
+    }
+
+    private func recordBaseLabelTraceFrame(frameContext: FrameContext,
+                                           sourceTileCount: Int,
+                                           baseLabelTierCounts: (full: Int, reduced: Int, minimal: Int),
+                                           baseTrackedTilesChanged: Bool,
+                                           roadTrackedTilesChanged: Bool,
+                                           projectionChanged: Bool,
+                                           baseProjection: TilePointScreenProjectionResult,
+                                           targetVisibility: [Bool],
+                                           fadeResolution: BaseLabelPresentationResolution,
+                                           overviewFadeAlpha: Float) {
+        let inputs = baseLabelCache.presentationInputs
+        var validLabelCount = 0
+        var duplicateLabelCount = 0
+        var retainedLabelCount = 0
+        var collisionVisibleCount = 0
+        var collisionHiddenCount = 0
+        var collisionUnknownCount = 0
+        var targetVisibleCount = 0
+        var horizonVisibleCount = 0
+        var fadeVisibleCount = 0
+        var fadeAnimatingCount = 0
+
+        for index in inputs.indices {
+            let input = inputs[index]
+            if input.isValid {
+                validLabelCount += 1
+            }
+            if input.duplicate != 0 {
+                duplicateLabelCount += 1
+            }
+            if input.isRetained != 0 {
+                retainedLabelCount += 1
+            }
+
+            switch baseLabelCollisionVisibility(at: index) {
+            case .visible:
+                collisionVisibleCount += 1
+            case .hidden:
+                collisionHiddenCount += 1
+            case .unknown:
+                collisionUnknownCount += 1
+            }
+
+            if index < targetVisibility.count, targetVisibility[index] {
+                targetVisibleCount += 1
+            }
+            if index < baseProjection.horizonVisibility.count, baseProjection.horizonVisibility[index] {
+                horizonVisibleCount += 1
+            }
+
+            let fadeAlpha = Self.traceFadeAlpha(index: index,
+                                                fadeAlphas: fadeResolution.fadeAlphas,
+                                                overviewFadeAlpha: overviewFadeAlpha)
+            if fadeAlpha > BaseLabelVisibilityResolver.activeAlphaThreshold {
+                fadeVisibleCount += 1
+            }
+            if fadeAlpha > BaseLabelVisibilityResolver.activeAlphaThreshold,
+               fadeAlpha < 0.9999 {
+                fadeAnimatingCount += 1
+            }
+        }
+
+        let hotBuckets = Self.makeBaseLabelTraceHotBuckets(inputs: inputs,
+                                                           screenPoints: baseProjection.screenPoints,
+                                                           collisionVisibility: publishedBaseCollisionVisibility,
+                                                           targetVisibility: targetVisibility,
+                                                           maxBucketCount: baseLabelTraceRecorder.options.maxHotBuckets)
+        let includeFullLabels = baseLabelTraceRecorder.options.shouldIncludeFullLabels(
+            frameIndex: frameContext.frameIndex,
+            baseTrackedTilesChanged: baseTrackedTilesChanged,
+            projectionChanged: projectionChanged,
+            maxHotBucketCount: hotBuckets.maxBucketCount
+        )
+        let labels = includeFullLabels ? Self.makeBaseLabelTraceLabels(inputs: inputs,
+                                                                       screenPoints: baseProjection.screenPoints,
+                                                                       collisionVisibility: publishedBaseCollisionVisibility,
+                                                                       targetVisibility: targetVisibility,
+                                                                       horizonVisibility: baseProjection.horizonVisibility,
+                                                                       fadeAlphas: fadeResolution.fadeAlphas,
+                                                                       overviewFadeAlpha: overviewFadeAlpha,
+                                                                       collisionCandidates: baseLabelCache.labelCollisionAABBInputs) : nil
+        let cycle = visibilityCycle
+        baseLabelTraceRecorder.record(.baseLabelFrame(frameIndex: frameContext.frameIndex,
+                                                      zoom: frameContext.zoom,
+                                                      pitchDegrees: Double(frameContext.mapCameraState.pitch) * 180.0 / .pi,
+                                                      bearingDegrees: Double(frameContext.mapCameraState.bearing) * 180.0 / .pi,
+                                                      sourceTileCount: sourceTileCount,
+                                                      baseTrackedTilesChanged: baseTrackedTilesChanged,
+                                                      roadTrackedTilesChanged: roadTrackedTilesChanged,
+                                                      projectionChanged: projectionChanged,
+                                                      fullTileCount: baseLabelTierCounts.full,
+                                                      reducedTileCount: baseLabelTierCounts.reduced,
+                                                      minimalTileCount: baseLabelTierCounts.minimal,
+                                                      activeLabelSpanCount: baseLabelCache.activeLabelSpanCount,
+                                                      labelInputsCount: baseLabelCache.labelInputsCount,
+                                                      validLabelCount: validLabelCount,
+                                                      duplicateLabelCount: duplicateLabelCount,
+                                                      retainedLabelCount: retainedLabelCount,
+                                                      collisionVisibleCount: collisionVisibleCount,
+                                                      collisionHiddenCount: collisionHiddenCount,
+                                                      collisionUnknownCount: collisionUnknownCount,
+                                                      targetVisibleCount: targetVisibleCount,
+                                                      horizonVisibleCount: horizonVisibleCount,
+                                                      fadeVisibleCount: fadeVisibleCount,
+                                                      fadeAnimatingCount: fadeAnimatingCount,
+                                                      cycleActive: cycle != nil,
+                                                      cycleCursor: cycle?.cursor ?? 0,
+                                                      cycleGroupCount: cycle?.groupCount ?? 0,
+                                                      cycleComplete: cycle?.isComplete ?? true,
+                                                      labels: labels,
+                                                      hotBuckets: hotBuckets.description,
+                                                      maxHotBucketCount: hotBuckets.maxBucketCount,
+                                                      droppedEventCount: baseLabelTraceRecorder.currentDroppedEventCount))
+    }
+
+    private func baseLabelCollisionVisibility(at index: Int) -> BaseLabelCollisionVisibility {
+        index < publishedBaseCollisionVisibility.count ? publishedBaseCollisionVisibility[index] : .unknown
+    }
+
+    private static func makeBaseLabelTraceLabels(inputs: [BaseLabelPresentationInput],
+                                                 screenPoints: [ScreenPointOutput],
+                                                 collisionVisibility: [BaseLabelCollisionVisibility],
+                                                 targetVisibility: [Bool],
+                                                 horizonVisibility: [Bool],
+                                                 fadeAlphas: [Float],
+                                                 overviewFadeAlpha: Float,
+                                                 collisionCandidates: [ScreenCollisionCandidate]) -> String {
+        guard inputs.isEmpty == false else {
+            return ""
+        }
+
+        var labels: [String] = []
+        labels.reserveCapacity(inputs.count)
+        for index in inputs.indices {
+            let input = inputs[index]
+            let point = index < screenPoints.count ? screenPoints[index] : nil
+            let candidate = index < collisionCandidates.count ? collisionCandidates[index] : nil
+            let visibility = index < collisionVisibility.count ? collisionVisibility[index] : .unknown
+            let targetVisible = index < targetVisibility.count && targetVisibility[index]
+            let horizonVisible = index < horizonVisibility.count && horizonVisibility[index]
+            let fadeAlpha = traceFadeAlpha(index: index,
+                                           fadeAlphas: fadeAlphas,
+                                           overviewFadeAlpha: overviewFadeAlpha)
+            let position = point?.position ?? .zero
+            let halfSize = candidate?.halfSize ?? .zero
+            let screenVisible = point?.visible != 0
+            let priority = candidate?.priority ?? Int.max
+            let secondaryPriority = candidate?.secondaryPriority ?? Int.max
+
+            labels.append("\(index)|\(input.labelKey)|v=\(input.isValid ? 1 : 0)|d=\(input.duplicate)|r=\(input.isRetained)|cv=\(traceString(for: visibility))|t=\(targetVisible ? 1 : 0)|hz=\(horizonVisible ? 1 : 0)|a=\(formatTraceFloat(fadeAlpha))|x=\(formatTraceFloat(position.x))|y=\(formatTraceFloat(position.y))|sv=\(screenVisible ? 1 : 0)|p=\(priority)|sp=\(secondaryPriority)|hw=\(formatTraceFloat(halfSize.x))|hh=\(formatTraceFloat(halfSize.y))")
+        }
+        return labels.joined(separator: ";")
+    }
+
+    private static func makeBaseLabelTraceHotBuckets(inputs: [BaseLabelPresentationInput],
+                                                     screenPoints: [ScreenPointOutput],
+                                                     collisionVisibility: [BaseLabelCollisionVisibility],
+                                                     targetVisibility: [Bool],
+                                                     maxBucketCount: Int) -> BaseLabelTraceHotBucketSummary {
+        let cellSize: Float = 64
+        var buckets: [String: BaseLabelTraceBucket] = [:]
+        for index in inputs.indices {
+            guard inputs[index].isValid,
+                  index < screenPoints.count else {
+                continue
+            }
+
+            let point = screenPoints[index]
+            guard point.visible != 0 else {
+                continue
+            }
+
+            let bucketKey = "\(Int(floor(point.position.x / cellSize)))/\(Int(floor(point.position.y / cellSize)))"
+            var bucket = buckets[bucketKey] ?? BaseLabelTraceBucket()
+            bucket.total += 1
+            if index < targetVisibility.count, targetVisibility[index] {
+                bucket.targetVisible += 1
+            }
+            if index < collisionVisibility.count, collisionVisibility[index] == .visible {
+                bucket.collisionVisible += 1
+            }
+            buckets[bucketKey] = bucket
+        }
+
+        var largestBucketCount = 0
+        let description = buckets
+            .sorted { lhs, rhs in
+                if lhs.value.total != rhs.value.total {
+                    return lhs.value.total > rhs.value.total
+                }
+                return lhs.key < rhs.key
+            }
+            .prefix(max(0, maxBucketCount))
+            .map { key, bucket in
+                largestBucketCount = max(largestBucketCount, bucket.total)
+                return "\(key):\(bucket.total)/\(bucket.targetVisible)/\(bucket.collisionVisible)"
+            }
+            .joined(separator: ";")
+        return BaseLabelTraceHotBucketSummary(description: description,
+                                              maxBucketCount: largestBucketCount)
+    }
+
+    private static func traceFadeAlpha(index: Int,
+                                       fadeAlphas: [Float],
+                                       overviewFadeAlpha: Float) -> Float {
+        guard index < fadeAlphas.count else {
+            return 0
+        }
+        return fadeAlphas[index] * overviewFadeAlpha
+    }
+
+    private static func traceString(for visibility: BaseLabelCollisionVisibility) -> String {
+        switch visibility {
+        case .unknown:
+            return "unknown"
+        case .visible:
+            return "visible"
+        case .hidden:
+            return "hidden"
+        }
+    }
+
+    private static func formatTraceFloat(_ value: Float) -> String {
+        String(format: "%.2f", locale: traceLocale, Double(value))
     }
 
     private func reseedPublishedVisibilityState(baseVisibilityByKey: [UInt64: BaseLabelCollisionVisibility],
@@ -1192,6 +1434,10 @@ struct VisibilityCycle {
         cursor >= groups.count
     }
 
+    var groupCount: Int {
+        groups.count
+    }
+
     mutating func processNextGroups(maxGroupCount: Int) {
         guard maxGroupCount > 0, isComplete == false else {
             return
@@ -1336,6 +1582,17 @@ private struct RoadPreparedInstance {
     let targetIndex: Int
     let collisionCandidates: [ScreenCollisionCandidate]
     let placements: [RoadGlyphPlacementOutput]
+}
+
+private struct BaseLabelTraceBucket {
+    var total: Int = 0
+    var targetVisible: Int = 0
+    var collisionVisible: Int = 0
+}
+
+private struct BaseLabelTraceHotBucketSummary {
+    let description: String
+    let maxBucketCount: Int
 }
 
 private struct RoadScreenPath {

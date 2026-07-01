@@ -21,6 +21,7 @@ enum RenderGraphFactory {
                                                                                 atlasTexture: context.nightLightsAtlasTexture)
         let baseLabelSubsystem = BaseLabelPrepareSubsystem(baseLabelCache: context.baseLabelCache,
                                                            roadLabelCache: context.roadLabelCache,
+                                                           baseLabelTraceRecorder: context.baseLabelTraceRecorder,
                                                            metalDevice: context.metalContext.device,
                                                            library: context.metalContext.library,
                                                            settings: settings.labels)

@@ -55,6 +55,40 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertTrue(view.isTileTraceControlVisibleForTesting)
     }
 
+    func testBaseLabelsTraceControlInvokesCallbackAndReflectsSnapshot() {
+        let view = DebugOverlayHUDView()
+        let fileURL = URL(fileURLWithPath: "/tmp/immersive-map-base-label-trace.jsonl")
+        var didToggleRecording = false
+        view.onBaseLabelTraceRecordingToggle = {
+            didToggleRecording = true
+        }
+
+        view.apply(baseLabelTraceSnapshot: BaseLabelTraceRecorderSnapshot(isRecording: true, fileURL: fileURL))
+        view.simulateBaseLabelsTraceRecordingToggleForTesting()
+
+        XCTAssertTrue(didToggleRecording)
+        XCTAssertEqual(view.baseLabelTraceButtonTitleForTesting, "Остановить запись")
+        XCTAssertEqual(view.baseLabelTraceStatusTextForTesting, "Recording: immersive-map-base-label-trace.jsonl")
+    }
+
+    func testBaseLabelsTabDisplaysBaseLabelTraceControl() {
+        let view = DebugOverlayHUDView()
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: false,
+                                                         wireframeEnabled: false,
+                                                         terrainEnabled: true),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: makeSnapshot(settings: settings, atlasPages: []))
+
+        view.simulateBaseLabelsTabSelectionForTesting()
+        view.layoutIfNeeded()
+
+        XCTAssertTrue(view.isBaseLabelTraceControlVisibleForTesting)
+    }
+
     func testAtlasTabDisplaysAtlasSnapshotPages() {
         let view = DebugOverlayHUDView()
         var settings = ImmersiveMapSettings.default.debug

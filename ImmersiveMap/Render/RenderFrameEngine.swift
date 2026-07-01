@@ -42,13 +42,15 @@ final class RenderFrameEngine {
          renderCamera: FrameCameraStateResolver,
          presentationStateResolver: MapPresentationStateController,
          eventSink: RenderFrameEventSink,
-         tileTraceRecorder: TileTraceRecorder) {
+         tileTraceRecorder: TileTraceRecorder,
+         baseLabelTraceRecorder: BaseLabelTraceRecorder) {
         let persistentContext = RenderPersistentContext(layer: layer,
                                                         avatarSource: avatarSource,
                                                         providerRuntime: providerRuntime,
                                                         config: settings,
                                                         eventSink: eventSink,
-                                                        tileTraceRecorder: tileTraceRecorder)
+                                                        tileTraceRecorder: tileTraceRecorder,
+                                                        baseLabelTraceRecorder: baseLabelTraceRecorder)
         let attachments = FrameAttachmentStore(metalDevice: persistentContext.metalContext.device,
                                                renderSampleCount: persistentContext.metalContext.renderSampleCount)
 

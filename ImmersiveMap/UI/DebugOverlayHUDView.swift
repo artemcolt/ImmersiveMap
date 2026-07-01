@@ -10,7 +10,8 @@ final class DebugOverlayHUDView: UIView {
         case stats = 0
         case atlas = 1
         case tiles = 2
-        case controls = 3
+        case baseLabels = 3
+        case controls = 4
     }
 
     private enum Layout {
@@ -42,9 +43,11 @@ final class DebugOverlayHUDView: UIView {
     private let earthSceneLabel = UILabel()
     private let earthSceneSwitch = UISwitch()
     private let surfaceModeButton = UIButton(type: .system)
-    private let tabControl = UISegmentedControl(items: ["Stats", "Atlas", "Tiles", "Controls"])
+    private let tabControl = UISegmentedControl(items: ["Stats", "Atlas", "Tiles", "Base labels", "Controls"])
     private let tileTraceButton = UIButton(type: .system)
     private let tileTraceStatusLabel = UILabel()
+    private let baseLabelTraceButton = UIButton(type: .system)
+    private let baseLabelTraceStatusLabel = UILabel()
     private let zoomLabel = UILabel()
     private let latLonLabel = UILabel()
     private let diagnosticsLabel = UILabel()
@@ -59,6 +62,7 @@ final class DebugOverlayHUDView: UIView {
     private var isCollapsed = false
     private var selectedTab: SelectedTab = .stats
     private var tileTraceSnapshot = TileTraceRecorderSnapshot(isRecording: false, fileURL: nil)
+    private var baseLabelTraceSnapshot = BaseLabelTraceRecorderSnapshot(isRecording: false, fileURL: nil)
     #if DEBUG
     private var textUpdateCountForTestingStorage = 0
     #endif
@@ -70,6 +74,7 @@ final class DebugOverlayHUDView: UIView {
     var onEarthSceneEnabledChanged: ((Bool) -> Void)?
     var onSurfaceModeSwitchRequested: (() -> Void)?
     var onTileTraceRecordingToggle: (() -> Void)?
+    var onBaseLabelTraceRecordingToggle: (() -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -125,6 +130,13 @@ final class DebugOverlayHUDView: UIView {
         tileTraceStatusLabel.lineBreakMode = .byTruncatingMiddle
         containerView.addSubview(tileTraceStatusLabel)
 
+        configureBaseLabelTraceButton()
+        containerView.addSubview(baseLabelTraceButton)
+        baseLabelTraceStatusLabel.textColor = UIColor.white.withAlphaComponent(0.78)
+        baseLabelTraceStatusLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+        baseLabelTraceStatusLabel.lineBreakMode = .byTruncatingMiddle
+        containerView.addSubview(baseLabelTraceStatusLabel)
+
         [zoomLabel, latLonLabel, diagnosticsLabel, tilesStatusLabel].forEach { label in
             label.numberOfLines = 0
             label.lineBreakMode = .byCharWrapping
@@ -153,6 +165,7 @@ final class DebugOverlayHUDView: UIView {
         atlasScrollView.addSubview(atlasDetailsLabel)
         updateCollapseButtonImage()
         updateTileTraceControl()
+        updateBaseLabelTraceControl()
         updateVisibility()
     }
 
@@ -187,6 +200,12 @@ final class DebugOverlayHUDView: UIView {
     func apply(tileTraceSnapshot: TileTraceRecorderSnapshot) {
         self.tileTraceSnapshot = tileTraceSnapshot
         updateTileTraceControl()
+        setNeedsLayout()
+    }
+
+    func apply(baseLabelTraceSnapshot: BaseLabelTraceRecorderSnapshot) {
+        self.baseLabelTraceSnapshot = baseLabelTraceSnapshot
+        updateBaseLabelTraceControl()
         setNeedsLayout()
     }
 
@@ -225,7 +244,7 @@ final class DebugOverlayHUDView: UIView {
         let tilesListHeight = tilesStatusListView.preferredHeight(forWidth: maxContentWidth)
         let atlasDetailsSize = atlasDetailsLabel.sizeThatFits(constrainedSize)
         let atlasPreviewHeight = atlasLayoutView.preferredHeight(forWidth: maxContentWidth)
-        let traceBlockHeight = selectedTab == .tiles
+        let traceBlockHeight = selectedTab == .tiles || selectedTab == .baseLabels
             ? Layout.controlRowHeight + Layout.controlSpacing + Layout.traceStatusHeight + sectionSpacing
             : 0
         let contentWidth = max(Layout.expandedMinimumWidth, maxContentWidth)
@@ -240,6 +259,7 @@ final class DebugOverlayHUDView: UIView {
         let tilesBodyHeight = tilesStatusSize.height
             + traceBlockHeight
             + (tilesListHeight > 0 ? sectionSpacing + tilesListHeight : 0)
+        let baseLabelsBodyHeight = traceBlockHeight
         let panelY = top - zoomSize.height - Layout.contentInset
         let chromeHeight = Layout.headerHeight
             + Layout.contentInset
@@ -269,6 +289,8 @@ final class DebugOverlayHUDView: UIView {
             bodyHeight = visibleAtlasBodyHeight
         case .tiles:
             bodyHeight = visibleTilesBodyHeight
+        case .baseLabels:
+            bodyHeight = baseLabelsBodyHeight
         case .controls:
             bodyHeight = controlsBodyHeight
         }
@@ -380,6 +402,14 @@ final class DebugOverlayHUDView: UIView {
                                             y: tileTraceButton.frame.maxY + Layout.controlSpacing,
                                             width: contentWidth,
                                             height: Layout.traceStatusHeight)
+        baseLabelTraceButton.frame = CGRect(x: Layout.contentInset,
+                                            y: textTop,
+                                            width: contentWidth,
+                                            height: Layout.controlRowHeight)
+        baseLabelTraceStatusLabel.frame = CGRect(x: Layout.contentInset,
+                                                 y: baseLabelTraceButton.frame.maxY + Layout.controlSpacing,
+                                                 width: contentWidth,
+                                                 height: Layout.traceStatusHeight)
         let tilesStatusTop = selectedTab == .tiles
             ? tileTraceStatusLabel.frame.maxY + sectionSpacing
             : textTop
@@ -523,6 +553,27 @@ final class DebugOverlayHUDView: UIView {
         }
     }
 
+    private func configureBaseLabelTraceButton() {
+        baseLabelTraceButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        baseLabelTraceButton.layer.cornerRadius = 6
+        baseLabelTraceButton.layer.masksToBounds = true
+        baseLabelTraceButton.addTarget(self, action: #selector(baseLabelTraceButtonTapped), for: .touchUpInside)
+        if #available(iOS 15.0, *) {
+            var configuration = UIButton.Configuration.plain()
+            configuration.imagePadding = 6
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8)
+            configuration.baseForegroundColor = .white
+            configuration.background.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+            configuration.cornerStyle = .fixed
+            baseLabelTraceButton.configuration = configuration
+        } else {
+            baseLabelTraceButton.tintColor = .white
+            baseLabelTraceButton.setTitleColor(.white, for: .normal)
+            baseLabelTraceButton.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+            baseLabelTraceButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: -4, bottom: 0, right: 4)
+        }
+    }
+
     private func updateTileTraceControl() {
         let title = tileTraceSnapshot.isRecording ? "Остановить запись" : "Начать запись"
         let imageName = tileTraceSnapshot.isRecording ? "stop.circle" : "record.circle"
@@ -552,6 +603,35 @@ final class DebugOverlayHUDView: UIView {
         }
     }
 
+    private func updateBaseLabelTraceControl() {
+        let title = baseLabelTraceSnapshot.isRecording ? "Остановить запись" : "Начать запись"
+        let imageName = baseLabelTraceSnapshot.isRecording ? "stop.circle" : "record.circle"
+        if #available(iOS 15.0, *) {
+            var configuration = baseLabelTraceButton.configuration ?? UIButton.Configuration.plain()
+            configuration.title = title
+            configuration.image = UIImage(systemName: imageName)
+            configuration.baseForegroundColor = .white
+            configuration.background.backgroundColor = baseLabelTraceSnapshot.isRecording
+                ? UIColor.systemRed.withAlphaComponent(0.35)
+                : UIColor.white.withAlphaComponent(0.12)
+            baseLabelTraceButton.configuration = configuration
+        } else {
+            baseLabelTraceButton.setTitle(title, for: .normal)
+            baseLabelTraceButton.setImage(UIImage(systemName: imageName), for: .normal)
+            baseLabelTraceButton.backgroundColor = baseLabelTraceSnapshot.isRecording
+                ? UIColor.systemRed.withAlphaComponent(0.35)
+                : UIColor.white.withAlphaComponent(0.12)
+        }
+        baseLabelTraceButton.accessibilityLabel = title
+
+        if let fileURL = baseLabelTraceSnapshot.fileURL {
+            let prefix = baseLabelTraceSnapshot.isRecording ? "Recording" : "Last trace"
+            baseLabelTraceStatusLabel.text = "\(prefix): \(fileURL.lastPathComponent)"
+        } else {
+            baseLabelTraceStatusLabel.text = "Base label trace recording is off"
+        }
+    }
+
     private func updateCollapseButtonImage() {
         let imageName = isCollapsed ? "chevron.down" : "chevron.up"
         collapseButton.setImage(UIImage(systemName: imageName), for: .normal)
@@ -563,6 +643,7 @@ final class DebugOverlayHUDView: UIView {
         let isAtlasVisible = selectedTab == .atlas && isContentHidden == false
         let isStatsVisible = selectedTab == .stats && isContentHidden == false
         let isTilesVisible = selectedTab == .tiles && isContentHidden == false
+        let isBaseLabelsVisible = selectedTab == .baseLabels && isContentHidden == false
         let isControlsVisible = selectedTab == .controls && isContentHidden == false
         [tabControl].forEach {
             $0.isHidden = isContentHidden
@@ -578,6 +659,8 @@ final class DebugOverlayHUDView: UIView {
         tilesScrollView.isHidden = isTilesVisible == false || tilesStatusListView.rowCount == 0
         tileTraceButton.isHidden = isTilesVisible == false
         tileTraceStatusLabel.isHidden = isTilesVisible == false
+        baseLabelTraceButton.isHidden = isBaseLabelsVisible == false
+        baseLabelTraceStatusLabel.isHidden = isBaseLabelsVisible == false
         atlasScrollView.isHidden = isAtlasVisible == false
     }
 
@@ -652,6 +735,10 @@ final class DebugOverlayHUDView: UIView {
 
     @objc private func tileTraceButtonTapped() {
         onTileTraceRecordingToggle?()
+    }
+
+    @objc private func baseLabelTraceButtonTapped() {
+        onBaseLabelTraceRecordingToggle?()
     }
 
     @objc private func tabControlChanged() {
@@ -1204,6 +1291,10 @@ extension DebugOverlayHUDView {
         tileTraceButtonTapped()
     }
 
+    func simulateBaseLabelsTraceRecordingToggleForTesting() {
+        baseLabelTraceButtonTapped()
+    }
+
     func simulateAtlasTabSelectionForTesting() {
         tabControl.selectedSegmentIndex = SelectedTab.atlas.rawValue
         tabControlChanged()
@@ -1216,6 +1307,11 @@ extension DebugOverlayHUDView {
 
     func simulateTilesTabSelectionForTesting() {
         tabControl.selectedSegmentIndex = SelectedTab.tiles.rawValue
+        tabControlChanged()
+    }
+
+    func simulateBaseLabelsTabSelectionForTesting() {
+        tabControl.selectedSegmentIndex = SelectedTab.baseLabels.rawValue
         tabControlChanged()
     }
 
@@ -1239,6 +1335,10 @@ extension DebugOverlayHUDView {
 
     var isTilesTabSelectedForTesting: Bool {
         selectedTab == .tiles
+    }
+
+    var isBaseLabelsTabSelectedForTesting: Bool {
+        selectedTab == .baseLabels
     }
 
     var areDebugControlsVisibleForTesting: Bool {
@@ -1270,6 +1370,22 @@ extension DebugOverlayHUDView {
     var isTileTraceControlVisibleForTesting: Bool {
         tileTraceButton.isHidden == false
             && tileTraceStatusLabel.isHidden == false
+    }
+
+    var isBaseLabelTraceControlVisibleForTesting: Bool {
+        baseLabelTraceButton.isHidden == false
+            && baseLabelTraceStatusLabel.isHidden == false
+    }
+
+    var baseLabelTraceButtonTitleForTesting: String? {
+        if #available(iOS 15.0, *) {
+            return baseLabelTraceButton.configuration?.title
+        }
+        return baseLabelTraceButton.title(for: .normal)
+    }
+
+    var baseLabelTraceStatusTextForTesting: String? {
+        baseLabelTraceStatusLabel.text
     }
 
     var tilesStatusTextForTesting: String? {

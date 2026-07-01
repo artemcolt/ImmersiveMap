@@ -52,6 +52,7 @@ final class RenderPersistentContext {
     let avatarsRenderer: AvatarsRenderer
     let debugOverlayRenderer: DebugOverlayRenderer
     let tileTraceRecorder: TileTraceRecorder
+    let baseLabelTraceRecorder: BaseLabelTraceRecorder
     let tileLoadingStatusReporter: TileLoadingStatusReporter?
 
     private var nightLightsMetadataTask: Task<Void, Never>?
@@ -63,10 +64,12 @@ final class RenderPersistentContext {
          providerRuntime: ImmersiveMapProviderRuntimeContext,
          config: ImmersiveMapSettings,
          eventSink: RenderFrameEventSink,
-         tileTraceRecorder: TileTraceRecorder) {
+         tileTraceRecorder: TileTraceRecorder,
+         baseLabelTraceRecorder: BaseLabelTraceRecorder) {
         let metal = RendererSetup.buildMetal(layer: layer)
         self.metalContext = metal
         self.tileTraceRecorder = tileTraceRecorder
+        self.baseLabelTraceRecorder = baseLabelTraceRecorder
         self.tileLoadingStatusReporter = config.debug.enableDebugPanel ? TileLoadingStatusReporter() : nil
 
         self.extrudedDepthState = metal.device.makeDepthStencilState(descriptor: Self.makeSceneDepthDescriptor())!
