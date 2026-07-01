@@ -871,15 +871,12 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                      baseProjection: TilePointScreenProjectionResult,
                                      currentBaseAlphas: [Float],
                                      horizonReservationSignature: [Int]) -> VisibilityCycle {
-        var baseCollisionCandidates = BaseLabelVisibilityResolver.collisionCandidates(
+        let baseCollisionCandidates = BaseLabelVisibilityResolver.collisionCandidates(
             baseCandidates: baseLabelCache.labelCollisionAABBInputs,
             screenPoints: baseProjection.screenPoints,
             horizonVisibility: baseProjection.horizonVisibility,
             currentAlphas: currentBaseAlphas
         )
-        for index in baseCollisionCandidates.indices {
-            baseCollisionCandidates[index].groupId = 0
-        }
 
         let roadPreparation = prepareRoadInstances(frameContext: frameContext,
                                                    projectionIndexState: frameContext.sharedState.tileProjectionIndexState)

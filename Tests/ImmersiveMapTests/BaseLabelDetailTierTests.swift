@@ -177,9 +177,10 @@ final class BaseLabelDetailTierTests: XCTestCase {
 
         XCTAssertEqual(candidates[0].stableOrderKey, 10)
         XCTAssertEqual(candidates[0].groupId, 10)
-        XCTAssertNotEqual(candidates[0].sortPriority, Int.max)
+        XCTAssertEqual(candidates[0].sortPriority, 0)
         XCTAssertEqual(candidates[1].stableOrderKey, 11)
         XCTAssertEqual(candidates[1].groupId, 11)
+        XCTAssertEqual(candidates[1].sortPriority, 1)
     }
 
     func testSourceEntryHashesKeepTierChangesScopedToBaseLabels() throws {
