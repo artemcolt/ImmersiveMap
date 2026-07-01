@@ -238,6 +238,67 @@ final class VisibilityCycleTests: XCTestCase {
         XCTAssertEqual(cycle.baseCollisionVisibility, [.hidden, .visible])
     }
 
+    func testOffscreenBaseGroupIsHidden() {
+        let offscreen = makeBaseGroup(index: 0,
+                                      position: SIMD2<Float>(-40, 50),
+                                      priority: 0)
+        var cycle = VisibilityCycle(topologyGeneration: 0,
+                                    cameraFingerprint: 10,
+                                    horizonReservationSignature: [],
+                                    viewportSize: SIMD2<Float>(200, 200),
+                                    baseCount: 1,
+                                    roadCount: 0,
+                                    groups: [offscreen],
+                                    cellSizePx: 32)
+
+        cycle.processNextGroups(maxGroupCount: 1)
+
+        XCTAssertEqual(cycle.baseCollisionVisibility, [.hidden])
+    }
+
+    func testOffscreenSeededBaseGroupIsHidden() {
+        let offscreen = makeBaseGroup(index: 0,
+                                      position: SIMD2<Float>(-40, 50),
+                                      priority: 0)
+        var cycle = VisibilityCycle(topologyGeneration: 0,
+                                    cameraFingerprint: 10,
+                                    horizonReservationSignature: [],
+                                    viewportSize: SIMD2<Float>(200, 200),
+                                    baseCount: 1,
+                                    roadCount: 0,
+                                    groups: [offscreen],
+                                    seededGroups: [offscreen],
+                                    cellSizePx: 32)
+
+        cycle.processNextGroups(maxGroupCount: 1)
+
+        XCTAssertEqual(cycle.baseCollisionVisibility, [.hidden])
+    }
+
+    func testOffscreenSeededGroupDoesNotBlockOnscreenGroup() {
+        let offscreen = makeBaseGroup(index: 0,
+                                      position: SIMD2<Float>(-40, 50),
+                                      priority: 0,
+                                      groupId: 100)
+        let onscreen = makeBaseGroup(index: 1,
+                                     position: SIMD2<Float>(50, 50),
+                                     priority: 0,
+                                     groupId: 200)
+        var cycle = VisibilityCycle(topologyGeneration: 0,
+                                    cameraFingerprint: 10,
+                                    horizonReservationSignature: [],
+                                    viewportSize: SIMD2<Float>(200, 200),
+                                    baseCount: 2,
+                                    roadCount: 0,
+                                    groups: [onscreen],
+                                    seededGroups: [offscreen],
+                                    cellSizePx: 32)
+
+        cycle.processNextGroups(maxGroupCount: 1)
+
+        XCTAssertEqual(cycle.baseCollisionVisibility, [.hidden, .visible])
+    }
+
     func testOverlappingSeededEqualRankGroupsResolveToOneDeterministicWinner() {
         let first = makeBaseGroup(index: 0,
                                   position: SIMD2<Float>(50, 50),

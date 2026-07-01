@@ -1573,6 +1573,10 @@ struct VisibilityCycle {
             covered.append((placed, cells))
         }
 
+        guard covered.isEmpty == false else {
+            applyRejected(group.target)
+            return
+        }
         remove(targets: targetsToEvict)
         for target in targetsToEvict {
             applyRejected(target)
@@ -1610,6 +1614,10 @@ struct VisibilityCycle {
             covered.append((placed, cells))
         }
 
+        guard covered.isEmpty == false else {
+            applyRejected(group.target)
+            return
+        }
         for item in covered {
             insert(item.candidate, cells: item.cells)
         }
