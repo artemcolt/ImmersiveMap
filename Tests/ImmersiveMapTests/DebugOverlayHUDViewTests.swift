@@ -45,6 +45,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: true)
         view.apply(snapshot: makeSnapshot(settings: settings, atlasPages: []))
@@ -81,6 +82,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: true)
         view.apply(snapshot: makeSnapshot(settings: settings, atlasPages: []))
@@ -91,6 +93,46 @@ final class DebugOverlayHUDViewTests: XCTestCase {
         XCTAssertTrue(view.isBaseLabelTraceControlVisibleForTesting)
     }
 
+    func testBaseLabelsTabDisplaysRoadLabelTilesControl() {
+        let view = DebugOverlayHUDView()
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: false,
+                                                         wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: true,
+                                                         terrainEnabled: true),
+                   earthSceneEnabled: true)
+        view.apply(snapshot: makeSnapshot(settings: settings, atlasPages: []))
+
+        view.simulateBaseLabelsTabSelectionForTesting()
+        view.layoutIfNeeded()
+
+        XCTAssertTrue(view.isRoadLabelTilesControlVisibleForTesting)
+        XCTAssertTrue(view.isRoadLabelTilesSwitchOnForTesting)
+    }
+
+    func testRoadLabelTilesControlInvokesCallbackAndReflectsState() {
+        let view = DebugOverlayHUDView()
+        var didChange: Bool?
+        view.onRoadLabelTilesEnabledChanged = { didChange = $0 }
+
+        view.apply(isDebugPanelEnabled: true,
+                   controls: DebugOverlayControlSnapshot(axesEnabled: false,
+                                                         tileLayersEnabled: false,
+                                                         wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
+                                                         terrainEnabled: true),
+                   earthSceneEnabled: true)
+        view.simulateBaseLabelsTabSelectionForTesting()
+        view.layoutIfNeeded()
+        view.simulateRoadLabelTilesSwitchChangeForTesting(true)
+
+        XCTAssertEqual(didChange, true)
+        XCTAssertTrue(view.isRoadLabelTilesSwitchOnForTesting)
+    }
+
     func testAtlasTabDisplaysAtlasSnapshotPages() {
         let view = DebugOverlayHUDView()
         var settings = ImmersiveMapSettings.default.debug
@@ -99,6 +141,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: true)
         view.apply(snapshot: DebugOverlayHUDSnapshot(
@@ -143,6 +186,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: true,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: true)
         view.apply(snapshot: makeSnapshot(settings: settings, atlasPages: []))
@@ -164,6 +208,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: true,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: true)
         view.apply(snapshot: DebugOverlayHUDSnapshot(
@@ -214,6 +259,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: true,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: true)
         view.apply(snapshot: DebugOverlayHUDSnapshot(
@@ -468,6 +514,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: false)
         view.simulateEarthSceneSwitchForTesting(true)
@@ -485,6 +532,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: true)
         view.simulateControlsTabSelectionForTesting()
@@ -503,6 +551,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: true)
         view.apply(snapshot: makeSnapshot(settings: settings,
@@ -523,6 +572,7 @@ final class DebugOverlayHUDViewTests: XCTestCase {
                    controls: DebugOverlayControlSnapshot(axesEnabled: false,
                                                          tileLayersEnabled: false,
                                                          wireframeEnabled: false,
+                                                         roadLabelTilesEnabled: false,
                                                          terrainEnabled: true),
                    earthSceneEnabled: true)
         view.apply(snapshot: makeSnapshot(settings: settings,

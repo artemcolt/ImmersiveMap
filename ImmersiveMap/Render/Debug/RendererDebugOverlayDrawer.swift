@@ -27,6 +27,16 @@ enum RendererDebugOverlayDrawer {
                                                  frameContext: frameContext,
                                                  placeTiles: frameContext.sharedState.placeTileTrackingState.placeTiles)
         }
+        if controls.roadLabelTilesEnabled {
+            let activeTiles = Set(frameContext.sharedState.roadLabelState.activeRoadLabelTiles)
+            let roadLabelPlaceTiles = frameContext.sharedState.placeTileTrackingState.placeTiles.filter { placeTile in
+                activeTiles.contains(placeTile.placeIn)
+            }
+            debugOverlayRenderer.drawRoadLabelTileOverlay(renderEncoder: renderEncoder,
+                                                          polygonPipeline: polygonPipeline,
+                                                          frameContext: frameContext,
+                                                          placeTiles: roadLabelPlaceTiles)
+        }
     }
 
     static func makeAtlasDebugLines(summary: GlobeAtlasDebugSummary?) -> [String] {

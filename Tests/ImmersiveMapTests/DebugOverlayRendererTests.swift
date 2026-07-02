@@ -244,6 +244,8 @@ final class DebugOverlayRendererTests: XCTestCase {
         diagnostics.setCounter(.baseLabelCount, value: 181)
         diagnostics.setCounter(.roadLabelGlyphCount, value: 0)
         diagnostics.setCounter(.roadLabelInstanceCount, value: 0)
+        diagnostics.setCounter(.roadLabelNearCameraCulledPathCount, value: 12)
+        diagnostics.setCounter(.roadLabelNearCameraCulledAnchorCount, value: 34)
         diagnostics.setCounter(.resourceBufferCount, value: 1)
         diagnostics.setCounter(.resourceTextureCount, value: 3)
         diagnostics.setCounter(.resourcePipelineCount, value: 5)
@@ -278,7 +280,7 @@ final class DebugOverlayRendererTests: XCTestCase {
             "vis:16 ready:25 req:0 draw:16",
             "",
             "[Labels]",
-            "base:181 bT:0/0/0 roadG:0 roadI:0",
+            "base:181 bT:0/0/0 roadG:0 roadI:0 roadCull:12/34",
             "",
             "[Resources]",
             "buffers:1 textures:3 pipelines:5",

@@ -48,6 +48,8 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
     private var publishedBaseCollisionVisibility: [BaseLabelCollisionVisibility] = []
     private var publishedRoadInstanceVisibility: [Bool] = []
     private var visibilityCycle: VisibilityCycle?
+    private var latestRoadLabelNearCameraCullCounts = (path: 0, anchor: 0)
+    private var latestActiveRoadRecordIndices: Set<Int>?
 
     private let roadPriorityBase: Int = 1_000_000_000
 
@@ -263,6 +265,10 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         frameContext.services.diagnostics.setCounter(.baseLabelCount, value: baseLabelCache.labelInputsCount)
         frameContext.services.diagnostics.setCounter(.roadLabelGlyphCount, value: roadState.glyphCount)
         frameContext.services.diagnostics.setCounter(.roadLabelInstanceCount, value: roadState.instanceCount)
+        frameContext.services.diagnostics.setCounter(.roadLabelNearCameraCulledPathCount,
+                                                     value: latestRoadLabelNearCameraCullCounts.path)
+        frameContext.services.diagnostics.setCounter(.roadLabelNearCameraCulledAnchorCount,
+                                                     value: latestRoadLabelNearCameraCullCounts.anchor)
     }
 
     private static func countLabelDetailTiers(_ sourceEntries: [BaseLabelSourceEntry]) -> (full: Int, reduced: Int, minimal: Int) {
@@ -307,9 +313,15 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         var drawBatches: [DrawRoadLabels] = []
         let staticBatches = frameContext.sharedState.roadLabelState.drawLabels
         let records = roadLabelCache.orderedTileRecords
+        let activeRecordIndices = latestActiveRoadRecordIndices
         drawBatches.reserveCapacity(records.count)
 
         for (index, record) in records.enumerated() {
+            if let activeRecordIndices,
+               activeRecordIndices.contains(index) == false {
+                continue
+            }
+
             guard record.pathPointCount > 0,
                   record.glyphCount > 0,
                   let pathInputsBuffer = record.pathInputsBuffer,
@@ -379,6 +391,8 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         roadPresentationStateStore.reset()
         roadOrientationByInstanceKey.removeAll(keepingCapacity: false)
         roadDrawLabels.removeAll(keepingCapacity: false)
+        latestRoadLabelNearCameraCullCounts = (path: 0, anchor: 0)
+        latestActiveRoadRecordIndices = nil
         baseSourceEntriesVersionTracker.invalidate()
         roadSourceEntriesVersionTracker.invalidate()
         projectionVersionTracker.invalidate()
@@ -895,6 +909,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                roadCount: roadLabelCache?.instanceKeys.count ?? 0,
                                groups: collisionGroups,
                                seededGroups: seededBaseGroups + seededRoadGroups,
+                               resolvedHiddenRoadIndices: roadPreparation.hiddenInstanceIndices,
                                cellSizePx: collisionGridCellSizePx)
     }
 
@@ -998,15 +1013,42 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         guard let roadLabelCache,
               frameContext.renderSurfaceMode == .flat,
               roadLabelCache.orderedTileRecords.isEmpty == false else {
-            return RoadPreparation(instances: [])
+            latestRoadLabelNearCameraCullCounts = (path: 0, anchor: 0)
+            latestActiveRoadRecordIndices = nil
+            return RoadPreparation(instances: [],
+                                   hiddenInstanceIndices: [])
         }
 
+        var nearCameraCulledPathCount = 0
         var instances: [RoadPreparedInstance] = []
+        var hiddenInstanceIndices: [Int] = []
+        var activeRecordIndices: Set<Int> = []
         instances.reserveCapacity(roadLabelCache.instanceKeys.count)
+        hiddenInstanceIndices.reserveCapacity(roadLabelCache.instanceKeys.count)
 
-        for record in roadLabelCache.orderedTileRecords {
+        let viewportWidth = Float(frameContext.drawSize.width)
+        let viewportHeight = Float(frameContext.drawSize.height)
+
+        for (recordIndex, record) in roadLabelCache.orderedTileRecords.enumerated() {
             let localVisibleTileIndices = [record.visibleTileIndex]
+            let tileCornerPoints = projectRoadRecordTileCorners(record: record,
+                                                                frameContext: frameContext,
+                                                                projectionIndexState: projectionIndexState)
+            guard RoadLabelNearCameraFilter.shouldKeepTile(cornerPoints: tileCornerPoints,
+                                                           viewportWidth: viewportWidth,
+                                                           viewportHeight: viewportHeight) else {
+                nearCameraCulledPathCount += record.entries.count
+                appendRoadRecordInstanceIndices(record: record,
+                                                into: &hiddenInstanceIndices)
+                continue
+            }
+
+            var recordHasActiveInstance = false
             for entry in record.entries {
+                guard entry.anchors.isEmpty == false else {
+                    continue
+                }
+
                 let snapshot = TilePointToScreenPointSnapshot(pointInputs: entry.pointInputs,
                                                               tileSlotVisibleTileIndices: localVisibleTileIndices)
                 let screenPoints = tilePointScreenProjector.project(snapshot: snapshot,
@@ -1021,33 +1063,46 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                 }
 
                 for anchor in entry.anchors {
-                    guard let instance = makeRoadPreparedInstance(record: record,
+                    guard let identity = makeRoadInstanceIdentity(record: record,
                                                                   entry: entry,
+                                                                  anchor: anchor) else {
+                        continue
+                    }
+                    guard let centerDistance = makeAnchorCenterDistance(anchor: anchor,
+                                                                        screenPath: screenPath) else {
+                        continue
+                    }
+
+                    guard let instance = makeRoadPreparedInstance(entry: entry,
                                                                   anchor: anchor,
-                                                                  screenPath: screenPath) else {
+                                                                  instanceKey: identity.instanceKey,
+                                                                  targetIndex: identity.targetIndex,
+                                                                  screenPath: screenPath,
+                                                                  centerDistance: centerDistance) else {
                         continue
                     }
                     instances.append(instance)
+                    recordHasActiveInstance = true
                 }
+            }
+            if recordHasActiveInstance {
+                activeRecordIndices.insert(recordIndex)
             }
         }
 
-        return RoadPreparation(instances: instances)
+        latestRoadLabelNearCameraCullCounts = (path: nearCameraCulledPathCount,
+                                               anchor: 0)
+        latestActiveRoadRecordIndices = activeRecordIndices
+        return RoadPreparation(instances: instances,
+                               hiddenInstanceIndices: hiddenInstanceIndices)
     }
 
-    private func makeRoadPreparedInstance(record: RoadLabelTileRecord,
-                                          entry: RoadLabelEntry,
+    private func makeRoadPreparedInstance(entry: RoadLabelEntry,
                                           anchor: RoadLabelAnchor,
-                                          screenPath: RoadScreenPath) -> RoadPreparedInstance? {
-        guard let centerDistance = makeAnchorCenterDistance(anchor: anchor,
-                                                            screenPath: screenPath) else {
-            return nil
-        }
-        let instanceKey = makeRoadInstanceKey(entryKey: entry.entryKey,
-                                              anchorOrdinal: anchor.anchorOrdinal)
-        guard let targetIndex = record.instanceKeys.firstIndex(of: instanceKey).map({ record.instanceStart + $0 }) else {
-            return nil
-        }
+                                          instanceKey: UInt64,
+                                          targetIndex: Int,
+                                          screenPath: RoadScreenPath,
+                                          centerDistance: Float) -> RoadPreparedInstance? {
         let orientation = chooseOrientation(entry: entry,
                                             centerDistance: centerDistance,
                                             screenPath: screenPath,
@@ -1093,6 +1148,37 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                     targetIndex: targetIndex,
                                     collisionCandidates: collisionCandidates,
                                     placements: placements)
+    }
+
+    private func appendRoadRecordInstanceIndices(record: RoadLabelTileRecord,
+                                                 into indices: inout [Int]) {
+        guard record.instanceKeys.isEmpty == false else {
+            return
+        }
+
+        indices.append(contentsOf: record.instanceStart..<(record.instanceStart + record.instanceKeys.count))
+    }
+
+    private func projectRoadRecordTileCorners(record: RoadLabelTileRecord,
+                                              frameContext: FrameContext,
+                                              projectionIndexState: TileProjectionIndexState) -> [ScreenPointOutput] {
+        let snapshot = TilePointToScreenPointSnapshot(pointInputs: RoadLabelNearCameraFilter.makeTileCornerInputs(tile: record.ownerKey),
+                                                      tileSlotVisibleTileIndices: [record.visibleTileIndex])
+        return tilePointScreenProjector.project(snapshot: snapshot,
+                                                frameContext: frameContext,
+                                                tileOriginData: projectionIndexState.tileOriginData)
+    }
+
+    private func makeRoadInstanceIdentity(record: RoadLabelTileRecord,
+                                          entry: RoadLabelEntry,
+                                          anchor: RoadLabelAnchor) -> (instanceKey: UInt64, targetIndex: Int)? {
+        let instanceKey = makeRoadInstanceKey(entryKey: entry.entryKey,
+                                              anchorOrdinal: anchor.anchorOrdinal)
+        guard let localIndex = record.instanceKeys.firstIndex(of: instanceKey) else {
+            return nil
+        }
+        return (instanceKey: instanceKey,
+                targetIndex: record.instanceStart + localIndex)
     }
 
     private func chooseOrientation(entry: RoadLabelEntry,
@@ -1192,6 +1278,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                                                                       fadeOutSeconds: fadeOutSeconds)
 
         let frameSlotIndex = frameContext.frameSlotIndex
+        let activeRoadLabelTiles = makeActiveRoadLabelTiles(records: roadLabelCache.orderedTileRecords)
         var aggregatedRuntimeMeta: [LabelRuntimeMeta] = []
         aggregatedRuntimeMeta.reserveCapacity(roadLabelCache.instanceKeys.count)
         var drawBatches: [DrawRoadLabels] = []
@@ -1237,6 +1324,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
         roadDrawLabels = drawBatches
         return RoadLabelState(instanceCount: roadLabelCache.instanceKeys.count,
                               glyphCount: totalGlyphCount,
+                              activeRoadLabelTiles: activeRoadLabelTiles,
                               runtimeMetaBuffer: runtimeMetaBuffer,
                               placementBuffer: nil,
                               glyphInputBuffer: drawBatches.first?.glyphInputBuffer,
@@ -1244,6 +1332,18 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
                               glyphVertexCount: drawBatches.first?.localGlyphVertexCount ?? 0,
                               drawLabels: drawBatches,
                               hasActiveFadeAnimations: fadeResolution.hasActiveAnimations)
+    }
+
+    private func makeActiveRoadLabelTiles(records: [RoadLabelTileRecord]) -> [VisibleTile] {
+        guard records.isEmpty == false else {
+            return []
+        }
+        guard let latestActiveRoadRecordIndices else {
+            return records.map(\.ownerKey)
+        }
+        return records.enumerated().compactMap { index, record in
+            latestActiveRoadRecordIndices.contains(index) ? record.ownerKey : nil
+        }
     }
 
     private func upload<T>(values: [T], into buffer: MTLBuffer) {
@@ -1418,6 +1518,7 @@ final class BaseLabelPrepareSubsystem: RenderSubsystem {
 
 private struct RoadPreparation {
     let instances: [RoadPreparedInstance]
+    let hiddenInstanceIndices: [Int]
 }
 
 enum VisibilityCollisionTarget: Hashable {
@@ -1512,6 +1613,7 @@ struct VisibilityCycle {
          roadCount: Int,
          groups: [VisibilityCollisionGroup],
          seededGroups: [VisibilityCollisionGroup] = [],
+         resolvedHiddenRoadIndices: [Int] = [],
          cellSizePx: Float) {
         self.topologyGeneration = topologyGeneration
         self.cameraFingerprint = cameraFingerprint
@@ -1524,6 +1626,9 @@ struct VisibilityCycle {
         self.roadInstanceVisibility = Array(repeating: false, count: roadCount)
         self.roadInstanceVisibilityResolved = Array(repeating: false, count: roadCount)
         self.gridBuckets = Array(repeating: [], count: max(1, self.gridWidth * self.gridHeight))
+        for index in resolvedHiddenRoadIndices where index >= 0 && index < roadInstanceVisibilityResolved.count {
+            self.roadInstanceVisibilityResolved[index] = true
+        }
         seedGroups(seededGroups)
     }
 

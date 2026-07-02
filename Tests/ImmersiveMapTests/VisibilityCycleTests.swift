@@ -60,6 +60,21 @@ final class VisibilityCycleTests: XCTestCase {
         XCTAssertFalse(cycle.isComplete)
     }
 
+    func testResolvedHiddenRoadIndicesAreMarkedResolvedOnInit() {
+        let cycle = VisibilityCycle(topologyGeneration: 0,
+                                    cameraFingerprint: 10,
+                                    horizonReservationSignature: [],
+                                    viewportSize: SIMD2<Float>(200, 200),
+                                    baseCount: 0,
+                                    roadCount: 3,
+                                    groups: [],
+                                    resolvedHiddenRoadIndices: [1],
+                                    cellSizePx: 32)
+
+        XCTAssertEqual(cycle.roadInstanceVisibility, [false, false, false])
+        XCTAssertEqual(cycle.roadInstanceVisibilityResolved, [false, true, false])
+    }
+
     func testMergingPartialBaseCollisionVisibilityKeepsPreviousForUnknown() {
         let result = BaseLabelPrepareSubsystem.mergedBaseCollisionVisibility(
             current: [.visible, .hidden, .visible],

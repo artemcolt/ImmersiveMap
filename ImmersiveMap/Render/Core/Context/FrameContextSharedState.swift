@@ -111,6 +111,7 @@ struct BaseLabelState {
 struct RoadLabelState {
     static let empty = RoadLabelState(instanceCount: 0,
                                       glyphCount: 0,
+                                      activeRoadLabelTiles: [],
                                       runtimeMetaBuffer: nil,
                                       placementBuffer: nil,
                                       glyphInputBuffer: nil,
@@ -121,6 +122,7 @@ struct RoadLabelState {
 
     var instanceCount: Int
     var glyphCount: Int
+    var activeRoadLabelTiles: [VisibleTile]
     var runtimeMetaBuffer: MTLBuffer?
     var placementBuffer: MTLBuffer?
     var glyphInputBuffer: MTLBuffer?

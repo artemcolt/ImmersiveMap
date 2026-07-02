@@ -20,7 +20,7 @@ enum RenderDebugOverlayPolicy {
         guard settings.enableDebugPanel else {
             return false
         }
-        guard controls.axesEnabled || controls.tileLayersEnabled else {
+        guard controls.axesEnabled || controls.tileLayersEnabled || controls.roadLabelTilesEnabled else {
             return false
         }
         #if DEBUG

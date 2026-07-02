@@ -21,6 +21,8 @@ final class FrameDiagnostics: FrameDiagnosticsService {
         case baseLabelMinimalTileCount
         case roadLabelGlyphCount
         case roadLabelInstanceCount
+        case roadLabelNearCameraCulledPathCount
+        case roadLabelNearCameraCulledAnchorCount
         case resourceBufferCount
         case resourceTextureCount
         case resourcePipelineCount
@@ -99,7 +101,7 @@ final class FrameDiagnostics: FrameDiagnosticsService {
         let encodeMs = (stageDurations[.encodePasses] ?? 0) * 1000.0
         let presentMs = (stageDurations[.presentFrame] ?? 0) * 1000.0
         let tileSummary = "tiles v:\(counterValue(.visibleTiles)) r:\(counterValue(.readyTiles)) q:\(counterValue(.requestedTiles))"
-        let labelSummary = "labels b:\(counterValue(.baseLabelCount)) rg:\(counterValue(.roadLabelGlyphCount))"
+        let labelSummary = "labels b:\(counterValue(.baseLabelCount)) rg:\(counterValue(.roadLabelGlyphCount)) rc:\(counterValue(.roadLabelNearCameraCulledPathCount))/\(counterValue(.roadLabelNearCameraCulledAnchorCount))"
         let globeSummary = "globeCull ms:\(String(format: "%.2f", measurementValue(.globeCullingDurationMs))) n:\(counterValue(.globeCullingVisitedNodes)) f:\(counterValue(.globeCullingFrustumRejects)) h:\(counterValue(.globeCullingHorizonRejects)) l:\(counterValue(.globeCullingAcceptedLeafTiles)) a:\(counterValue(.globeCullingAcceptedWholeSubtrees))"
         let metalPassSummary = metalPassDurations
             .sorted { $0.key.rawValue < $1.key.rawValue }

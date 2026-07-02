@@ -31,6 +31,7 @@ final class DebugOverlayRenderer {
     private let tileLabelStrokeColor = SIMD3<Float>(0.0, 0.0, 0.0)
     private let tileLabelStrokeWidthPx: Float = 5.0
     private let tileOutlineColor = SIMD4<Float>(1.0, 0.95, 0.2, 0.95)
+    private let roadLabelTileOutlineColor = SIMD4<Float>(0.0, 0.85, 1.0, 0.95)
     private static let tileWatermarkUVs = makeTileWatermarkUVs()
 
     init(metalDevice: MTLDevice,
@@ -152,6 +153,33 @@ final class DebugOverlayRenderer {
         }
     }
 
+    func drawRoadLabelTileOverlay(renderEncoder: MTLRenderCommandEncoder,
+                                  polygonPipeline: PolygonsPipeline,
+                                  frameContext: FrameContext,
+                                  placeTiles: [PlaceTile]) {
+        guard placeTiles.isEmpty == false else { return }
+
+        lineVerticesScratch.removeAll(keepingCapacity: true)
+        lineVerticesScratch.reserveCapacity(placeTiles.count * 64)
+
+        let outlineSegments = Self.makeTileOverlaySegments(segmentCountPerEdge: frameContext.screenSpaceProjectionMode == .flat ? 1 : 8)
+        for placeTile in placeTiles {
+            appendTileOutlineVertices(into: &lineVerticesScratch,
+                                      placeTile: placeTile,
+                                      outlineSegments: outlineSegments,
+                                      frameContext: frameContext,
+                                      color: roadLabelTileOutlineColor)
+        }
+
+        if lineVerticesScratch.isEmpty == false {
+            drawLineVertices(renderEncoder: renderEncoder,
+                             polygonPipeline: polygonPipeline,
+                             screenMatrix: frameContext.cameraMatrices.screen,
+                             frameSlotIndex: frameContext.frameSlotIndex,
+                             vertices: lineVerticesScratch)
+        }
+    }
+
     private func drawTextEntries(renderEncoder: MTLRenderCommandEncoder,
                                  textRenderer: TextRenderer,
                                  screenMatrix: matrix_float4x4,
@@ -233,7 +261,9 @@ final class DebugOverlayRenderer {
             "\(diagnostics.counterValue(.baseLabelReducedTileCount))/" +
             "\(diagnostics.counterValue(.baseLabelMinimalTileCount)) " +
             "roadG:\(diagnostics.counterValue(.roadLabelGlyphCount)) " +
-            "roadI:\(diagnostics.counterValue(.roadLabelInstanceCount))"
+            "roadI:\(diagnostics.counterValue(.roadLabelInstanceCount)) " +
+            "roadCull:\(diagnostics.counterValue(.roadLabelNearCameraCulledPathCount))/" +
+            "\(diagnostics.counterValue(.roadLabelNearCameraCulledAnchorCount))"
         appendSection(title: "Labels", body: [labelLine], into: &lines)
 
         let resourcesLine = "buffers:\(diagnostics.counterValue(.resourceBufferCount)) " +

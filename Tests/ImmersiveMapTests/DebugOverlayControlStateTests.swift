@@ -34,6 +34,25 @@ final class DebugOverlayControlStateTests: XCTestCase {
         XCTAssertFalse(snapshot.terrainEnabled)
     }
 
+    func testSetRoadLabelTilesEnabledUpdatesSnapshot() {
+        let controls = DebugOverlayControlState()
+
+        controls.setRoadLabelTilesEnabled(true)
+
+        XCTAssertTrue(controls.snapshot().roadLabelTilesEnabled)
+    }
+
+    func testRoadLabelTilesDebugRequiresMetalDebugPass() {
+        var settings = ImmersiveMapSettings.default.debug
+        settings.enableDebugPanel = true
+        let controls = DebugOverlayControlState()
+
+        controls.setRoadLabelTilesEnabled(true)
+
+        XCTAssertTrue(RenderDebugOverlayPolicy.shouldEncode(settings,
+                                                            controls: controls.snapshot()))
+    }
+
     func testTerrainOnlyToggleDoesNotRequireMetalDebugPass() {
         var settings = ImmersiveMapSettings.default.debug
         settings.enableDebugPanel = true
